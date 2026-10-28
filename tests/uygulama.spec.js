@@ -388,6 +388,63 @@ test('çizimden çıkınca eksen ve yapı çizgileri görünmez', async ({ page 
   expect(errors).toEqual([]);
 });
 
+test('budama: teğet ve yay ucundaki kesişimler bulunur, ölçüler kalan parçaya geçer; çoğaltma konturu kapatır', async ({ page }) => {
+  // Ø813 dört kanatlı yıldızın yarım kanadı sıfırdan çizilir (tasarımcının yapacağı sırayla)
+  const errors = await openApp(page);
+  await newSketch(page);
+  const r = await page.evaluate(() => {
+    const T = __tz, f = T.sk.feat; T.sk.px = 1;
+    Object.assign(f.pts, { p1: { x: 0, y: 450 }, p2: { x: 0, y: -450 }, p3: { x: -700, y: 0 }, p4: { x: 450, y: 0 }, p5: { x: -641, y: 0 }, p6: { x: -330, y: 113 },
+      p7: { x: -356.7, y: 147.5 }, p8: { x: -380, y: 380 }, p9: { x: -340, y: 110 }, p10: { x: -110, y: 340 } });
+    f.ents.push({ id: 'e1', t: 'line', a: 'p1', b: 'p2', cons: true }, { id: 'e2', t: 'line', a: 'p3', b: 'p4', cons: true },
+      { id: 'e3', t: 'circle', c: 'O', r: 410 }, { id: 'e4', t: 'circle', c: 'O', r: 381, cons: true }, { id: 'e5', t: 'line', a: 'p5', b: 'p6' },
+      { id: 'e6', t: 'circle', c: 'p7', r: 40 }, { id: 'e7', t: 'line', a: 'O', b: 'p8', cons: true }, { id: 'e8', t: 'line', a: 'p9', b: 'p10' });
+    f.cons.push({ id: 'c1', t: 'v', p: 'O', q: 'p1' }, { id: 'c2', t: 'v', e: 'e1' }, { id: 'c3', t: 'h', p: 'O', q: 'p3' }, { id: 'c4', t: 'h', e: 'e2' },
+      { id: 'c5', t: 'ddia', e: 'e3', val: 813, lp: [500, 500] }, { id: 'c6', t: 'ddia', e: 'e4', val: 772, lp: [-500, -480] }, { id: 'c7', t: 'pol', p: 'p5', e: 'e2' },
+      { id: 'c8', t: 'poc', p: 'p7', e: 'e4' }, { id: 'c9', t: 'tan', e1: 'e5', e2: 'e6' }, { id: 'c10', t: 'ddia', e: 'e6', val: 82.4, lp: [-470, 200] },
+      { id: 'c11', t: 'dang', e1: 'e5', e2: 'e2', r1: false, r2: false, val: 20, lp: [-450, 30] }, { id: 'c12', t: 'dpl', p: 'p7', e: 'e2', val: 147.5, lp: [-420, 80] },
+      { id: 'c13', t: 'dang', e1: 'e7', e2: 'e1', r1: false, r2: true, val: 45, lp: [-60, 150] }, { id: 'c14', t: 'perp', e1: 'e8', e2: 'e7' },
+      { id: 'c15', t: 'dpl', p: 'O', e: 'e8', val: 318.5, lp: [-100, 100] });
+    T.solveSketch(f);
+    // istenen yarım kanat: Ø813 yayı (eksen–yan kenar), yan kenar (Ø813–teğet nokta), R41,2 (teğet nokta–çapraz kenar), çapraz kenar (R41,2–45° ekseni)
+    const P = id => id === 'O' ? [0, 0] : [f.pts[id].x, f.pts[id].y];
+    const deg = (p, c) => (Math.atan2(p[1] - c[1], p[0] - c[0]) * 180 / Math.PI + 360) % 360;
+    const at = (e, k) => { if (e.t === 'line') { const a = P(e.a), b = P(e.b); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k] }
+      const c = P(e.c), rr = e.t === 'circle' ? e.r : Math.hypot(P(e.a)[0] - c[0], P(e.a)[1] - c[1]);
+      let a0 = 0.3, sw = 2 * Math.PI; if (e.t === 'arc') { a0 = Math.atan2(P(e.a)[1] - c[1], P(e.a)[0] - c[0]); sw = Math.atan2(P(e.b)[1] - c[1], P(e.b)[0] - c[0]) - a0; while (sw <= 0) sw += 2 * Math.PI }
+      return [c[0] + rr * Math.cos(a0 + sw * k), c[1] + rr * Math.sin(a0 + sw * k)] };
+    const keep = (e, m) => { if (e.t !== 'line') { const c = P(e.c); const a = deg(m, c); return e.c === 'O' ? a > 167.3 && a < 180 : a > 290 && a < 337.6 }
+      const a = P(e.a), b = P(e.b); const d = Math.abs(Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI) % 180;
+      return Math.abs(d - 20) < 2 || Math.abs(d - 160) < 2 ? m[0] > -396.6 && m[0] < -342.6 : m[0] > -318.6 && m[0] < -225.2 };
+    const ks = [0.1, 0.3, 0.5, 0.7, 0.9];
+    T.setTool('trim');
+    for (let i = 0; i < 40; i++) {
+      let hit = null; for (const e of f.ents) if (!e.cons) { const k = ks.find(k => !keep(e, at(e, k))); if (k !== undefined) { hit = at(e, k); break } }
+      if (!hit) break; T.toolClick(hit[0], hit[1]);
+    }
+    T.setTool(null);
+    const profile = f.ents.filter(e => !e.cons);
+    const half = { n: profile.length, open: T.sk.issues.open.length, kept: ['c5', 'c9', 'c10', 'c15'].filter(id => f.cons.some(c => c.id === id)).length };
+    // yatay eksene aynala, orijin etrafında 4'lü dairesel çoğalt
+    T.selectItems([...profile.map(e => ({ k: 'ent', id: e.id })), { k: 'ent', id: 'e2' }]); T.setSkOp('mirror'); T.applySkOp();
+    T.selectItems(f.ents.filter(e => !e.cons).map(e => ({ k: 'ent', id: e.id }))); T.setSkOp('cpat'); T.sk.op.n = 4; T.applySkOp();
+    return { half, n: f.ents.filter(e => !e.cons).length, issues: T.sk.issues.n, dof: T.sk.an.dof };
+  });
+  expect(r.half).toEqual({ n: 4, open: 2, kept: 4 }); // iki uç eksenlerde açık, ölçüler kaybolmadı
+  expect(r.n).toBe(32);
+  expect(r.issues).toBe(0); // komşu kanatların uçları birleşti
+  const x = await page.evaluate(extrudeJS);
+  expect(x.err).toEqual({});
+  // ölçü değişince sekiz yarım kanat birlikte güncellenir
+  const u = await page.evaluate(() => {
+    const T = __tz; T.editSketch(T.state.features[0].id); const f = T.sk.feat; T.setDimVal('c5', 830);
+    const P = id => id === 'O' ? { x: 0, y: 0 } : f.pts[id];
+    return [...new Set(f.ents.filter(e => e.t === 'arc' && e.c === 'O' && !e.cons).map(e => Math.hypot(P(e.a).x, P(e.a).y).toFixed(3)))];
+  });
+  expect(u).toEqual(['415.000']);
+  expect(errors).toEqual([]);
+});
+
 test('çizim düzenlenirken onu kullanan özellik gizlenir, koyu temada gövde koyulaşır', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
   const errors = await openApp(page);

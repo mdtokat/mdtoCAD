@@ -1,6 +1,10 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Düzeltme (Budama): teğet noktalar ve yay uçlarındaki kesişimler artık bulunuyor. Önceden teğet bir çizgiyi veya yayı budamak, kesişim kaçırıldığı için öğeyi bütünüyle silebiliyordu.
+- Düzeltme (Budama): bir parça bütünüyle budanınca ölçü ve ilişkileri (çap, teğet, mesafe…) aynı öğeden kalan parçaya geçer; yay ortadan bölününce iki parça eşit yarıçapla bağlanır. Budama imlecin altında yapı çizgisi de varsa profil öğesini seçer.
+- Düzeltme (çözücü): ortak uç noktasındaki teğetlik birinci dereceden yazılır. Önceden serbestlik derecesi bir fazla hesaplanıyordu; bu yüzden Tam Tanımla fazladan bir uzunluk ölçüsü ekliyor, sonra ölçü değiştirmek çizimi çözülemez hâle getiriyordu.
+- Düzeltme: aynalama ve çizim çoğaltma kopyaları var olan bir noktaya düşerse o noktayı kullanır; komşu kanatların uçları birleşir, kontur kendiliğinden kapanır.
 - Çizim: bir öğenin üstüne tıklanınca çakışıklık artık daire çevresinde (çevre o noktadan geçer, bağlantı noktası kalır), merkez nokta yayın bitişinde (bitiş kesişime oturur, diğer öğeler kaymaz) ve çokgenin ilk köşesinde de otomatik eklenir.
 - Sayı girişleri (ölçüler ve tüm sayısal alanlar) dört işlemi ve parantezi kabul eder: `800/2` → 400, `5+(20+2)*3` → 71.
 - Çizim: yeni çizimde ilk ölçü girilince görünüm çizimin gerçek boyutuna göre yakınlaşır/uzaklaşır; tekerlek yakınlaştırma sınırları çizimin boyutunu da hesaba katar.

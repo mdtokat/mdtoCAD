@@ -249,7 +249,7 @@ function skPointerMove(e){
   }
   if(!sk.tool||sk.tool==='smartdim'||sk.tool==='sfillet'){const h=skHit(q,tol);const k=h?h.k+':'+h.id:null;if(k!==sk.hover){sk.hover=k}}
   else sk.hover=null;
-  if(sk.tool==='trim'){let best=null,bd=tol;for(const x of sk.feat.ents){const [d]=entDist(x,q);if(d<bd){bd=d;best=x}}sk.hover=best?'ent:'+best.id:null}
+  if(sk.tool==='trim'){const best=trimPick(sk.feat,q,tol);sk.hover=best?'ent:'+best.id:null}
   if(sk.tool==='arc'&&sk.st.c&&sk.st.a){const c=P2(sk.st.c);const ang=Math.atan2(q[1]-c[1],q[0]-c[0]);if(sk.st.last!==undefined){let d=ang-sk.st.last;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;sk.st.acc=(sk.st.acc||0)+d}sk.st.last=ang}
   sk.dirty=true;
 }

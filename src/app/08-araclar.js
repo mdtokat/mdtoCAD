@@ -177,27 +177,38 @@ function entParamPt(f,e,q){ // tıklanan noktanın öğe üzerindeki parametresi
 }
 function intersectEnts(f,e,o){
   const out=[];const P=P2;
-  const lineLine=(a,b,c,d)=>{const r=[b[0]-a[0],b[1]-a[1]],s=[d[0]-c[0],d[1]-c[1]];const den=r[0]*s[1]-r[1]*s[0];if(Math.abs(den)<1e-12)return [];const t=((c[0]-a[0])*s[1]-(c[1]-a[1])*s[0])/den,u=((c[0]-a[0])*r[1]-(c[1]-a[1])*r[0])/den;if(u<-1e-9||u>1+1e-9)return [];return [[a[0]+r[0]*t,a[1]+r[1]*t]]};
-  const lineCirc=(a,b,C,R)=>{const d=[b[0]-a[0],b[1]-a[1]],f_=[a[0]-C[0],a[1]-C[1]];const A=d[0]*d[0]+d[1]*d[1],B=2*(f_[0]*d[0]+f_[1]*d[1]),Cc=f_[0]*f_[0]+f_[1]*f_[1]-R*R;const disc=B*B-4*A*Cc;if(disc<0)return [];const sq=Math.sqrt(disc);return [(-B-sq)/(2*A),(-B+sq)/(2*A)].map(t=>[a[0]+d[0]*t,a[1]+d[1]*t])};
-  const circCirc=(c1,r1,c2,r2)=>{const dx=c2[0]-c1[0],dy=c2[1]-c1[1],d=Math.hypot(dx,dy);if(d<1e-9||d>r1+r2+1e-9||d<Math.abs(r1-r2)-1e-9)return [];const a=(r1*r1-r2*r2+d*d)/(2*d),h=Math.sqrt(Math.max(0,r1*r1-a*a));const xm=c1[0]+a*dx/d,ym=c1[1]+a*dy/d;return [[xm+h*dy/d,ym-h*dx/d],[xm-h*dy/d,ym+h*dx/d]]};
-  const onEnt=(en,p)=>{if(en.t==='line'){const a=P(en.a),b=P(en.b);const dx=b[0]-a[0],dy=b[1]-a[1];const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1);return t>-1e-9&&t<1+1e-9}if(en.t==='circle')return true;const A=arcInfo(f,en);let da=Math.atan2(p[1]-A.c.y,p[0]-A.c.x)-A.a0;while(da<0)da+=Math.PI*2;return da<=A.sw+1e-9};
+  // tolerans çizim ölçeğine göre: çözücünün bıraktığı küçük hatalar teğet ve uç noktalarındaki kesişimi kaybettirmesin
+  const pts=[e,o].flatMap(x=>[x.a,x.b,x.c].filter(Boolean).map(P));const tol=1e-7*(1+Math.max(...pts.map(p=>Math.abs(p[0])+Math.abs(p[1]))));
+  const lineLine=(a,b,c,d)=>{const r=[b[0]-a[0],b[1]-a[1]],s=[d[0]-c[0],d[1]-c[1]];const den=r[0]*s[1]-r[1]*s[0];if(Math.abs(den)<1e-12)return [];const t=((c[0]-a[0])*s[1]-(c[1]-a[1])*s[0])/den;return [[a[0]+r[0]*t,a[1]+r[1]*t]]};
+  // teğet durumda (merkezin doğruya uzaklığı ≈ R) tek nokta: dikme ayağı
+  const lineCirc=(a,b,C,R)=>{const d=[b[0]-a[0],b[1]-a[1]],L=Math.hypot(d[0],d[1]);if(L<1e-12)return [];const u=[d[0]/L,d[1]/L];
+    const t0=(C[0]-a[0])*u[0]+(C[1]-a[1])*u[1];const F=[a[0]+u[0]*t0,a[1]+u[1]*t0];const h=Math.hypot(C[0]-F[0],C[1]-F[1]);
+    if(h>R+tol)return [];if(h>R-tol)return [F];const k=Math.sqrt(R*R-h*h);return [[F[0]-u[0]*k,F[1]-u[1]*k],[F[0]+u[0]*k,F[1]+u[1]*k]]};
+  const circCirc=(c1,r1,c2,r2)=>{const dx=c2[0]-c1[0],dy=c2[1]-c1[1],d=Math.hypot(dx,dy);if(d<1e-9||d>r1+r2+tol||d<Math.abs(r1-r2)-tol)return [];const a=(r1*r1-r2*r2+d*d)/(2*d),h2=r1*r1-a*a;const xm=c1[0]+a*dx/d,ym=c1[1]+a*dy/d;
+    if(h2<=0||Math.abs(d-r1-r2)<tol||Math.abs(d-Math.abs(r1-r2))<tol)return [[xm,ym]];const h=Math.sqrt(h2);return [[xm+h*dy/d,ym-h*dx/d],[xm-h*dy/d,ym+h*dx/d]]};
+  // öğe üzerinde mi: çizgide parametre [0,1], yayda açı aralığı (başlangıçtaki 2π sarmasıyla birlikte), uçlarda tolerans
+  const onEnt=(en,p)=>{if(en.t==='line'){const a=P(en.a),b=P(en.b);const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1;const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(L*L);return t>-tol/L&&t<1+tol/L}
+    if(en.t==='circle')return true;const A=arcInfo(f,en);const ta=tol/(A.r||1);let da=Math.atan2(p[1]-A.c.y,p[0]-A.c.x)-A.a0;while(da<0)da+=Math.PI*2;while(da>=Math.PI*2)da-=Math.PI*2;return da<=A.sw+ta||da>=Math.PI*2-ta};
   let cand=[];
   if(e.t==='line'&&o.t==='line')cand=lineLine(P(e.a),P(e.b),P(o.a),P(o.b));
   else if(e.t==='line')cand=lineCirc(P(e.a),P(e.b),P(o.c),curveR(f,o));
   else if(o.t==='line')cand=lineCirc(P(o.a),P(o.b),P(e.c),curveR(f,e));
   else cand=circCirc(P(e.c),curveR(f,e),P(o.c),curveR(f,o));
-  for(const p of cand)if(onEnt(e,p)&&onEnt(o,p))out.push(p);
+  for(const p of cand)if(onEnt(e,p)&&onEnt(o,p)&&!out.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<tol*10))out.push(p);
   return out;
 }
+/* budanacak öğe: imlece en yakın olan; profil öğesi ile yapı çizgisi üst üste geliyorsa profil öğesi seçilir */
+function trimPick(f,q,tol){let e=null,bd=tol;for(const x of f.ents){const [d]=entDist(x,q);const k=d+(x.cons?tol*0.3:0);if(d<tol&&k<bd){bd=k;e=x}}return e}
 function trimAt(q,tol){
-  const f=sk.feat;let e=null,bd=tol;for(const x of f.ents){const [d]=entDist(x,q);if(d<bd){bd=d;e=x}}
+  const f=sk.feat;const e=trimPick(f,q,tol);
   if(!e){toast('Budamak için bir çizgi, yay veya daire parçasına tıkla.');return}
   skPush();
   const hits=[];for(const o of f.ents){if(o===e)continue;for(const p of intersectEnts(f,e,o))hits.push({p,o})}
   // kesim noktası: aynı yerde nokta varsa onu kullan; kesişen öğe sonra bu noktada bölünür
   const cuts=[];
   const newPt=hp=>{let id=ptAt(f,hp.p);if(!id){id=newId(f,'p');f.pts[id]={x:hp.p[0],y:hp.p[1]}}cuts.push({pid:id,o:hp.o});return id};
-  const removeEnt=()=>{f.ents=f.ents.filter(x=>x!==e)};
+  // parça tamamen silinirse ölçü ve ilişkileri aynı öğeden kalan parçaya (doğrusal çizgi / aynı daire üzerindeki yay) aktarılır
+  const removeEnt=()=>{f.ents=f.ents.filter(x=>x!==e);const s=trimSibling(f,e);if(s)moveRels(f,e,s)};
   const dropLenRels=x=>{if(x.t==='line')f.cons=f.cons.filter(c=>!((c.t==='eq'||c.t==='mid')&&(c.e===x.id||c.e1===x.id||c.e2===x.id)))};
   if(e.t==='line'){
     const tc=entParamPt(f,e,q);const ts=hits.map(hp=>({hp,t:entParamPt(f,e,hp.p)})).filter(x=>x.t>1e-6&&x.t<1-1e-6).sort((a,b)=>a.t-b.t);
@@ -221,12 +232,25 @@ function trimAt(q,tol){
     if(!lo&&!hi)removeEnt();
     else if(!lo)e.a=newPt(hi.hp);
     else if(!hi)e.b=newPt(lo.hp);
-    else{const nb=e.b;e.b=newPt(lo.hp);f.ents.push({id:newId(f,'e'),t:'arc',c:e.c,a:newPt(hi.hp),b:nb,cons:e.cons})}
+    else{const nb=e.b;e.b=newPt(lo.hp);const ne={id:newId(f,'e'),t:'arc',c:e.c,a:newPt(hi.hp),b:nb,cons:e.cons};f.ents.push(ne);f.cons.push({id:newId(f,'c'),t:'eq',e1:e.id,e2:ne.id})}
   }
   splitAtCuts(f,cuts);
   cleanupOrphans(f);
   if(!solveSketch(f)){skRestore(sk.hist.pop());toast('Budama sonrası çizim çözülemedi; işlem geri alındı.')}
   sk.sel=[];skChanged();
+}
+/* budanan öğeyle aynı geometrik öğeden kalan parça: doğrusal çizgi veya aynı merkez ve yarıçaplı yay/daire */
+function trimSibling(f,e){
+  if(e.t==='line'){const a=P2(e.a),b=P2(e.b);const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1;const off=id=>{const p=P2(id);return Math.abs((p[0]-a[0])*dy-(p[1]-a[1])*dx)/L};
+    return f.ents.find(x=>x!==e&&x.t==='line'&&!!x.cons===!!e.cons&&off(x.a)<1e-6*(1+L)&&off(x.b)<1e-6*(1+L))||null}
+  const r=curveR(f,e);return f.ents.find(x=>x!==e&&x.t!=='line'&&x.c===e.c&&!!x.cons===!!e.cons&&Math.abs(curveR(f,x)-r)<1e-6*(1+r))||null;
+}
+/* e'ye bağlı ilişki ve ölçüleri s'ye taşır; kendine dönen (s–s) ve çizgi uzunluğuna bağlı olanlar atılır, aynıları birleştirilir */
+function moveRels(f,e,s){
+  for(const c of f.cons)for(const k of ['e','e1','e2'])if(c[k]===e.id)c[k]=s.id;
+  const seen=new Set();
+  f.cons=f.cons.filter(c=>{if(c.e1&&c.e1===c.e2)return false;if(s.t==='line'&&(c.t==='eq'||c.t==='mid')&&(c.e===s.id||c.e1===s.id||c.e2===s.id))return false;
+    const {id,lp,...k}=c;const key=JSON.stringify(k);if(seen.has(key))return false;seen.add(key);return true});
 }
 /* verilen konumdaki (varsa) çizim noktası */
 function ptAt(f,p){const eps=1e-6*(1+Math.abs(p[0])+Math.abs(p[1]));for(const id of ['O',...Object.keys(f.pts)]){const q=skP(f,id);if(Math.hypot(q.x-p[0],q.y-p[1])<eps)return id}return null}
@@ -294,7 +318,10 @@ function applySkOp(){
 }
 function copyEnts(ents,tf,seed){
   const f=sk.feat;const map=Object.assign({},seed);
-  const cp=id=>{if(map[id])return map[id];const p=P2(id);const [x,y]=tf(p[0],p[1]);const nid=newId(f,'p');f.pts[nid]={x,y};map[id]=nid;return nid};
+  const cp=id=>{if(map[id])return map[id];const p=P2(id);const [x,y]=tf(p[0],p[1]);
+    // kopya var olan bir noktaya düşüyorsa (komşu kanadın ucu gibi) o nokta kullanılır; böylece kontur kapanır
+    const hit=ptAt(f,[x,y]);if(hit){map[id]=hit;return hit}
+    const nid=newId(f,'p');f.pts[nid]={x,y};map[id]=nid;return nid};
   for(const e of ents){
     if(e.t==='line')f.ents.push({id:newId(f,'e'),t:'line',a:cp(e.a),b:cp(e.b),cons:e.cons});
     else if(e.t==='circle'){const ne={id:newId(f,'e'),t:'circle',c:cp(e.c),r:e.r,cons:e.cons};f.ents.push(ne);f.cons.push({id:newId(f,'c'),t:'eq',e1:e.id,e2:ne.id})}
@@ -316,7 +343,7 @@ function doLinPattern(ents,n,sp,ang){
   if(Math.abs(am%180)<1e-9)f.cons.push({id:newId(f,'c'),t:'h',e:ax.id});else if(Math.abs(am%180-90)<1e-9)f.cons.push({id:newId(f,'c'),t:'v',e:ax.id});
   f.cons.push({id:newId(f,'c'),t:'d',p:A,q:B,val:sp,lp:[pA[0]+dx/2-dy/sp*(sk.px||0.3)*24,pA[1]+dy/2+dx/sp*(sk.px||0.3)*24]});
   for(let k=1;k<n;k++){const map=copyEnts(ents,(x,y)=>[x+dx*k,y+dy*k],k===1?{[A]:B}:null);
-    for(const src in map)if(!(k===1&&src===A))f.cons.push({id:newId(f,'c'),t:'tr',p:src,q:map[src],r:A,s:B,k})}
+    for(const src in map)if(!(k===1&&src===A)&&map[src]!==src)f.cons.push({id:newId(f,'c'),t:'tr',p:src,q:map[src],r:A,s:B,k})}
 }
 /* Dairesel çizim çoğaltma: kopyalar merkez etrafında, merkezden kaynağa ve ilk kopyaya giden iki yapı çizgisi arasındaki açının k katı döner */
 function doCircPattern(ents,n,tot,ctr){
@@ -330,7 +357,7 @@ function doCircPattern(ents,n,tot,ctr){
   if(Math.abs(stD)<179.9){const R=Math.hypot(pA[0]-c[0],pA[1]-c[1]);const mid=Math.atan2(pA[1]-c[1],pA[0]-c[0])+st/2;
     f.cons.push({id:newId(f,'c'),t:'dang',e1:l1.id,e2:l2.id,r1:false,r2:false,val:Math.round(Math.abs(stD)*1e4)/1e4,lp:[c[0]+R*0.6*Math.cos(mid),c[1]+R*0.6*Math.sin(mid)]})}
   for(let k=1;k<n;k++){const map=copyEnts(ents,rot(k),k===1?{[A]:B}:null);
-    for(const src in map)if(!(k===1&&src===A))f.cons.push({id:newId(f,'c'),t:'rot',p:src,q:map[src],r:A,s:B,o:ctr,k})}
+    for(const src in map)if(!(k===1&&src===A)&&map[src]!==src)f.cons.push({id:newId(f,'c'),t:'rot',p:src,q:map[src],r:A,s:B,o:ctr,k})}
 }
 function doMirror(ents){
   const f=sk.feat;const axis=ents.find(e=>e.t==='line'&&e.cons)||null;
@@ -339,7 +366,9 @@ function doMirror(ents){
   const a=P2(axis.a),b=P2(axis.b);const d=[b[0]-a[0],b[1]-a[1]];const L=Math.hypot(...d);const u=[d[0]/L,d[1]/L];
   const refl=p=>{const w=[p[0]-a[0],p[1]-a[1]];const t=w[0]*u[0]+w[1]*u[1];const f_=[a[0]+u[0]*t,a[1]+u[1]*t];return [2*f_[0]-p[0],2*f_[1]-p[1]]};
   const map={};
-  const mp=id=>{if(map[id])return map[id];const p=P2(id);const q=refl(p);if(Math.hypot(q[0]-p[0],q[1]-p[1])<1e-6){map[id]=id;return id}const nid=newId(f,'p');f.pts[nid]={x:q[0],y:q[1]};map[id]=nid;f.cons.push({id:newId(f,'c'),t:'sym',p:id,q:nid,e:axis.id});return nid};
+  const mp=id=>{if(map[id])return map[id];const p=P2(id);const q=refl(p);if(Math.hypot(q[0]-p[0],q[1]-p[1])<1e-6){map[id]=id;return id}
+    const hit=ptAt(f,q);if(hit){map[id]=hit;f.cons.push({id:newId(f,'c'),t:'sym',p:id,q:hit,e:axis.id});return hit}
+    const nid=newId(f,'p');f.pts[nid]={x:q[0],y:q[1]};map[id]=nid;f.cons.push({id:newId(f,'c'),t:'sym',p:id,q:nid,e:axis.id});return nid};
   for(const e of items){
     if(e.t==='line')f.ents.push({id:newId(f,'e'),t:'line',a:mp(e.a),b:mp(e.b),cons:e.cons});
     else if(e.t==='circle'){const ne={id:newId(f,'e'),t:'circle',c:mp(e.c),r:e.r,cons:e.cons};f.ents.push(ne);f.cons.push({id:newId(f,'c'),t:'eq',e1:e.id,e2:ne.id})}

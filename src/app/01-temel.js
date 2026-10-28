@@ -23,6 +23,7 @@ const IC={
   plane:sv('<path d="M3 16.5 7.5 7h13.5l-4.5 9.5z"/>'),
   sketch:sv('<path d="M3 17.5 7.5 8h13.5l-4.5 9.5z" opacity=".5"/><path d="M8 15.5 11 11l3 3 3.5-4.5"/>'),
   exitSketch:sv('<path d="M3 17.5 7.5 8h13.5l-4.5 9.5z" opacity=".5"/><path d="m8.5 12.5 2.5 2.5 5-5"/>'),
+  fulldef:sv('<path d="M4 18h16M4 18v-3M20 18v-3"/><path d="M7 13 10 7l3 3 4-5"/><path d="m14.5 15.5 1.8 1.8 3.4-3.6" stroke-width="1.9"/>'),
   smartdim:sv('<path d="M5 19 19 5"/><path d="M4 14v6h6M14 4h6v6" opacity=".5"/><path d="M8.5 12.5 12 9"/>'),
   line:sv('<path d="M5 19 19 5"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="5" r="1.6"/>'),
   centerline:sv('<path d="M3 21 21 3" stroke-dasharray="5 2 1.5 2"/>'),

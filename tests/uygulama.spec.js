@@ -363,3 +363,27 @@ test('özellik silinince çizimi ağaçta kalır; çizim silinince bağlı özel
   expect(left).not.toContain(ids2[1]);
   expect(errors).toEqual([]);
 });
+
+test('çizimden çıkınca eksen ve yapı çizgileri görünmez', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.evaluate(() => {
+    const T = __tz;
+    T.setTool('crect'); T.toolClick(0, 0); T.toolClick(31, 19);
+    T.setTool('centerline'); T.toolClick(-20, -10); T.toolClick(-20, 30);
+    T.exitSketch(true);
+  });
+  const r = await page.evaluate(() => {
+    const xs = [];
+    for (const o of __tz.sketchesGroup.children) { const a = o.geometry.attributes.position.array; for (let i = 0; i < a.length; i += 3) xs.push(a[i]); }
+    const f = __tz.state.features.find(f => f.type === 'sketch');
+    return { n: xs.length, onAxis: xs.filter(x => Math.abs(x + 20) < 1e-3).length, hasCons: f.ents.some(e => e.cons) };
+  });
+  expect(r.hasCons).toBe(true);   // eksen çizgisi çizimde duruyor
+  expect(r.n).toBeGreaterThan(0); // dikdörtgen görünüyor
+  expect(r.onAxis).toBe(0);       // eksen çizgisi çizim dışında çizilmiyor
+  expect(errors).toEqual([]);
+});

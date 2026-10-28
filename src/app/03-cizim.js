@@ -43,7 +43,8 @@ function beginSession(f,F,isNew){
   // çizimi kullanan özellik (ekstrüzyon, kesme, döndürme) düzenleme boyunca gizlenir
   const user=!isNew&&consumedMap()[f.id];
   if(user){try{sk.base=rebuildModel(state.features.map(x=>x.id===user?{...x,suppressed:true}:x)).polys;showSolid(sk.base)}catch(e){}}
-  solidTone();  skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setControlsForSketch(true);vpEl.classList.add('sketching');
+  solidTone();
+  skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setControlsForSketch(true);vpEl.classList.add('sketching');
   cmTab='sketch';renderRibbon();$('#confirm').classList.add('on');$('#sbar').classList.add('on');
   analyze();renderTree();renderPM();updateStatus();updateMass();renderSketchDisplays();updatePlaneVis();normalTo(F);
   if(pendingTool){setTool(pendingTool);pendingTool=null}

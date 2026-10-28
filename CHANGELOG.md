@@ -1,6 +1,8 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- 3B görünüm: fare tekerleği ekran merkezine değil imlecin altındaki noktaya doğru yakınlaştırır/uzaklaştırır (parça, çizim ve montaj).
+- Arayüz: tasarım ağacı SolidWorks'teki gibi grafik alanının sol üstünde saydam durur; özellik/araç paneli (PropertyManager) ve teknik resim paneli artık solda.
 - Çizim: **Budama** kesişen öğeyi kesim noktasında böler ve noktaları paylaştırır; budanan şekiller (örneğin iki dairenin veya iki dikdörtgenin birleşimi) kapalı kontur olarak kalır.
 - Çizim: ızgara artık görünür; yakalama yalnızca ızgara çizgilerine yakınken olur, küçük daireler sessizce yok sayılmaz.
 - Çizim: **Varlıkları Ofsetle** tüm öğeleri tek bir ofset ölçüsüne bağlar (yeni `doff`/`offd`); ölçü değişince tüm kenarlar birlikte kayar.

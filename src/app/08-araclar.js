@@ -194,11 +194,15 @@ function trimAt(q,tol){
   if(!e){toast('Budamak için bir çizgi, yay veya daire parçasına tıkla.');return}
   skPush();
   const hits=[];for(const o of f.ents){if(o===e)continue;for(const p of intersectEnts(f,e,o))hits.push({p,o})}
-  const newPt=(hp)=>{const id=newId(f,'p');f.pts[id]={x:hp.p[0],y:hp.p[1]};f.cons.push({id:newId(f,'c'),t:hp.o.t==='line'?'pol':'poc',p:id,e:hp.o.id});return id};
-  const removeEnt=()=>{f.ents=f.ents.filter(x=>x!==e);cleanupOrphans(f)};
+  // kesim noktası: aynı yerde nokta varsa onu kullan; kesişen öğe sonra bu noktada bölünür
+  const cuts=[];
+  const newPt=hp=>{let id=ptAt(f,hp.p);if(!id){id=newId(f,'p');f.pts[id]={x:hp.p[0],y:hp.p[1]}}cuts.push({pid:id,o:hp.o});return id};
+  const removeEnt=()=>{f.ents=f.ents.filter(x=>x!==e)};
+  const dropLenRels=x=>{if(x.t==='line')f.cons=f.cons.filter(c=>!((c.t==='eq'||c.t==='mid')&&(c.e===x.id||c.e1===x.id||c.e2===x.id)))};
   if(e.t==='line'){
     const tc=entParamPt(f,e,q);const ts=hits.map(hp=>({hp,t:entParamPt(f,e,hp.p)})).filter(x=>x.t>1e-6&&x.t<1-1e-6).sort((a,b)=>a.t-b.t);
     const lo=ts.filter(x=>x.t<tc).pop(),hi=ts.find(x=>x.t>tc);
+    if(lo||hi)dropLenRels(e);
     if(!lo&&!hi)removeEnt();
     else if(!lo)e.a=newPt(hi.hp);
     else if(!hi)e.b=newPt(lo.hp);
@@ -219,9 +223,42 @@ function trimAt(q,tol){
     else if(!hi)e.b=newPt(lo.hp);
     else{const nb=e.b;e.b=newPt(lo.hp);f.ents.push({id:newId(f,'e'),t:'arc',c:e.c,a:newPt(hi.hp),b:nb,cons:e.cons})}
   }
+  splitAtCuts(f,cuts);
   cleanupOrphans(f);
   if(!solveSketch(f)){skRestore(sk.hist.pop());toast('Budama sonrası çizim çözülemedi; işlem geri alındı.')}
   sk.sel=[];skChanged();
+}
+/* verilen konumdaki (varsa) çizim noktası */
+function ptAt(f,p){const eps=1e-6*(1+Math.abs(p[0])+Math.abs(p[1]));for(const id of ['O',...Object.keys(f.pts)]){const q=skP(f,id);if(Math.hypot(q.x-p[0],q.y-p[1])<eps)return id}return null}
+/* Kesişen öğeleri kesim noktalarında böler; böylece budanan kontur uç uca bağlı kalır.
+   Yapı geometrisi bölünmez (nokta üzerinde ilişkisiyle bağlanır); daire en az iki noktada yaylara ayrılır. */
+function splitAtCuts(f,cuts){
+  const onIt=(x,id)=>{const p=P2(id);const eps=1e-6*(1+Math.abs(p[0])+Math.abs(p[1]));
+    if(x.a===id||x.b===id)return false;
+    if(x.t==='line'){const a=P2(x.a),b=P2(x.b);const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy;if(!L2)return false;const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2;
+      return t>1e-6&&t<1-1e-6&&Math.abs((p[0]-a[0])*dy-(p[1]-a[1])*dx)/Math.sqrt(L2)<eps*10}
+    const A=arcInfo(f,x);if(Math.abs(Math.hypot(p[0]-A.c.x,p[1]-A.c.y)-A.r)>eps*10)return false;
+    let da=Math.atan2(p[1]-A.c.y,p[0]-A.c.x)-A.a0;while(da<0)da+=Math.PI*2;while(da>Math.PI*2)da-=Math.PI*2;return da>1e-6&&da<A.sw-1e-6};
+  const collin=(o,x)=>{const a=P2(o.a),b=P2(o.b);const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1;const d=id=>{const p=P2(id);return Math.abs((p[0]-a[0])*dy-(p[1]-a[1])*dx)/L};return d(x.a)<1e-6*(1+L)&&d(x.b)<1e-6*(1+L)};
+  const relOn=(id,o)=>{if(!f.cons.some(c=>(c.t==='pol'||c.t==='poc')&&c.p===id&&c.e===o.id))f.cons.push({id:newId(f,'c'),t:o.t==='line'?'pol':'poc',p:id,e:o.id})};
+  const circ=new Map();
+  for(const {pid,o} of cuts){
+    if(!f.ents.includes(o))continue;
+    if(o.cons){if(o.a!==pid&&o.b!==pid&&o.c!==pid)relOn(pid,o);continue}
+    if(o.t==='circle'){if(!circ.has(o))circ.set(o,[]);if(!circ.get(o).includes(pid))circ.get(o).push(pid);continue}
+    // o daha önce bölünmüş olabilir: noktayı içine alan parçayı bul
+    const x=onIt(o,pid)?o:f.ents.find(x=>x!==o&&x.t===o.t&&!x.cons&&(o.t==='line'?collin(o,x):x.c===o.c)&&onIt(x,pid));
+    if(!x){if(o.a!==pid&&o.b!==pid)relOn(pid,o);continue}
+    f.cons=f.cons.filter(c=>!((c.t==='pol'||c.t==='poc')&&c.p===pid&&c.e===x.id));
+    const nb=x.b;x.b=pid;const ne={id:newId(f,'e'),t:x.t,a:pid,b:nb,cons:x.cons};if(x.t==='arc')ne.c=x.c;f.ents.push(ne);
+    if(x.t==='line'){f.cons.push({id:newId(f,'c'),t:'coll',e1:o.id,e2:ne.id});f.cons=f.cons.filter(c=>!((c.t==='eq'||c.t==='mid')&&(c.e===x.id||c.e1===x.id||c.e2===x.id)))}
+  }
+  for(const [o,ids] of circ){
+    if(ids.length<2){relOn(ids[0],o);continue}
+    const c=P2(o.c);const an=id=>{const p=P2(id);return Math.atan2(p[1]-c[1],p[0]-c[0])};ids.sort((a,b)=>an(a)-an(b));
+    o.t='arc';delete o.r;o.a=ids[0];o.b=ids[1];
+    for(let i=1;i<ids.length;i++)f.ents.push({id:newId(f,'e'),t:'arc',c:o.c,a:ids[i],b:ids[(i+1)%ids.length],cons:o.cons});
+  }
 }
 /* İşlem paneli: ofset, aynala, doğrusal/dairesel çoğalt */
 const SKOP_T={offset:'Varlıkları Ofsetle',mirror:'Varlıkları Aynala',lpat:'Doğrusal Çizim Çoğaltma',cpat:'Dairesel Çizim Çoğaltma'};
@@ -249,21 +286,51 @@ function applySkOp(){
   try{
     if(o.t==='offset')doOffset(ents,num(o.d)*(o.flip?-1:1));
     else if(o.t==='mirror')doMirror(ents);
-    else if(o.t==='lpat'){const n=Math.round(num(o.n)),sp=num(o.sp),a=num(o.ang)*Math.PI/180;if(!(n>=2&&n<=100))throw new Error('Adet 2 ile 100 arasında olmalı.');for(let k=1;k<n;k++)copyEnts(ents,(x,y)=>[x+Math.cos(a)*sp*k,y+Math.sin(a)*sp*k])}
-    else if(o.t==='cpat'){const n=Math.round(num(o.n)),tot=num(o.tot);if(!(n>=2&&n<=100))throw new Error('Adet 2 ile 100 arasında olmalı.');const pt=sk.sel.find(h=>h.k==='pt');const c=pt?P2(pt.id):[0,0];const full=Math.abs(Math.abs(tot)-360)<1e-6;const st=(full?360/n:tot/(n-1))*Math.PI/180;ents=ents.filter(e=>!(pt&&false));
-      for(let k=1;k<n;k++){const a=st*k,ca=Math.cos(a),sa=Math.sin(a);copyEnts(ents,(x,y)=>[c[0]+(x-c[0])*ca-(y-c[1])*sa,c[1]+(x-c[0])*sa+(y-c[1])*ca])}}
+    else if(o.t==='lpat')doLinPattern(ents,Math.round(num(o.n)),num(o.sp),num(o.ang));
+    else if(o.t==='cpat'){const pt=sk.sel.find(h=>h.k==='pt');doCircPattern(ents,Math.round(num(o.n)),num(o.tot),pt?pt.id:'O')}
   }catch(err){skRestore(sk.hist.pop());toast(err.message||String(err));return}
   if(!solveSketch(f)){skRestore(sk.hist.pop());toast('İşlem sonrası çizim çözülemedi; geri alındı.');skChanged();return}
   sk.sel=[];skChanged();toast(SKOP_T[o.t]+' uygulandı.');
 }
-function copyEnts(ents,tf){
-  const f=sk.feat;const map={};
+function copyEnts(ents,tf,seed){
+  const f=sk.feat;const map=Object.assign({},seed);
   const cp=id=>{if(map[id])return map[id];const p=P2(id);const [x,y]=tf(p[0],p[1]);const nid=newId(f,'p');f.pts[nid]={x,y};map[id]=nid;return nid};
   for(const e of ents){
     if(e.t==='line')f.ents.push({id:newId(f,'e'),t:'line',a:cp(e.a),b:cp(e.b),cons:e.cons});
     else if(e.t==='circle'){const ne={id:newId(f,'e'),t:'circle',c:cp(e.c),r:e.r,cons:e.cons};f.ents.push(ne);f.cons.push({id:newId(f,'c'),t:'eq',e1:e.id,e2:ne.id})}
     else{const ne={id:newId(f,'e'),t:'arc',c:cp(e.c),a:cp(e.a),b:cp(e.b),cons:e.cons};f.ents.push(ne)}
   }
+  return map;
+}
+/* Çoğaltmanın dayanak noktası: seçili öğelerin ilk noktası (merkez dışında) */
+function patAnchor(ents,ctr){
+  const ids=[];for(const e of ents)for(const k of ['c','a','b'])if(e[k]&&!ids.includes(e[k]))ids.push(e[k]);
+  const C=ctr?P2(ctr):null;return ids.find(id=>!C||Math.hypot(P2(id)[0]-C[0],P2(id)[1]-C[1])>1e-6)||null;
+}
+/* Doğrusal çizim çoğaltma: kopyalar, kaynaktan ilk kopyaya giden yapı çizgisinin k katı ötelenir (aralık ölçüsü bu çizgide) */
+function doLinPattern(ents,n,sp,ang){
+  const f=sk.feat;if(!(n>=2&&n<=100))throw new Error('Adet 2 ile 100 arasında olmalı.');if(!(sp>0))throw new Error('Aralık sıfırdan büyük olmalı.');
+  const a=ang*Math.PI/180,dx=Math.cos(a)*sp,dy=Math.sin(a)*sp;const A=patAnchor(ents,null);
+  const pA=P2(A);const B=newId(f,'p');f.pts[B]={x:pA[0]+dx,y:pA[1]+dy};
+  const ax=addEnt({t:'line',a:A,b:B,cons:true});const am=((ang%360)+360)%360;
+  if(Math.abs(am%180)<1e-9)f.cons.push({id:newId(f,'c'),t:'h',e:ax.id});else if(Math.abs(am%180-90)<1e-9)f.cons.push({id:newId(f,'c'),t:'v',e:ax.id});
+  f.cons.push({id:newId(f,'c'),t:'d',p:A,q:B,val:sp,lp:[pA[0]+dx/2-dy/sp*(sk.px||0.3)*24,pA[1]+dy/2+dx/sp*(sk.px||0.3)*24]});
+  for(let k=1;k<n;k++){const map=copyEnts(ents,(x,y)=>[x+dx*k,y+dy*k],k===1?{[A]:B}:null);
+    for(const src in map)if(!(k===1&&src===A))f.cons.push({id:newId(f,'c'),t:'tr',p:src,q:map[src],r:A,s:B,k})}
+}
+/* Dairesel çizim çoğaltma: kopyalar merkez etrafında, merkezden kaynağa ve ilk kopyaya giden iki yapı çizgisi arasındaki açının k katı döner */
+function doCircPattern(ents,n,tot,ctr){
+  const f=sk.feat;if(!(n>=2&&n<=100))throw new Error('Adet 2 ile 100 arasında olmalı.');
+  const full=Math.abs(Math.abs(tot)-360)<1e-6;const stD=full?360/n:tot/(n-1);if(!(Math.abs(stD)>1e-6))throw new Error('Toplam açı sıfırdan farklı olmalı.');
+  const A=patAnchor(ents,ctr);if(!A)throw new Error('Çoğaltılacak öğeler merkezle çakışıyor.');
+  const c=P2(ctr),st=stD*Math.PI/180;const rot=(k)=>(x,y)=>{const ca=Math.cos(st*k),sa=Math.sin(st*k);return [c[0]+(x-c[0])*ca-(y-c[1])*sa,c[1]+(x-c[0])*sa+(y-c[1])*ca]};
+  const pA=P2(A),qB=rot(1)(pA[0],pA[1]);const B=newId(f,'p');f.pts[B]={x:qB[0],y:qB[1]};
+  const l1=addEnt({t:'line',a:ctr,b:A,cons:true}),l2=addEnt({t:'line',a:ctr,b:B,cons:true});
+  f.cons.push({id:newId(f,'c'),t:'eq',e1:l1.id,e2:l2.id});
+  if(Math.abs(stD)<179.9){const R=Math.hypot(pA[0]-c[0],pA[1]-c[1]);const mid=Math.atan2(pA[1]-c[1],pA[0]-c[0])+st/2;
+    f.cons.push({id:newId(f,'c'),t:'dang',e1:l1.id,e2:l2.id,r1:false,r2:false,val:Math.round(Math.abs(stD)*1e4)/1e4,lp:[c[0]+R*0.6*Math.cos(mid),c[1]+R*0.6*Math.sin(mid)]})}
+  for(let k=1;k<n;k++){const map=copyEnts(ents,rot(k),k===1?{[A]:B}:null);
+    for(const src in map)if(!(k===1&&src===A))f.cons.push({id:newId(f,'c'),t:'rot',p:src,q:map[src],r:A,s:B,o:ctr,k})}
 }
 function doMirror(ents){
   const f=sk.feat;const axis=ents.find(e=>e.t==='line'&&e.cons)||null;
@@ -281,6 +348,17 @@ function doMirror(ents){
 }
 function doOffset(ents,dist){
   const f=sk.feat;if(!(Math.abs(dist)>0))throw new Error('Ofset mesafesi sıfırdan büyük olmalı.');
+  // tüm ofset öğeleri tek bir sürücü ölçüye (doff) bağlanır; ölçü değişince hepsi birlikte kayar
+  let drv=null;
+  const offRel=(src,ne)=>{
+    let sg;if(src.t==='line'){const a=P2(src.a),b=P2(src.b),p=P2(ne.a);const dx=b[0]-a[0],dy=b[1]-a[1];sg=Math.sign(((p[0]-a[0])*dy-(p[1]-a[1])*dx))||1}
+    else sg=Math.sign(curveR(f,ne)-curveR(f,src))||1;
+    if(!drv){let lp;const g=(sk.px||0.3)*22;
+        if(ne.t==='line'){const p=P2(ne.a),q=P2(ne.b),s0=P2(src.a);const n=[q[1]-p[1],p[0]-q[0]],nl=Math.hypot(...n)||1;const sd=Math.sign((p[0]-s0[0])*n[0]+(p[1]-s0[1])*n[1])||1;lp=[(p[0]+q[0])/2+n[0]/nl*sd*g,(p[1]+q[1])/2+n[1]/nl*sd*g]}
+        else{const c=P2(ne.c),r=curveR(f,ne);lp=[c[0]+(r+g)*Math.SQRT1_2,c[1]-(r+g)*Math.SQRT1_2]}
+      drv={id:newId(f,'c'),t:'doff',e1:src.id,e2:ne.id,sg,val:Math.abs(dist),lp};f.cons.push(drv)}
+    else f.cons.push({id:newId(f,'c'),t:'offd',e1:src.id,e2:ne.id,sg,dim:drv.id});
+  };
   // bağlı zincirleri bul
   const left=new Set(ents);const chains=[];
   while(left.size){
@@ -298,7 +376,7 @@ function doOffset(ents,dist){
     const [s,t]=ends();chains.push({items:chain,closed:s===t&&chain.length>1});
   }
   for(const ch of chains){
-    if(ch.items[0].e.t==='circle'){const e=ch.items[0].e;const r=e.r+dist;if(!(r>0))throw new Error('Ofset dairenin yarıçapından büyük olamaz.');const ne={id:newId(f,'e'),t:'circle',c:e.c,r};f.ents.push(ne);continue}
+    if(ch.items[0].e.t==='circle'){const e=ch.items[0].e;const r=e.r+dist;if(!(r>0))throw new Error('Ofset dairenin yarıçapından büyük olamaz.');const ne={id:newId(f,'e'),t:'circle',c:e.c,r};f.ents.push(ne);offRel(e,ne);continue}
     // kapalı zincirde yön: pozitif mesafe dışarı
     let sgn=1;
     if(ch.closed){const poly=[];for(const it of ch.items){const t=tessEnt(f,it.e,32);const s=it.fwd?t:t.slice().reverse();for(let i=0;i<s.length-1;i++)poly.push(s[i])}if(area2d(poly)>0)sgn=-1}
@@ -319,11 +397,9 @@ function doOffset(ents,dist){
     const mk=p=>{const id=newId(f,'p');f.pts[id]={x:p[0],y:p[1]};return id};
     const jid=joints.map(mk);
     const startId=ch.closed?jid[N-1]:mk(segs[0].a),endId=ch.closed?jid[N-1]:mk(segs[N-1].b);
-    let firstLine=null;
     segs.forEach((s,i)=>{const a=i===0?startId:jid[i-1],b=(i===N-1)?endId:jid[i];
-      if(s.t==='line'){const ne={id:newId(f,'e'),t:'line',a,b};f.ents.push(ne);f.cons.push({id:newId(f,'c'),t:'par',e1:s.src.id,e2:ne.id});if(!firstLine)firstLine=[s.src,ne]}
-      else f.ents.push({id:newId(f,'e'),t:'arc',c:s.c,a:s.fwd?a:b,b:s.fwd?b:a});
+      if(s.t==='line'){const ne={id:newId(f,'e'),t:'line',a,b};f.ents.push(ne);f.cons.push({id:newId(f,'c'),t:'par',e1:s.src.id,e2:ne.id});offRel(s.src,ne)}
+      else{const ne={id:newId(f,'e'),t:'arc',c:s.c,a:s.fwd?a:b,b:s.fwd?b:a};f.ents.push(ne);offRel(s.src,ne)}
     });
-    if(firstLine)f.cons.push({id:newId(f,'c'),t:'dll',e1:firstLine[0].id,e2:firstLine[1].id,val:Math.abs(dist),lp:(()=>{const p=P2(firstLine[1].a),q=P2(firstLine[1].b);return [(p[0]+q[0])/2+3,(p[1]+q[1])/2+3]})()});
   }
 }

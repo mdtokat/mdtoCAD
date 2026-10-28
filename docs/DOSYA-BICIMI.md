@@ -47,9 +47,9 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
 ```
 `cons: true` öğe yapı geometrisidir (profile katılmaz; merkez çizgisi dahil).
 
-**İlişkiler:** `h`, `v` (`e` çizgi veya `p`,`q` nokta) · `pol` nokta-çizgi · `poc` nokta-eğri · `mid` (`p`,`e`) · `par`, `perp`, `coll`, `eq`, `tan` (`e1`,`e2`; `tan` için eğri-eğri `int`) · `sym` (`p`,`q`, eksen `e`) · `fix` (`p`).
+**İlişkiler:** `h`, `v` (`e` çizgi veya `p`,`q` nokta) · `pol` nokta-çizgi · `poc` nokta-eğri · `mid` (`p`,`e`) · `par`, `perp`, `coll`, `eq`, `tan` (`e1`,`e2`; `tan` için eğri-eğri `int`) · `sym` (`p`,`q`, eksen `e`) · `fix` (`p`) · `offd` ofset izleyicisi (`e1` kaynak, `e2` ofset, `sg` yön ±1, `dim` sürücü `doff` ölçüsünün id'si) · `tr` doğrusal çoğaltma (`q = p + k·(s − r)`) · `rot` dairesel çoğaltma (`q`, `p`'nin `o` merkezi etrafında `r`→`s` açısının `k` katı döndürülmüşü).
 
-**Ölçüler** (`val` sürücü değer, `lp` etiket konumu `[x,y]`): `d` iki nokta, `dh`/`dv` yatay/dikey, `dpl` nokta-çizgi, `dll` paralel çizgiler, `ddia` çap, `drad` yarıçap, `dang` açı (`r1`,`r2` yön çevirme).
+**Ölçüler** (`val` sürücü değer, `lp` etiket konumu `[x,y]`): `d` iki nokta, `dh`/`dv` yatay/dikey, `dpl` nokta-çizgi, `dll` paralel çizgiler, `ddia` çap, `drad` yarıçap, `dang` açı (`r1`,`r2` yön çevirme), `doff` ofset mesafesi (`e1` kaynak, `e2` ofset öğe, `sg` yön ±1).
 
 ### `extrude`
 ```jsonc
@@ -105,7 +105,7 @@ Kenarlar dünya koordinatında saklanır ve her hesaplamada modeldeki kenarla e�
   "drawing": { /* teknik resim ayarları + asmView, explode, balloons, bom */ }
 }
 ```
-E�leştirme referansları parçanın kendi koordinatlarındadır.
+Eşleştirme referansları parçanın kendi koordinatlarındadır.
 
 ## Teknik resim ayarları
 

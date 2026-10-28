@@ -16,7 +16,8 @@
 - CSG ve teknik resim hesaplarını bir Web Worker'a taşımak (arayüzün donmasını engeller).
 - Yüz/kenar kimliklerini topolojik olarak izlemek (eşleştirme ve radyusların model değişince korunması).
 - Kabuk (Shell), Süpürme (Sweep), Loft, Kaburga (Rib), Taslak açısı.
-- Çizimde teğet yay, elips, spline, dönüştür (Convert Entities), uzat (Extend).
+- Çizimde elips, spline, metin, nokta aracı, dönüştür (Convert Entities), uzat (Extend), çizerken uzunluk/açı yazma.
+- Kontur/bölge seçimi: bölme çizgisi içeren çizimden tek bir bölgeyi ekstrüde etmek.
 - Teknik resimde yarım kesit, kırık görünüş, delik tablosu, balonların sürüklenmesi.
 - Montajda alt montajlar, dişli/kam eşleştirmeleri, hareket simülasyonu.
 - DXF dışa aktarma.

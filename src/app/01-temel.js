@@ -31,6 +31,8 @@ const IC={
   crect:sv('<rect x="4" y="6" width="16" height="12"/><path d="M4 6l16 12M20 6 4 18" stroke-dasharray="2 2" opacity=".6"/>'),
   circle:sv('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>'),
   arc:sv('<path d="M5 16a8 8 0 0 1 14 0"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/><path d="M12 16 5 16" stroke-dasharray="1.5 1.5" opacity=".6"/>'),
+  arc3:sv('<path d="M5 16a8 8 0 0 1 14 0"/><circle cx="5" cy="16" r="1.5"/><circle cx="19" cy="16" r="1.5"/><circle cx="12" cy="9" r="1.5"/>'),
+  tarc:sv('<path d="M3 17h8"/><path d="M11 17a6.5 6.5 0 0 0 6.5-6.5V5"/><circle cx="11" cy="17" r="1.5" fill="currentColor"/>'),
   slot:sv('<rect x="3" y="8" width="18" height="8" rx="4"/><path d="M7 12h10" stroke-dasharray="2 1.5" opacity=".6"/>'),
   polygon:sv('<path d="M12 3.5 19.4 7.8v8.4L12 20.5 4.6 16.2V7.8z"/>'),
   sfillet:sv('<path d="M5 20V12a7 7 0 0 1 7-7h7"/><path d="M5 5h0" /><path d="M5 9V5h4" stroke-dasharray="1.5 1.5" opacity=".6"/>'),

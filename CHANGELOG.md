@@ -1,6 +1,10 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Düzeltme (Budama): teğet noktalar ve yay uçlarındaki kesişimler artık bulunuyor. Önceden teğet bir çizgiyi veya yayı budamak, kesişim kaçırıldığı için öğeyi bütünüyle silebiliyordu.
+- Düzeltme (Budama): bir parça bütünüyle budanınca ölçü ve ilişkileri (çap, teğet, mesafe…) aynı öğeden kalan parçaya geçer; yay ortadan bölününce iki parça eşit yarıçapla bağlanır. Budama imlecin altında yapı çizgisi de varsa profil öğesini seçer.
+- Düzeltme (çözücü): ortak uç noktasındaki teğetlik birinci dereceden yazılır. Önceden serbestlik derecesi bir fazla hesaplanıyordu; bu yüzden Tam Tanımla fazladan bir uzunluk ölçüsü ekliyor, sonra ölçü değiştirmek çizimi çözülemez hâle getiriyordu.
+- Düzeltme: aynalama ve çizim çoğaltma kopyaları var olan bir noktaya düşerse o noktayı kullanır; komşu kanatların uçları birleşir, kontur kendiliğinden kapanır.
 - Çizim: eksen (merkez) çizgileri ve yapı (kesikli) çizgileri yalnızca çizim düzenlenirken görünür; çizimden çıkınca 3B görünümde gösterilmez.
 - Ağaç: Ekstrüzyon/Döndürme silinince altındaki çizim silinmez, ağaçta ayrı satır olarak kalır; çizim ayrıca silinir. (Bir özelliğin kullandığı çizim silinirse özellik çizimsiz kalmasın diye onunla birlikte silinir.)
 - 3B görünüm: fare tekerleği ekran merkezine değil imlecin altındaki noktaya doğru yakınlaştırır/uzaklaştırır (parça, çizim ve montaj).

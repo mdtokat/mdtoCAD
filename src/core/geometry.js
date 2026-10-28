@@ -233,10 +233,16 @@ function sysBuild(sk,extraCons){
       case 'perp':fs.push(X=>{const a=un(dir(X,e1)),b=un(dir(X,e2));return AK*(a[0]*b[0]+a[1]*b[1])});break;
       case 'coll':fs.push(X=>lpd(X,e1,e2.a),X=>lpd(X,e1,e2.b));break;
       case 'eq':if(e1.t==='line')fs.push(X=>dpp(X,e1.a,e1.b)-dpp(X,e2.a,e2.b));else fs.push(X=>R(X,e1)-R(X,e2));break;
-      case 'tan':
+      case 'tan':{
+        // ortak uçta teğetlik: uzaklık–yarıçap farkı orada ikinci derecedendir (Jacobian satırı sıfırlanır, serbestlik yanlış hesaplanır);
+        // bunun yerine yarıçap doğrultusunun çizgiye dik / iki merkezin ortak noktayla doğrusal olması kullanılır
+        const sp=e1.t!=='circle'&&e2.t!=='circle'?[e1.a,e1.b].find(p=>p===e2.a||p===e2.b):null;
+        if(sp&&(e1.t==='line')!==(e2.t==='line')){const L=e1.t==='line'?e1:e2,A=e1.t==='line'?e2:e1;
+          fs.push(X=>{const d=un(dir(X,L));return (gx(X,sp)-gx(X,A.c))*d[0]+(gy(X,sp)-gy(X,A.c))*d[1]});break}
+        if(sp&&e1.t==='arc'&&e2.t==='arc'){fs.push(X=>{const u=un([gx(X,sp)-gx(X,e1.c),gy(X,sp)-gy(X,e1.c)]);return u[0]*(gy(X,sp)-gy(X,e2.c))-u[1]*(gx(X,sp)-gx(X,e2.c))});break}
         if(e1.t==='line')fs.push(X=>Math.abs(lpd(X,e1,cid(e2)))-R(X,e2));
         else fs.push(X=>dpp(X,cid(e1),cid(e2))-(c.int?Math.abs(R(X,e1)-R(X,e2)):R(X,e1)+R(X,e2)));
-        break;
+        break}
       case 'd':fs.push(X=>dpp(X,c.p,c.q)-c.val);break;
       case 'dh':fs.push(X=>Math.abs(gx(X,c.q)-gx(X,c.p))-c.val);break;
       case 'dv':fs.push(X=>Math.abs(gy(X,c.q)-gy(X,c.p))-c.val);break;

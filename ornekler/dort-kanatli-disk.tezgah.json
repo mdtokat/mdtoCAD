@@ -1,0 +1,520 @@
+{
+ "app": "tezgah-cad",
+ "version": 3,
+ "parts": [
+  {
+   "id": "P1",
+   "partName": "Dört kanatlı disk Ø813",
+   "material": "steel",
+   "features": [
+    {
+     "id": "s1",
+     "type": "sketch",
+     "name": "Çizim1 (dış kontur)",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {
+      "pr0": {
+       "x": 89.1332,
+       "y": 396.6075
+      },
+      "pl0": {
+       "x": -89.1332,
+       "y": 396.6075
+      },
+      "tr0": {
+       "x": 108.7847,
+       "y": 342.6156
+      },
+      "tl0": {
+       "x": -108.7847,
+       "y": 342.6156
+      },
+      "qr0": {
+       "x": 131.8196,
+       "y": 318.6074
+      },
+      "ql0": {
+       "x": -131.8196,
+       "y": 318.6074
+      },
+      "ar0": {
+       "x": 147.5,
+       "y": 356.7068
+      },
+      "al0": {
+       "x": -147.5,
+       "y": 356.7068
+      },
+      "pr1": {
+       "x": -396.6075,
+       "y": 89.1332
+      },
+      "pl1": {
+       "x": -396.6075,
+       "y": -89.1332
+      },
+      "tr1": {
+       "x": -342.6156,
+       "y": 108.7847
+      },
+      "tl1": {
+       "x": -342.6156,
+       "y": -108.7847
+      },
+      "qr1": {
+       "x": -318.6074,
+       "y": 131.8196
+      },
+      "ql1": {
+       "x": -318.6074,
+       "y": -131.8196
+      },
+      "ar1": {
+       "x": -356.7068,
+       "y": 147.5
+      },
+      "al1": {
+       "x": -356.7068,
+       "y": -147.5
+      },
+      "pr2": {
+       "x": -89.1332,
+       "y": -396.6075
+      },
+      "pl2": {
+       "x": 89.1332,
+       "y": -396.6075
+      },
+      "tr2": {
+       "x": -108.7847,
+       "y": -342.6156
+      },
+      "tl2": {
+       "x": 108.7847,
+       "y": -342.6156
+      },
+      "qr2": {
+       "x": -131.8196,
+       "y": -318.6074
+      },
+      "ql2": {
+       "x": 131.8196,
+       "y": -318.6074
+      },
+      "ar2": {
+       "x": -147.5,
+       "y": -356.7068
+      },
+      "al2": {
+       "x": 147.5,
+       "y": -356.7068
+      },
+      "pr3": {
+       "x": 396.6075,
+       "y": -89.1332
+      },
+      "pl3": {
+       "x": 396.6075,
+       "y": 89.1332
+      },
+      "tr3": {
+       "x": 342.6156,
+       "y": -108.7847
+      },
+      "tl3": {
+       "x": 342.6156,
+       "y": 108.7847
+      },
+      "qr3": {
+       "x": 318.6074,
+       "y": -131.8196
+      },
+      "ql3": {
+       "x": 318.6074,
+       "y": 131.8196
+      },
+      "ar3": {
+       "x": 356.7068,
+       "y": -147.5
+      },
+      "al3": {
+       "x": 356.7068,
+       "y": 147.5
+      }
+     },
+     "ents": [
+      {
+       "id": "e1",
+       "t": "arc",
+       "c": "ar0",
+       "a": "tr0",
+       "b": "qr0",
+       "cons": false
+      },
+      {
+       "id": "e2",
+       "t": "line",
+       "a": "tr0",
+       "b": "pr0",
+       "cons": false
+      },
+      {
+       "id": "e3",
+       "t": "arc",
+       "c": "O",
+       "a": "pr0",
+       "b": "pl0",
+       "cons": false
+      },
+      {
+       "id": "e4",
+       "t": "line",
+       "a": "pl0",
+       "b": "tl0",
+       "cons": false
+      },
+      {
+       "id": "e5",
+       "t": "arc",
+       "c": "al0",
+       "a": "ql0",
+       "b": "tl0",
+       "cons": false
+      },
+      {
+       "id": "e6",
+       "t": "line",
+       "a": "ql0",
+       "b": "qr1",
+       "cons": false
+      },
+      {
+       "id": "e7",
+       "t": "arc",
+       "c": "ar1",
+       "a": "tr1",
+       "b": "qr1",
+       "cons": false
+      },
+      {
+       "id": "e8",
+       "t": "line",
+       "a": "tr1",
+       "b": "pr1",
+       "cons": false
+      },
+      {
+       "id": "e9",
+       "t": "arc",
+       "c": "O",
+       "a": "pr1",
+       "b": "pl1",
+       "cons": false
+      },
+      {
+       "id": "e10",
+       "t": "line",
+       "a": "pl1",
+       "b": "tl1",
+       "cons": false
+      },
+      {
+       "id": "e11",
+       "t": "arc",
+       "c": "al1",
+       "a": "ql1",
+       "b": "tl1",
+       "cons": false
+      },
+      {
+       "id": "e12",
+       "t": "line",
+       "a": "ql1",
+       "b": "qr2",
+       "cons": false
+      },
+      {
+       "id": "e13",
+       "t": "arc",
+       "c": "ar2",
+       "a": "tr2",
+       "b": "qr2",
+       "cons": false
+      },
+      {
+       "id": "e14",
+       "t": "line",
+       "a": "tr2",
+       "b": "pr2",
+       "cons": false
+      },
+      {
+       "id": "e15",
+       "t": "arc",
+       "c": "O",
+       "a": "pr2",
+       "b": "pl2",
+       "cons": false
+      },
+      {
+       "id": "e16",
+       "t": "line",
+       "a": "pl2",
+       "b": "tl2",
+       "cons": false
+      },
+      {
+       "id": "e17",
+       "t": "arc",
+       "c": "al2",
+       "a": "ql2",
+       "b": "tl2",
+       "cons": false
+      },
+      {
+       "id": "e18",
+       "t": "line",
+       "a": "ql2",
+       "b": "qr3",
+       "cons": false
+      },
+      {
+       "id": "e19",
+       "t": "arc",
+       "c": "ar3",
+       "a": "tr3",
+       "b": "qr3",
+       "cons": false
+      },
+      {
+       "id": "e20",
+       "t": "line",
+       "a": "tr3",
+       "b": "pr3",
+       "cons": false
+      },
+      {
+       "id": "e21",
+       "t": "arc",
+       "c": "O",
+       "a": "pr3",
+       "b": "pl3",
+       "cons": false
+      },
+      {
+       "id": "e22",
+       "t": "line",
+       "a": "pl3",
+       "b": "tl3",
+       "cons": false
+      },
+      {
+       "id": "e23",
+       "t": "arc",
+       "c": "al3",
+       "a": "ql3",
+       "b": "tl3",
+       "cons": false
+      },
+      {
+       "id": "e24",
+       "t": "line",
+       "a": "ql3",
+       "b": "qr0",
+       "cons": false
+      }
+     ],
+     "cons": []
+    },
+    {
+     "id": "x1",
+     "type": "extrude",
+     "name": "Ekstrüzyon-Levha",
+     "op": "add",
+     "sketch": "s1",
+     "end": "blind",
+     "depth": 25,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10
+    },
+    {
+     "id": "s2",
+     "type": "sketch",
+     "name": "Çizim2 (göbek Ø200)",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {},
+     "ents": [
+      {
+       "id": "e1",
+       "t": "circle",
+       "c": "O",
+       "r": 100,
+       "cons": false
+      }
+     ],
+     "cons": [
+      {
+       "id": "c1",
+       "t": "ddia",
+       "e": "e1",
+       "val": 200,
+       "lp": [
+        120,
+        120
+       ]
+      }
+     ]
+    },
+    {
+     "id": "x2",
+     "type": "extrude",
+     "name": "Ekstrüzyon-Göbek",
+     "op": "add",
+     "sketch": "s2",
+     "end": "blind",
+     "depth": 115,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10
+    },
+    {
+     "id": "s3",
+     "type": "sketch",
+     "name": "Çizim3 (Ø143 delik + kama)",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {
+      "k1": {
+       "x": 19,
+       "y": 68.9293
+      },
+      "k2": {
+       "x": 19,
+       "y": 84.5
+      },
+      "k3": {
+       "x": -19,
+       "y": 84.5
+      },
+      "k4": {
+       "x": -19,
+       "y": 68.9293
+      }
+     },
+     "ents": [
+      {
+       "id": "e1",
+       "t": "arc",
+       "c": "O",
+       "a": "k4",
+       "b": "k1",
+       "cons": false
+      },
+      {
+       "id": "e2",
+       "t": "line",
+       "a": "k1",
+       "b": "k2",
+       "cons": false
+      },
+      {
+       "id": "e3",
+       "t": "line",
+       "a": "k2",
+       "b": "k3",
+       "cons": false
+      },
+      {
+       "id": "e4",
+       "t": "line",
+       "a": "k3",
+       "b": "k4",
+       "cons": false
+      }
+     ],
+     "cons": [
+      {
+       "id": "c1",
+       "t": "v",
+       "e": "e2"
+      },
+      {
+       "id": "c2",
+       "t": "h",
+       "e": "e3"
+      },
+      {
+       "id": "c3",
+       "t": "v",
+       "e": "e4"
+      },
+      {
+       "id": "c4",
+       "t": "d",
+       "p": "k2",
+       "q": "k3",
+       "val": 38,
+       "lp": [
+        0,
+        102.5
+       ]
+      },
+      {
+       "id": "c5",
+       "t": "drad",
+       "e": "e1",
+       "val": 71.5,
+       "lp": [
+        -90,
+        -90
+       ]
+      }
+     ]
+    },
+    {
+     "id": "x3",
+     "type": "extrude",
+     "name": "Kesme-Delik ve kama",
+     "op": "cut",
+     "sketch": "s3",
+     "end": "through",
+     "depth": 10,
+     "flip": false,
+     "dir2": true,
+     "end2": "through",
+     "depth2": 10
+    }
+   ],
+   "drawing": {
+    "paper": "A3",
+    "orient": "landscape",
+    "method": "E",
+    "scale": "auto",
+    "hidden": true,
+    "centers": true,
+    "autodims": true,
+    "iso": true,
+    "dno": "TZ-0001",
+    "drawn": "",
+    "checked": "",
+    "company": "",
+    "dims": []
+   }
+  }
+ ],
+ "asms": [],
+ "cur": {
+  "part": "P1"
+ }
+}

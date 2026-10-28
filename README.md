@@ -79,6 +79,12 @@ Uygulama testler ve hata ayıklama için `window.__tz` nesnesini dışa açar (�
 
 Dosya indirme (PDF, STL, proje), Claude ortamında Claude'un indirme yeteneğiyle, diğer her yerde standart tarayıcı indirmesiyle çalışır.
 
+## Örnek parçalar
+
+`ornekler/` klasöründeki `*.tezgah.json` dosyaları **Dosya → Aç** ile açılır.
+
+- `dort-kanatli-disk.tezgah.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
+
 ## Proje yapısı
 
 ```

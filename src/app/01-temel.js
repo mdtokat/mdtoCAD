@@ -239,8 +239,10 @@ function rebuild(){
   model.version++;model.box=r.polys.length?bboxPolys(r.polys):null;model.props=r.polys.length?massProps(r.polys):null;
   model.ms=Math.round(performance.now()-t0);
   model.dof={};for(const f of state.features)if(f.type==='sketch'){try{model.dof[f.id]=analyzeSketch(f).dof}catch(e){}}
-  showSolid(model.polys);rebuildPlanes();renderSketchDisplays();updateMass();updateStatus();
+  showSolid(sk&&sk.base?sk.base:model.polys);rebuildPlanes();renderSketchDisplays();updateMass();updateStatus();
 }
+/* çizim düzenlenirken koyu temada gövde koyulaşır; açık renkli çizim çizgileri normal görünümde parlayan yüzeyde kaybolmaz */
+function solidTone(){matSolid.color.setHex(sk&&isDark()?0x2A3139:0xA9B5C1)}
 function updateStatus(){
   if(activeTab==='asm')return asmStatus();
   const el=$('#vpStatus');const ne=Object.keys(model.errors).length;const nf=state.features.filter(f=>f.type!=='sketch').length;
@@ -264,7 +266,10 @@ function applyDisplay(){
   $$('[data-hud="planes"]').forEach(b=>b.classList.toggle('on',showPlanes));
 }
 function curBox(){return activeTab==='asm'?(asmView.box||null):model.box}
-function modelExtent(){const b=curBox();if(!b)return 100;return Math.max(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2],...b.min.map(Math.abs),...b.max.map(Math.abs))}
+function modelExtent(){const b=curBox();let m=b?Math.max(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2],...b.min.map(Math.abs),...b.max.map(Math.abs)):100;
+  // çizim düzenlenirken çizimin boyutu da hesaba katılır (yakınlaştırma sınırları büyük çizimlerde de çalışsın)
+  if(sk&&activeTab!=='asm'){const k=skBox(sk.feat);m=Math.max(m,k.x1-k.x0,k.y1-k.y0)}
+  return m}
 function rebuildPlanes(){
   for(const o of planeObjs){planeGroup.remove(o);o.traverse(c=>{if(c.geometry)c.geometry.dispose()})}
   planeObjs=[];const S=Math.max(80,modelExtent()*1.25);

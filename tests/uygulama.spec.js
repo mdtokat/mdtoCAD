@@ -444,3 +444,121 @@ test('budama: teğet ve yay ucundaki kesişimler bulunur, ölçüler kalan parç
   expect(u).toEqual(['415.000']);
   expect(errors).toEqual([]);
 });
+
+test('çizim düzenlenirken onu kullanan özellik gizlenir, koyu temada gövde koyulaşır', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.evaluate(() => { const T = __tz; T.setTool('crect'); T.toolClick(0, 0); T.toolClick(31, 19); T.exitSketch(true); T.cmd('extrude'); });
+  await page.waitForFunction(() => !!__tz.pm);
+  const r = await page.evaluate(() => {
+    const T = __tz; T.commitPM();
+    const id = T.state.features.find(f => f.type === 'sketch').id;
+    const out = { before: T.shown.polys.length, color0: T.solidMesh.material.color.getHex() };
+    T.editSketch(id);
+    Object.assign(out, { during: T.shown.polys.length, color1: T.solidMesh.material.color.getHex() });
+    T.exitSketch(true);
+    Object.assign(out, { after: T.shown.polys.length, color2: T.solidMesh.material.color.getHex(), err: T.model.errors });
+    return out;
+  });
+  expect(r.before).toBeGreaterThan(0);
+  expect(r.during).toBe(0);          // ekstrüzyon düzenleme boyunca görünmez
+  expect(r.after).toBe(r.before);    // çıkınca geri gelir
+  expect(r.color1).not.toBe(r.color0);
+  expect(r.color2).toBe(r.color0);
+  expect(r.err).toEqual({});
+  expect(errors).toEqual([]);
+});
+
+test('yeni çizimde ilk ölçü girilince görünüm çizime sığar', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.waitForTimeout(600);
+  await page.evaluate(() => {
+    const T = __tz;
+    T.setTool('line'); T.toolClick(5, 5); T.toolClick(35, 5); T.setTool(null);
+    T.setTool('smartdim'); T.toolClick(20, 5); T.toolClick(20, 11);
+    T.setDimVal(T.sk.feat.cons.find(c => c.t === 'd' || c.t === 'dh').id, 800);
+  });
+  await page.waitForTimeout(700);
+  const r = await page.evaluate(() => {
+    const f = __tz.sk.feat, l = f.ents.find(e => e.t === 'line');
+    const a = __tz.scr(f.pts[l.a].x, f.pts[l.a].y), b = __tz.scr(f.pts[l.b].x, f.pts[l.b].y);
+    const v = document.querySelector('canvas').getBoundingClientRect();
+    return { len: Math.hypot(f.pts[l.a].x - f.pts[l.b].x, f.pts[l.a].y - f.pts[l.b].y), a, b, v: [v.left, v.top, v.right, v.bottom] };
+  });
+  expect(r.len).toBeCloseTo(800, 3);
+  for (const p of [r.a, r.b]) { expect(p[0]).toBeGreaterThan(r.v[0]); expect(p[0]).toBeLessThan(r.v[2]); expect(p[1]).toBeGreaterThan(r.v[1]); expect(p[1]).toBeLessThan(r.v[3]); }
+  expect(Math.abs(r.a[0] - r.b[0])).toBeGreaterThan((r.v[2] - r.v[0]) * 0.3); // çizgi ekranda küçük kalmaz
+  expect(errors).toEqual([]);
+});
+
+test('ölçü girişinde dört işlem: 800/2 ve 5+(20+2)*3', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.evaluate(() => {
+    const T = __tz;
+    T.setTool('line'); T.toolClick(5, 5); T.toolClick(35, 5); T.setTool(null);
+    T.setTool('smartdim'); T.toolClick(20, 5); T.toolClick(20, 11);
+  });
+  const pop = page.locator('.pop input');
+  await pop.fill('800/2');
+  await pop.press('Enter');
+  const len = () => page.evaluate(() => { const f = __tz.sk.feat, l = f.ents.find(e => e.t === 'line'); return Math.hypot(f.pts[l.a].x - f.pts[l.b].x, f.pts[l.a].y - f.pts[l.b].y); });
+  expect(await len()).toBeCloseTo(400, 4);
+  const row = page.locator('.dimrow input').first();
+  await row.fill('5+(20+2)*3');
+  await row.press('Enter');
+  expect(await len()).toBeCloseTo(71, 4);
+  await row.fill('5+(2');
+  await row.press('Enter');
+  await expect(row).toHaveClass(/bad/);
+  expect(await len()).toBeCloseTo(71, 4);
+  expect(errors).toEqual([]);
+});
+
+test('öğe üstüne tıklanınca çakışıklık: daire çevresi, yay bitişi, çokgen köşesi', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  const r = await page.evaluate(() => {
+    const T = __tz, f = T.sk.feat;
+    T.setTool('line'); T.toolClick(-50, 0); T.toolClick(50, 0); T.setTool(null);
+    const line = f.ents.find(e => e.t === 'line').id;
+    const onLine = id => f.cons.some(c => c.t === 'pol' && c.p === id && c.e === line);
+    // daire: merkez yukarıda, çevre çizginin üstüne
+    T.setTool('circle'); T.toolClick(-20, 10); T.toolClick(-20, 0);
+    const circ = f.ents.find(e => e.t === 'circle');
+    const tie = f.cons.find(c => c.t === 'poc' && c.e === circ.id);
+    // merkez nokta yay: bitiş çizginin üstüne
+    T.setTool('arc'); T.toolClick(20, 5); T.toolClick(30, 5); T.toolClick(28.5, 0);
+    const arc = f.ents.find(e => e.t === 'arc');
+    // çokgen: ilk köşe çizginin ucuna (mevcut noktaya)
+    const end = f.ents.find(e => e.id === line).b;
+    T.setTool('polygon'); T.toolClick(50, 20); T.toolClick(50, 0);
+    const poly = f.ents.filter(e => e.t === 'line' && !e.cons && e.id !== line);
+    const out = { circTie: !!tie && onLine(tie.p), arcTie: onLine(arc.a) || onLine(arc.b), polyShares: poly.some(e => e.a === end || e.b === end) };
+    T.setTool(null); T.exitSketch(true);
+    const g = T.state.features.find(x => x.type === 'sketch');
+    out.kept = !!g.pts[tie.p];
+    const P = g.pts[tie.p], C = g.pts[circ.c];
+    out.onCircle = Math.abs(Math.hypot(P.x - C.x, P.y - C.y) - g.ents.find(e => e.id === circ.id).r) < 1e-6;
+    const L = g.ents.find(e => e.id === line), A = g.pts[L.a], B = g.pts[L.b];
+    out.onLine = Math.abs((P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)) / Math.hypot(B.x - A.x, B.y - A.y) < 1e-6;
+    out.lineY = [A.y, B.y];
+    return out;
+  });
+  expect(r).toEqual({ circTie: true, arcTie: true, polyShares: true, kept: true, onCircle: true, onLine: true, lineY: [0, 0] });
+  expect(errors).toEqual([]);
+});

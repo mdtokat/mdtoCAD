@@ -11,7 +11,24 @@ const vc=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const vl=a=>Math.hypot(a[0],a[1],a[2]);
 const vn=a=>{const l=vl(a)||1;return [a[0]/l,a[1]/l,a[2]/l]};
 const v3=a=>new T.Vector3(a[0],a[1],a[2]);
-function num(x){return typeof x==='number'?x:parseFloat(String(x).replace(',','.'))}
+/* sayı girişi: virgül veya nokta ondalık ayırıcı; dört işlem ve parantez (ör. 800/2, 5+(20+2)*3) */
+function num(x){
+  if(typeof x==='number')return x;
+  const s=String(x).trim().replace(/,/g,'.').replace(/[×xX]/g,'*').replace(/÷/g,'/').replace(/−/g,'-');
+  const v=calc(s);if(v!==null)return v;
+  return /[*/()+]|\d\s*-/.test(s)?NaN:parseFloat(s);
+}
+/* + − × ÷ ve parantezli ifadeyi eval kullanmadan hesaplar; geçersizse null */
+function calc(s){
+  let i=0;const sp=()=>{while(s[i]===' ')i++};
+  const atom=()=>{sp();
+    if(s[i]==='-'||s[i]==='+'){const g=s[i++]==='-'?-1:1;const v=atom();return v===null?null:g*v}
+    if(s[i]==='('){i++;const v=add();sp();if(v===null||s[i]!==')')return null;i++;return v}
+    const m=/^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i));if(!m)return null;i+=m[0].length;return parseFloat(m[0])};
+  const mul=()=>{let v=atom();for(;;){sp();const o=s[i];if(v===null||(o!=='*'&&o!=='/'))return v;i++;const w=atom();if(w===null)return null;v=o==='*'?v*w:v/w}};
+  const add=()=>{let v=mul();for(;;){sp();const o=s[i];if(v===null||(o!=='+'&&o!=='-'))return v;i++;const w=mul();if(w===null)return null;v=o==='+'?v+w:v-w}};
+  const v=add();sp();return v!==null&&i===s.length?v:null;
+}
 
 /* ============ CSG (BSP) ============ */
 var CSG_EPS=1e-5;

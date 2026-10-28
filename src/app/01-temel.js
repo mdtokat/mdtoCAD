@@ -443,6 +443,7 @@ function click3D(e){
     if(i>=0)pm.draft.edges.splice(i,1);else pm.draft.edges.push({a:ed.a.slice(),b:ed.b.slice()});
     updateSelVisual();renderPM();schedulePreview();return;
   }
+  if(pm&&(pm.type==='extrude'||pm.type==='revolve')){if(!pm.draft.thin)regionClick(e);return}
   if(pm&&(pm.type==='mirror'||pm.type==='plane')){const pl=pickPlane(e);if(pl){if(pm.type==='mirror')pm.draft.plane=pl.key;else pm.draft.base=pl.key;renderPM();updatePlaneVis();schedulePreview()}return}
   if(pm)return;
   if(pickMode==='plane'){

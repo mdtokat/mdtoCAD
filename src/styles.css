@@ -150,6 +150,9 @@ button:disabled{cursor:default}
 .pop button{width:30px;height:30px;border-radius:5px;border:1px solid var(--line);background:var(--field);display:flex;align-items:center;justify-content:center}
 .pop button.ok{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .pop svg{width:15px;height:15px}
+.pop.skin{align-items:flex-end}
+.pop.skin label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted)}
+.pop.skin input{width:84px}
 
 /* PropertyManager */
 .pm-head{display:flex;align-items:flex-start;gap:10px;padding:12px 12px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}

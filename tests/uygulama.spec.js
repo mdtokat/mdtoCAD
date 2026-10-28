@@ -310,11 +310,12 @@ test('yakalama: kesişim, dik çıkarım, ızgara; profil sorunları işaretleni
   // ızgara görünür
   expect(await page.evaluate(() => __tz.sk.opts.grid)).toBe(true);
   await page.evaluate(() => __tz.exitSketch(false));
-  // T-birleşimi: anlaşılır hata
+  // dikdörtgeni ikiye bölen çizgi profili bozmaz: bölgeler birleşir
   await newSketch(page);
   await page.evaluate(() => { const T = __tz; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(60, 40); T.setTool('line'); T.toolClick(30, 0); T.toolClick(30, 40); });
   const e = await page.evaluate(extrudeJS);
-  expect(Object.values(e.err)[0]).toContain('T-birleşimi');
+  expect(e.err).toEqual({});
+  expect(e.vol).toBeCloseTo(60 * 40 * 20, 0);
   expect(errors).toEqual([]);
 });
 
@@ -562,3 +563,110 @@ test('öğe üstüne tıklanınca çakışıklık: daire çevresi, yay bitişi, 
   expect(r).toEqual({ circTie: true, arcTie: true, polyShares: true, kept: true, onCircle: true, onLine: true, lineY: [0, 0] });
   expect(errors).toEqual([]);
 });
+
+test('bölgeler: kesişen şekiller birleşir, kolların çevrelediği boşluk dolmaz, bölge tıklanarak seçilir', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  // dikdörtgen + taşan daire → birleşim
+  const a = await page.evaluate(() => {
+    const T = __tz; T.sk.opts.grid = false; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(40, 20); T.setTool('circle'); T.toolClick(35, 30); T.toolClick(45, 30);
+    return { warn: !!document.querySelector('.warnnote') };
+  });
+  expect(a.warn).toBe(false); // kesişme artık sorun değil
+  const e = await page.evaluate(extrudeJS);
+  expect(e.err).toEqual({});
+  expect(e.vol).toBeGreaterThan(40 * 20 * 20 + 100 * 20);
+  expect(e.vol).toBeLessThan((40 * 20 + Math.PI * 100) * 20);
+  // dört kol + dört köşe dairesi: iç kare boş kalır, iç içe daireler delik olur
+  const v = await page.evaluate(() => {
+    const sk = { pts: {}, ents: [], cons: [] };let i = 0;
+    const P = (x, y) => { const id = 'p' + (++i); sk.pts[id] = { x, y }; return id; };
+    const c = [[-40, -40], [40, -40], [40, 40], [-40, 40]];
+    for (const r of [13, 8]) for (const [x, y] of c) sk.ents.push({ id: 'e' + (++i), t: 'circle', c: P(x, y), r });
+    for (const [x0, y0, x1, y1] of [[-30, -44.5, 30, -35.5], [-30, 35.5, 30, 44.5], [-44.5, -30, -35.5, 30], [35.5, -30, 44.5, 30]]) {
+      const q = [P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1)];
+      q.forEach((id, k) => sk.ents.push({ id: 'e' + (++i), t: 'line', a: id, b: q[(k + 1) % 4] }));
+    }
+    const sh = __tz.sketchProfiles(sk);
+    return { n: sh.length, holes: sh.reduce((s, x) => s + x.holes.length, 0) };
+  });
+  expect(v).toEqual({ n: 1, holes: 5 }); // dış kontur + iç boşluk + dört delik
+  // bölge seçimi: yalnızca dairenin dikdörtgen dışında kalan parçası
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(40, 20); T.setTool('circle'); T.toolClick(35, 10); T.toolClick(43, 10); T.setTool(null); T.exitSketch(true); T.cmd('extrude'); });
+  // ekran konumu ve tıklama aynı anda: kamera animasyonu arada konumu kaydıramaz
+  await page.evaluate(() => { const [x, y] = __tz.scrW([42, 10, 0]); __tz.click3D({ clientX: x, clientY: y, button: 0 }); });
+  const r = await page.evaluate(() => { const T = __tz; const reg = T.pm.draft.regions; const s = T.state.features[0]; const c = s.ents.find(e => e.t === 'circle');
+    T.commitPM(); return { reg, err: T.model.errors, vol: T.model.props.vol, cx: s.pts[c.c].x, R: c.r }; });
+  expect(r.reg.length).toBe(1);
+  expect(r.err).toEqual({});
+  const d = 40 - r.cx, seg = r.R * r.R * Math.acos(d / r.R) - d * Math.sqrt(r.R * r.R - d * d); // dikdörtgen dışındaki daire parçası
+  expect(r.vol / 20 / seg).toBeCloseTo(1, 2);
+  expect(errors).toEqual([]);
+});
+
+test('ince özellik: açık zincir kalınlıkla ekstrüde edilir; başlangıç ofseti', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('line'); T.toolClick(0, 0); T.toolClick(0, 40); T.toolClick(30, 40); T.toolClick(30, 0); T.setTool(null); T.exitSketch(true); T.cmd('extrude'); });
+  await expect(page.locator('#pm')).toContainText('İnce özellik');
+  const r = await page.evaluate(() => { const T = __tz; const d = T.pm.draft; const thin = d.thin; Object.assign(d, { thick: 5, thinSide: 'mid', depth: 10, fromOff: 15 }); T.commitPM();
+    const b = T.model.box; return { thin, err: T.model.errors, vol: T.model.props.vol, z: [b.min[2], b.max[2]] }; });
+  expect(r.thin).toBe(true);
+  expect(r.err).toEqual({});
+  expect(r.vol).toBeCloseTo(110 * 5 * 10, 0);
+  expect(r.z[0]).toBeCloseTo(15, 6);
+  expect(r.z[1]).toBeCloseTo(25, 6);
+  expect(errors).toEqual([]);
+});
+
+test('delik sihirbazı: özel faturalı ölçüler', async ({ page }) => {
+  await openApp(page);
+  const r = await page.evaluate(() => {
+    const feats = JSON.parse(JSON.stringify(__tz.state.features));
+    feats.push({ id: 'h1', type: 'hole', name: 'Delik1', htype: 'cbore', size: 'custom', dia: 9, cbd: 20, cbh: 6.5, end: 'through', depth: 12,
+      on: { kind: 'face', feat: 'x1', which: 'far', sgn: 1 }, pts: [[30, -20]] });
+    const r = __tz.rebuildModel(feats);
+    return { err: r.errors, txt: r.ann.filter(a => a.txt).map(a => a.txt) };
+  });
+  expect(r.err).toEqual({});
+  expect(r.txt).toContain('Ø9, faturalı Ø20 derinlik 6,5');
+});
+
+test('çizerken ölçü yazma: çizgi uzunluğu, dikdörtgen ve çap ölçü olarak eklenir', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('line'); T.toolClick(0, 0); T.sk.cursor = [10, 0.2]; });
+  await page.keyboard.type('5*10');
+  await expect(page.locator('.pop.skin')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => { const T = __tz; T.setTool('rect'); T.toolClick(100, 0); T.sk.cursor = [110, 10]; });
+  await page.keyboard.type('60');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('40');
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => { const T = __tz; T.setTool('circle'); T.toolClick(-50, 0); T.sk.cursor = [-45, 0]; });
+  await page.keyboard.type('25');
+  await page.keyboard.press('Enter');
+  const r = await page.evaluate(() => { const f = __tz.sk.feat; return { dims: f.cons.filter(c => c.val != null).map(c => [c.t, c.val]), p1: f.pts.p1 }; });
+  expect(r.dims).toEqual([['d', 50], ['d', 60], ['d', 40], ['ddia', 25]]);
+  expect(r.p1.x).toBeCloseTo(50, 6);
+  expect(r.p1.y).toBeCloseTo(0, 6);
+  expect(errors).toEqual([]);
+});
+
+for (const [dosya, ad, kutu] of [['bukulmus-braket', 'Bükülmüş', [124, 171.5, 50]], ['yatakli-stand', 'Yataklı', [106, 155, 106]], ['l-destek', 'L destek', [30, 65, 35]]]) {
+  test(`örnek: ${dosya} hatasız, tam tanımlı ve teknik resmi çizilir`, async ({ page }) => {
+    const errors = await openApp(page);
+    const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
+    await fc.setFiles(new URL(`../ornekler/${dosya}.tezgah.json`, import.meta.url).pathname);
+    await page.waitForFunction(ad => __tz.state.partName.startsWith(ad), ad);
+    const r = await page.evaluate(() => { const m = __tz.model, b = m.box; return { err: m.errors, dof: Object.values(m.dof), box: b.min.map((v, i) => b.max[i] - v) }; });
+    expect(r.err).toEqual({});
+    for (const d of r.dof) expect(d).toBe(0);
+    r.box.forEach((v, i) => expect(v).toBeCloseTo(kutu[i], 0));
+    await page.click('[data-tab="drawing"]');
+    await page.waitForFunction(() => !!__tz.getCtx() && Object.keys(__tz.getCtx().views).length >= 3);
+    expect(errors).toEqual([]);
+  });
+}

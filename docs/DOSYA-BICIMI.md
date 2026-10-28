@@ -55,19 +55,23 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
 ```jsonc
 { "type":"extrude", "op":"add"|"cut", "sketch":"s1",
   "end":"blind"|"through"|"mid", "depth":20, "flip":false,
-  "dir2":false, "end2":"blind"|"through", "depth2":10 }
+  "dir2":false, "end2":"blind"|"through", "depth2":10,
+  "fromOff":0,                                   // isteğe bağlı: başlangıç düzleminin çizim normali boyunca ofseti (mm)
+  "thin":false, "thick":5, "thinSide":"a"|"b"|"mid", // isteğe bağlı: İnce özellik (zincir bu kalınlıkta şerit olur)
+  "regions":[[x,y], ...] }                       // isteğe bağlı: yalnızca bu çizim noktalarını içeren bölgeler
 ```
-Malzeme ekleme varsayılan olarak çizim normali yönünde, kesme ters yönde ilerler.
+Malzeme ekleme varsayılan olarak çizim normali yönünde, kesme ters yönde ilerler. `regions` yoksa çizimin tüm malzeme bölgeleri kullanılır: kapalı konturlar (uç uca bağlı zincirler ve daireler) birbirini kesiyorsa birleşir; bir bölgeyi çevreleyen kontur grubu sayısı tekse bölge malzeme, çiftse boşluktur. İnce özellikte `thinSide` `a` zincirin yürüme yönüne göre sol tarafıdır.
 
 ### `revolve`
 ```jsonc
-{ "type":"revolve", "op":"add"|"cut", "sketch":"s1", "axis":"<çizgi id>", "angle":360, "mode":"one"|"mid", "flip":false }
+{ "type":"revolve", "op":"add"|"cut", "sketch":"s1", "axis":"<çizgi id>", "angle":360, "mode":"one"|"mid", "flip":false, "regions":[[x,y]] }
 ```
 
 ### `hole` — Delik Sihirbazı
 ```jsonc
 { "type":"hole", "htype":"simple"|"clear"|"tapped"|"cbore"|"csink",
-  "size":"M3"…"M20", "fit":"fine"|"normal"|"coarse", "dia":10,
+  "size":"M3"…"M20"|"custom", "fit":"fine"|"normal"|"coarse", "dia":10,
+  "cbd":18, "cbh":2, "csd":18,          // size "custom": fatura çapı/derinliği, havşa çapı (delik çapı "dia")
   "end":"through"|"blind", "depth":20, "tdepth":16,
   "on": { /* çizimdeki gibi */ }, "pts": [[u, v], ...] }
 ```

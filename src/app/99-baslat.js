@@ -78,6 +78,7 @@ document.addEventListener('keydown',e=>{
     menu.classList.remove('on');
     if($('#pdfDlg').classList.contains('on')){closePdfDialog();return}
     if(dimPopEl){closeDimPop();return}
+    if(skInEl){closeSkInput();return}
     if(meas){closeMeasure();return}
     if(activeTab==='drawing'){if(dwTool){setDwTool(null);return}if(dimMode){if(dimSt.stage>0){dimSt={stage:0,p1:null,p2:null};updateDimTip();drawOverlay(null)}else setDimMode(false)}return}
     if(activeTab==='asm'){if(asmUI.pm){closeAsmPM();return}if(asmUI.tool){asmCmd(asmUI.tool==='move'?'amove':'arotate');return}if(asmUI.sel){asmUI.sel=null;asmHighlight();renderAsmTree()}return}
@@ -94,6 +95,8 @@ document.addEventListener('keydown',e=>{
     if(sk){e.preventDefault();deleteSel();return}
     if(!pm&&sel&&sel.kind==='feature'){const b=$(`.ti[data-id="${sel.id}"] [data-a="del"]`);if(b)b.click()}
   }
+  // çizerken ölçü yazma: ilk noktadan sonra rakam yazınca giriş kutusu açılır
+  if(sk&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[0-9.,(]$/.test(e.key)&&skInputFields()){e.preventDefault();openSkInput(e.key);return}
   if(sk&&!typing&&!e.ctrlKey&&!e.metaKey){const k=e.key.toLowerCase();const map={l:'line',c:'circle',r:'rect',d:'smartdim',a:'arc',t:'trim'};if(map[k]){setTool(map[k])}}
 });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(sk)sk.dirty=true});
@@ -106,4 +109,4 @@ renderHud();renderRibbon();resize();
 rebuild();renderTree();renderPM();updUndo();applyDisplay();
 fitCamera(VIEWDIRS.iso,false);
 loop();
-window.__tz={get state(){return state},solidMesh,get project(){return project},get asmUI(){return asmUI},get asmView(){return asmView},sketchesGroup,get shown(){return shown},curAsm,solveAsm,pickEdge,click3D,openHolePM,openMeasure,get meas(){return meas},setSkOp,applySkOp,trimAt,setExplode,openExplodePM,openInterfPM,openAsmDrawing,dwSrc,asmDof,openMatePM,addComp,asmPick,setMateType,commitMate,exportAsmSTL,stlBinary,makeZip,parseSTL,importSTL,switchPart,model,get sk(){return sk},get pm(){return pm},cmd,startSketch,editSketch,exitSketch,autoDefine,setTool,toolClick:(x,y)=>toolClick([x,y],sk.px||0.3,(sk.px||0.3)*9),setTab,openPM,commitPM,getCtx:()=>dctx,openPdfDialog,makePdf,buildPdf,svgToPdfOps,build3DPage,buildSheet,pdfOpt,solveSketch,analyzeSketch,setDimVal,addRelation,selectItems:(a)=>{sk.sel=a;skChanged()},rebuildModel,scr:(x,y)=>{const s=skToScreen(x,y);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]},scrW:(p)=>{const s=toScreen(p);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]}};
+window.__tz={get state(){return state},solidMesh,get project(){return project},get asmUI(){return asmUI},get asmView(){return asmView},sketchesGroup,get shown(){return shown},curAsm,solveAsm,pickEdge,click3D,openHolePM,openMeasure,get meas(){return meas},setSkOp,applySkOp,trimAt,setExplode,openExplodePM,openInterfPM,openAsmDrawing,dwSrc,asmDof,openMatePM,addComp,asmPick,setMateType,commitMate,exportAsmSTL,stlBinary,makeZip,parseSTL,importSTL,switchPart,model,get sk(){return sk},get pm(){return pm},cmd,startSketch,editSketch,exitSketch,autoDefine,setTool,toolClick:(x,y)=>toolClick([x,y],sk.px||0.3,(sk.px||0.3)*9),openSkInput,applySkInput,sketchProfiles,sketchFaces,regionClick,setTab,openPM,commitPM,getCtx:()=>dctx,openPdfDialog,makePdf,buildPdf,svgToPdfOps,build3DPage,buildSheet,pdfOpt,solveSketch,analyzeSketch,setDimVal,addRelation,selectItems:(a)=>{sk.sel=a;skChanged()},rebuildModel,scr:(x,y)=>{const s=skToScreen(x,y);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]},scrW:(p)=>{const s=toScreen(p);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]}};

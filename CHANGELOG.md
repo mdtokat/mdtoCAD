@@ -1,6 +1,14 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Çizim: **Bölgeler.** Profil düzlemsel bölge çözümüyle bulunur: birbirini kesen veya üst üste binen kapalı şekiller (ör. Ø27 göbek + kaburga, köşe göbekleri + kollar) budamadan birleşir; iç içe ve birbirine değmeyen konturlar delik olur; bir bölgeyi ikiye bölen çizgiler ve boşta uçlar artık hata vermez. Kesişme ve T-birleşimi işaretleri yalnızca profil gerçekten çıkarılamıyorsa gösterilir.
+- Ekstrüzyon / Döndürme: **bölge seçimi** — panel açıkken çizimin bölgelerine tıklanarak yalnızca seçilen bölgeler kullanılır (yeni `regions` alanı). Bölgeler mavi çerçeveyle, seçilenler turuncu gösterilir.
+- Ekstrüzyon: **İnce özellik** — açık çizgi/yay zinciri tek yön, ters yön veya orta düzlemde verilen kalınlıkta şeride dönüştürülür; kapalı kontur halka olur. Yalnızca açık zincir içeren çizimde ekstrüzyon ince özellik olarak açılır (yeni `thin`, `thick`, `thinSide`).
+- Ekstrüzyon: **başlangıç ofseti** — özellik çizim düzlemine paralel, normal boyunca kaydırılmış düzlemden başlar; referans düzlem gerekmez (yeni `fromOff`).
+- Delik Sihirbazı: geçiş, faturalı ve havşa deliklerde **özel ölçü** (delik, fatura çapı/derinliği, havşa çapı).
+- Çizim: **çizerken ölçü yazma** — çizgi, dikdörtgen, daire ve çokgende ilk noktadan sonra rakam yazınca giriş kutusu açılır; değer şekli çizer ve sürücü ölçü olarak eklenir (dört işlem kullanılabilir).
+- Teknik resim: otomatik ölçek ön/üst/yan görünüşlere göre seçilir; izometrik görünüş kalan alana kendi ölçeğiyle sığar ve altına ölçeği yazılır (ör. önceden 1:5 çizilen parça artık 1:2).
+- Örnekler: eklerdeki üç teknik resim programla çizildi — bükülmüş braket, yataklı stand, L destek; `npm run ornekler` adımları uygulamada yeniden oynatır.
 - Düzeltme (Budama): teğet noktalar ve yay uçlarındaki kesişimler artık bulunuyor. Önceden teğet bir çizgiyi veya yayı budamak, kesişim kaçırıldığı için öğeyi bütünüyle silebiliyordu.
 - Düzeltme (Budama): bir parça bütünüyle budanınca ölçü ve ilişkileri (çap, teğet, mesafe…) aynı öğeden kalan parçaya geçer; yay ortadan bölününce iki parça eşit yarıçapla bağlanır. Budama imlecin altında yapı çizgisi de varsa profil öğesini seçer.
 - Düzeltme (çözücü): ortak uç noktasındaki teğetlik birinci dereceden yazılır. Önceden serbestlik derecesi bir fazla hesaplanıyordu; bu yüzden Tam Tanımla fazladan bir uzunluk ölçüsü ekliyor, sonra ölçü değiştirmek çizimi çözülemez hâle getiriyordu.

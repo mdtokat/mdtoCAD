@@ -58,9 +58,9 @@ function exitSketch(accept){
   else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);hist.undo.pop();pending=null}
     else{let msg='';
       if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
-      const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' Bu çizimden katı özellik oluşturulamaz; çizimi düzenleyip kırmızı noktaları düzelt.'+(msg?' '+msg:'');
+      const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
       if(msg)toast(msg)}}
-  sk=null;closeDimPop();solidTone();
+  sk=null;closeDimPop();closeSkInput();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
   cmTab='features';afterChange();
@@ -72,24 +72,33 @@ function exitSketch(accept){
 $('#confirm').addEventListener('click',e=>{const b=e.target.closest('[data-cf]');if(!b)return;exitSketch(b.dataset.cf==='ok')});
 
 function analyze(){try{sk.an=analyzeSketch(sk.feat)}catch(e){sk.an=null}try{sk.issues=skIssues(sk.feat);sk.xpts=skXpts(sk.feat)}catch(e){sk.issues=null;sk.xpts=[]}}
-/* Profil sorunları: boşta uçlar, üçten fazla öğenin birleştiği noktalar, kesişmeler (yapı geometrisi hariç) */
+/* Profil sorunları: boşta uçlar, üçten fazla öğenin birleştiği noktalar, kesişmeler (yapı geometrisi hariç).
+   Kesişen ve üst üste binen şekiller bölge çözümüyle birleştiği için profil çıkarılabiliyorsa (ok) yalnızca boşta uçlar bildirilir. */
 function skIssues(f){
   const ents=f.ents.filter(e=>!e.cons);const deg={};
   for(const e of ents)if(e.t!=='circle')for(const p of [e.a,e.b])deg[p]=(deg[p]||0)+1;
   const open=[],multi=[],cross=[];
   for(const p in deg){if(deg[p]===1)open.push(p);else if(deg[p]>2)multi.push(p)}
+  let ok=false;if(ents.length){try{ok=sketchProfiles(f).length>0}catch(e){ok=false}}
+  if(ok)return {open,multi:[],cross:[],n:open.length,ok};
   const shared=(e,o)=>[e.a,e.b,e.c].filter(x=>x&&[o.a,o.b].includes(x));
   for(let i=0;i<ents.length;i++)for(let j=i+1;j<ents.length;j++){const e=ents[i],o=ents[j];
     for(const p of intersectEnts(f,e,o)){if(shared(e,o).some(id=>{const q=skP(f,id);return Math.hypot(q.x-p[0],q.y-p[1])<1e-6*(1+Math.abs(p[0])+Math.abs(p[1]))}))continue;
       if(open.some(id=>{const q=skP(f,id);return Math.hypot(q.x-p[0],q.y-p[1])<1e-6*(1+Math.abs(p[0])+Math.abs(p[1]))}))continue; // T-birleşimi zaten boşta uç
       cross.push(p)}}
-  return {open,multi,cross,n:open.length+multi.length+cross.length};
+  return {open,multi,cross,n:open.length+multi.length+cross.length,ok};
 }
 /* çizim araçları kullanılırken açık uçlar doğaldır; sorunlar yalnızca seçim/ölçü/düzenleme araçlarında gösterilir */
 const showIssues=()=>!sk.tool||['smartdim','trim','sfillet'].includes(sk.tool);
 function issueText(iss){
   const a=[];if(iss.open.length)a.push(`${iss.open.length} boşta uç (açık kontur)`);if(iss.multi.length)a.push(`${iss.multi.length} noktada ikiden fazla öğe birleşiyor`);if(iss.cross.length)a.push(`${iss.cross.length} kesişme`);
   return 'Çizimde '+a.join(', ')+' var.';
+}
+/* sorunun ne anlama geldiği: kapalı bölge varsa boşta uçlar yalnızca yok sayılır; yoksa ince özellik gerekir */
+function issueHint(iss){
+  if(iss.ok)return 'Boşta kalan çizgiler profile katılmaz; kapalı bölgeler kullanılır.';
+  if(iss.open.length&&!iss.multi.length&&!iss.cross.length)return 'Kapalı bölge yok: bu açık kontur yalnızca Ekstrüzyondaki İnce özellik (kalınlık) ile katıya dönüştürülebilir. Kapalı profil için konturu kapat.';
+  return 'Kırmızı işaretli noktaları düzelt: konturu kapat, fazla parçaları Budama ile temizle.';
 }
 /* Yakalama için öğe kesişim noktaları (var olan noktalarla çakışmayanlar) */
 function skXpts(f){
@@ -127,7 +136,7 @@ function cleanupOrphans(f){
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
 function setTool(t){
-  if(!sk)return;endChainIfAny();sk.tool=t;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();
+  if(!sk)return;endChainIfAny();sk.tool=t;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();closeSkInput();
   renderRibbon();renderSketchPM();sk.dirty=true;updSbar();
 }
 function endChainIfAny(){
@@ -743,7 +752,7 @@ function renderSketchPM(){
   const stc=sk.ok===false?'over':(dof===0?'full':'under');
   const stt=stc==='over'?'Çözülemedi (aşırı tanımlı)':(dof===0?'Tam tanımlı':`Tam tanımlanmamış (${dof} serbestlik derecesi)`);
   let b=`<div class="grp"><div class="stat ${stc}"><i></i>${stt}</div><p class="note" style="margin-top:6px">Mavi öğeler henüz tanımlanmamış, siyahlar tam tanımlı. Ölçü ve ilişki ekleyerek çizimi tam tanımla.</p></div>`;
-  if(sk.issues&&sk.issues.n&&showIssues())b+=`<div class="grp"><p class="note warnnote">${esc(issueText(sk.issues))} Kırmızı işaretli noktaları düzelt: konturu kapat, fazla parçaları Budama ile temizle.</p></div>`;
+  if(sk.issues&&sk.issues.n&&showIssues())b+=`<div class="grp"><p class="note warnnote">${esc(issueText(sk.issues)+' '+issueHint(sk.issues))}</p></div>`;
   if(sk.op)b+=skOpBody();
   if(sk.tool){
     let o=`<p class="note">${esc(TOOLHELP[sk.tool]||'')}</p>`;

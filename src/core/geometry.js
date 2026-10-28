@@ -167,8 +167,16 @@ function segX(p1,p2,p3,p4){
   const t=((p3[0]-p1[0])*(p4[1]-p3[1])-(p3[1]-p1[1])*(p4[0]-p3[0]))/d,u=((p3[0]-p1[0])*(p2[1]-p1[1])-(p3[1]-p1[1])*(p2[0]-p1[0]))/d;
   return t>1e-7&&t<1-1e-7&&u>1e-7&&u<1-1e-7;
 }
-/* Çizimden kapalı profilleri çıkarır: dış konturlar + delikler */
-function sketchProfiles(sk){
+/* Çizimden kapalı profilleri çıkarır: dış konturlar + delikler.
+   regions: isteğe bağlı bölge seçimi ([x,y] tohum noktaları); verilirse yalnızca bu noktaları içeren bölgeler kullanılır.
+   Profil bölge çözümüyle (sketchRegionShapes) bulunur: kesişen ve üst üste binen konturlar birleşir, boşta uçlar yok sayılır. */
+function sketchProfiles(sk,regions){
+  if(regions&&regions.length){const s=sketchRegionShapes(sk,regions);if(!s.length)throw new Error('Seçili bölgeler çizimde bulunamadı. Özelliği düzenleyip bölgeleri yeniden seç.');return s}
+  let s=[];if(sk.ents.some(e=>!e.cons)){try{s=sketchRegionShapes(sk)}catch(e){s=[]}}
+  // bölge bulunamazsa basit çözümleme açıklayıcı hatayı (açık kontur, profil yok…) verir
+  return s.length?s:simpleProfiles(sk);
+}
+function simpleProfiles(sk){
   const ents=sk.ents.filter(e=>!e.cons);
   if(!ents.length)throw new Error('Çizimde profil yok. Yapı geometrisi dışındaki çizgilerle kapalı bir kontur çiz.');
   const deg={},adj={};
@@ -214,6 +222,177 @@ function sketchProfiles(sk){
   loops.forEach((L,i)=>{if(depth[i]%2===0)shapes.push({outer:L.pts,holes:[],idx:i,circle:L.circle})});
   loops.forEach((L,i)=>{if(depth[i]%2===1){const s=shapes.find(s=>s.idx===parent[i]);if(s)s.holes.push({pts:L.pts.slice().reverse(),circle:L.circle})}});
   return shapes;
+}
+
+/* İki çizim öğesinin kesişim noktaları (teğet ve uç noktalarındaki dokunmalar dahil) */
+function entIntersect(sk,e,o){
+  const out=[];const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  // tolerans çizim ölçeğine göre: çözücünün bıraktığı küçük hatalar teğet ve uç noktalarındaki kesişimi kaybettirmesin
+  const pts=[e,o].flatMap(x=>[x.a,x.b,x.c].filter(Boolean).map(P));const tol=1e-7*(1+Math.max(...pts.map(p=>Math.abs(p[0])+Math.abs(p[1]))));
+  const lineLine=(a,b,c,d)=>{const r=[b[0]-a[0],b[1]-a[1]],s=[d[0]-c[0],d[1]-c[1]];const den=r[0]*s[1]-r[1]*s[0];if(Math.abs(den)<1e-12)return [];const t=((c[0]-a[0])*s[1]-(c[1]-a[1])*s[0])/den;return [[a[0]+r[0]*t,a[1]+r[1]*t]]};
+  // teğet durumda (merkezin doğruya uzaklığı ≈ R) tek nokta: dikme ayağı
+  const lineCirc=(a,b,C,R)=>{const d=[b[0]-a[0],b[1]-a[1]],L=Math.hypot(d[0],d[1]);if(L<1e-12)return [];const u=[d[0]/L,d[1]/L];
+    const t0=(C[0]-a[0])*u[0]+(C[1]-a[1])*u[1];const F=[a[0]+u[0]*t0,a[1]+u[1]*t0];const h=Math.hypot(C[0]-F[0],C[1]-F[1]);
+    if(h>R+tol)return [];if(h>R-tol)return [F];const k=Math.sqrt(R*R-h*h);return [[F[0]-u[0]*k,F[1]-u[1]*k],[F[0]+u[0]*k,F[1]+u[1]*k]]};
+  const circCirc=(c1,r1,c2,r2)=>{const dx=c2[0]-c1[0],dy=c2[1]-c1[1],d=Math.hypot(dx,dy);if(d<1e-9||d>r1+r2+tol||d<Math.abs(r1-r2)-tol)return [];const a=(r1*r1-r2*r2+d*d)/(2*d),h2=r1*r1-a*a;const xm=c1[0]+a*dx/d,ym=c1[1]+a*dy/d;
+    if(h2<=0||Math.abs(d-r1-r2)<tol||Math.abs(d-Math.abs(r1-r2))<tol)return [[xm,ym]];const h=Math.sqrt(h2);return [[xm+h*dy/d,ym-h*dx/d],[xm-h*dy/d,ym+h*dx/d]]};
+  // öğe üzerinde mi: çizgide parametre [0,1], yayda açı aralığı (başlangıçtaki 2π sarmasıyla birlikte), uçlarda tolerans
+  const onEnt=(en,p)=>{if(en.t==='line'){const a=P(en.a),b=P(en.b);const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1;const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(L*L);return t>-tol/L&&t<1+tol/L}
+    if(en.t==='circle')return true;const A=arcInfo(sk,en);const ta=tol/(A.r||1);let da=Math.atan2(p[1]-A.c.y,p[0]-A.c.x)-A.a0;while(da<0)da+=Math.PI*2;while(da>=Math.PI*2)da-=Math.PI*2;return da<=A.sw+ta||da>=Math.PI*2-ta};
+  let cand=[];
+  if(e.t==='line'&&o.t==='line')cand=lineLine(P(e.a),P(e.b),P(o.a),P(o.b));
+  else if(e.t==='line')cand=lineCirc(P(e.a),P(e.b),P(o.c),curveR(sk,o));
+  else if(o.t==='line')cand=lineCirc(P(o.a),P(o.b),P(e.c),curveR(sk,e));
+  else cand=circCirc(P(e.c),curveR(sk,e),P(o.c),curveR(sk,o));
+  for(const p of cand)if(onEnt(e,p)&&onEnt(o,p)&&!out.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<tol*10))out.push(p);
+  return out;
+}
+
+/* ============ Bölgeler: kesişen / üst üste binen konturlar ============ */
+/* Profil öğeleri birbirini kestiği ve birbirine dokunduğu noktalarda bölünür, düzlemsel graf kurulur ve yüzleri (bölgeler) bulunur.
+   Malzeme kuralı (8. adım): birbirini kesen konturlar (daire + dikdörtgen gibi) birleşir, iç içe ve birbirine değmeyen
+   konturlar delik olur, bir bölgeyi ikiye ayıran çizgiler ve boşta uçlar profili bozmaz. */
+function skArrangement(sk,inner){
+  const ents=sk.ents.filter(e=>!e.cons);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  let ext=1;for(const id in sk.pts){const p=sk.pts[id];ext=Math.max(ext,Math.abs(p.x),Math.abs(p.y))}
+  for(const e of ents)if(e.t==='circle'){const c=P(e.c);ext=Math.max(ext,Math.abs(c[0])+e.r,Math.abs(c[1])+e.r)}
+  const tol=Math.max(1e-6,ext*1e-6);
+  // 1) öğe başına bölme noktaları: kesişimler ve öğenin ortasına dokunan uç noktaları (T-birleşimi, üst üste binen çizgiler)
+  const splits=new Map(ents.map(e=>[e,[]]));
+  const par=(e,p)=>{if(e.t==='line'){const a=P(e.a),b=P(e.b);const dx=b[0]-a[0],dy=b[1]-a[1];return ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1)}
+    const c=P(e.c);let t=Math.atan2(p[1]-c[1],p[0]-c[0]);if(e.t==='arc'){t-=arcInfo(sk,e).a0;while(t<0)t+=Math.PI*2;while(t>=Math.PI*2)t-=Math.PI*2}return t};
+  const onIt=(e,p)=>{if(e.t==='line'){const a=P(e.a),b=P(e.b);const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(L<tol)return false;const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(L*L);return t>tol/L&&t<1-tol/L&&Math.abs((p[0]-a[0])*dy-(p[1]-a[1])*dx)/L<tol}
+    const c=P(e.c),r=curveR(sk,e);if(Math.abs(Math.hypot(p[0]-c[0],p[1]-c[1])-r)>tol)return false;if(e.t==='circle')return true;const A=arcInfo(sk,e);const t=par(e,p);return t>tol/r&&t<A.sw-tol/r};
+  const ends=e=>e.t==='circle'?[]:[e.a,e.b];const touch=[];
+  for(let i=0;i<ents.length;i++)for(let j=i+1;j<ents.length;j++){const e=ents[i],o=ents[j];let hit=false;
+    for(const p of entIntersect(sk,e,o)){hit=true;if(onIt(e,p))splits.get(e).push(p);if(onIt(o,p))splits.get(o).push(p)}
+    for(const id of ends(e)){const p=P(id);if(onIt(o,p)){hit=true;splits.get(o).push(p)}}
+    for(const id of ends(o)){const p=P(id);if(onIt(e,p)){hit=true;splits.get(e).push(p)}}
+    if(hit)touch.push([e.id,o.id])}
+  // 2) öğeleri parçalara bölüp çokgen kenarlarına çevir (yaylar yaklaşık 64 parçalı tam daire inceliğinde)
+  const segs=[];
+  const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(64*(t1-t0)/(Math.PI*2)));const out=[pa];for(let i=1;i<n;i++){const t=t0+(t1-t0)*i/n;out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)])}out.push(pb);return out};
+  for(const e of ents){
+    const sp=splits.get(e).map(p=>({p,t:par(e,p)})).sort((a,b)=>a.t-b.t);
+    let chains=[];
+    if(e.t==='line'){chains=[[P(e.a),...sp.map(s=>s.p),P(e.b)]]}
+    else if(e.t==='arc'){const A=arcInfo(sk,e),c=[A.c.x,A.c.y];const ks=[{p:P(e.a),t:0},...sp,{p:P(e.b),t:A.sw}];for(let k=0;k<ks.length-1;k++)chains.push(arcPts(c,A.r,A.a0+ks[k].t,A.a0+ks[k+1].t,ks[k].p,ks[k+1].p))}
+    else{const c=P(e.c);
+      if(!sp.length){const pts=arcPts(c,e.r,0,Math.PI*2,[c[0]+e.r,c[1]],[c[0]+e.r,c[1]]);chains=[pts]}
+      else for(let k=0;k<sp.length;k++){const a=sp[k],b=sp[(k+1)%sp.length];let t1=b.t;if(t1<=a.t+1e-12)t1+=Math.PI*2;chains.push(arcPts(c,e.r,a.t,t1,a.p,b.p))}}
+    for(const ch of chains)for(let i=0;i<ch.length-1;i++)segs.push({a:ch[i],b:ch[i+1],src:e.id});
+  }
+  // 3) çokgen kenarları arasında kalan (yaklaşık yay parçalarından doğan) kesişmeler
+  const bb=s=>[Math.min(s.a[0],s.b[0]),Math.max(s.a[0],s.b[0]),Math.min(s.a[1],s.b[1]),Math.max(s.a[1],s.b[1])];
+  segs.forEach(s=>{s.bb=bb(s);s.cut=[]});
+  const ord=segs.slice().sort((x,y)=>x.bb[0]-y.bb[0]);
+  for(let i=0;i<ord.length;i++){const s=ord[i];
+    for(let j=i+1;j<ord.length&&ord[j].bb[0]<=s.bb[1]+tol;j++){const o=ord[j];if(o.bb[2]>s.bb[3]+tol||o.bb[3]<s.bb[2]-tol)continue;
+      const r=[s.b[0]-s.a[0],s.b[1]-s.a[1]],q=[o.b[0]-o.a[0],o.b[1]-o.a[1]];const den=r[0]*q[1]-r[1]*q[0];
+      if(Math.abs(den)<1e-14*(1+ext*ext))continue;
+      const t=((o.a[0]-s.a[0])*q[1]-(o.a[1]-s.a[1])*q[0])/den,u=((o.a[0]-s.a[0])*r[1]-(o.a[1]-s.a[1])*r[0])/den;
+      const ls=Math.hypot(...r)||1,lo=Math.hypot(...q)||1;
+      if(t>tol/ls&&t<1-tol/ls&&u>tol/lo&&u<1-tol/lo){const p=[s.a[0]+r[0]*t,s.a[1]+r[1]*t];s.cut.push({t,p});o.cut.push({t:u,p})}}}
+  // 4) köşe noktalarını birleştir, yinelenen kenarları at
+  const V=[],grid=new Map(),cs=tol*4;
+  const vid=p=>{const gx=Math.floor(p[0]/cs),gy=Math.floor(p[1]/cs);
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const l=grid.get((gx+dx)+','+(gy+dy));if(l)for(const k of l)if(Math.hypot(V[k][0]-p[0],V[k][1]-p[1])<=tol*2)return k}
+    const k=V.length;V.push([p[0],p[1]]);const key=gx+','+gy;if(!grid.has(key))grid.set(key,[]);grid.get(key).push(k);return k};
+  const E=[],seen=new Map();
+  for(const s of segs){const pts=[s.a,...s.cut.sort((x,y)=>x.t-y.t).map(c=>c.p),s.b];
+    for(let i=0;i<pts.length-1;i++){const u=vid(pts[i]),v=vid(pts[i+1]);if(u===v)continue;const k=u<v?u+'_'+v:v+'_'+u;if(seen.has(k))continue;seen.set(k,E.length);E.push({u,v,src:s.src})}}
+  // 5) boşta uçları (ağaç dallarını) ayıkla
+  const alive=new Array(E.length).fill(true);const deg=new Array(V.length).fill(0);for(const e of E){deg[e.u]++;deg[e.v]++}
+  const inc=V.map(()=>[]);E.forEach((e,i)=>{inc[e.u].push(i);inc[e.v].push(i)});
+  const st=[];for(let i=0;i<V.length;i++)if(deg[i]===1)st.push(i);
+  while(st.length){const v=st.pop();for(const i of inc[v]){if(!alive[i])continue;alive[i]=false;const e=E[i];for(const w of [e.u,e.v]){deg[w]--;if(deg[w]===1)st.push(w)}}}
+  // 6) yarım kenarlar: her kenar iki yönlü; yüz soldadır, sınırlı yüzler saat yönünün tersine dolaşılır
+  const H=[];const out=V.map(()=>[]);
+  E.forEach((e,i)=>{if(!alive[i])return;const h0=H.length;H.push({o:e.u,d:e.v,tw:h0+1,src:e.src},{o:e.v,d:e.u,tw:h0,src:e.src});out[e.u].push(h0);out[e.v].push(h0+1)});
+  for(const h of H)h.ang=Math.atan2(V[h.d][1]-V[h.o][1],V[h.d][0]-V[h.o][0]);
+  for(const l of out)l.sort((a,b)=>H[a].ang-H[b].ang);
+  const pos=new Map();for(const l of out)l.forEach((h,i)=>pos.set(h,i));
+  H.forEach((h,i)=>{const tw=h.tw,l=out[h.d];const k=pos.get(tw);h.nx=l[(k-1+l.length)%l.length]});
+  // 7) yüz döngüleri ve bağlı bileşenler
+  const cyc=new Array(H.length).fill(-1);const cycles=[];
+  for(let i=0;i<H.length;i++){if(cyc[i]>=0)continue;const c={hs:[],pts:[]};let h=i,g=0;
+    while(cyc[h]<0&&g++<1e6){cyc[h]=cycles.length;c.hs.push(h);c.pts.push(V[H[h].o]);h=H[h].nx}
+    c.area=area2d(c.pts);cycles.push(c)}
+  const comp=V.map((_,i)=>i);const find=x=>{while(comp[x]!==x){comp[x]=comp[comp[x]];x=comp[x]}return x};
+  for(const h of H){const a=find(h.o),b=find(h.d);if(a!==b)comp[a]=b}
+  const outer=new Map();
+  for(const c of cycles){c.comp=find(H[c.hs[0]].o);if(c.area<0){const o=outer.get(c.comp);if(!o||c.area<o.area)outer.set(c.comp,c)}}
+  // her döngünün solunda (yüzün içinde) bir örnek nokta ve onu çevreleyen bileşen sayısı
+  for(const c of cycles){let bi=0,bl=-1;c.hs.forEach((h,k)=>{const a=V[H[h].o],b=V[H[h].d];const l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l>bl){bl=l;bi=k}});
+    const h=H[c.hs[bi]],a=V[h.o],b=V[h.d],d=Math.min(bl*0.01,ext*1e-4),l=bl||1;
+    c.sp=[(a[0]+b[0])/2-(b[1]-a[1])/l*d,(a[1]+b[1])/2+(b[0]-a[0])/l*d];
+    let n=0;for(const [k,o] of outer)if(o!==c&&!(c.area<0&&k===c.comp)&&pip(c.sp,o.pts))n++;
+    c.depth=n}
+  if(inner)return {V,H,cycles,cyc,outer,ext,ents};
+  // 8) asıl kural: çizilen kapalı konturlar (uç uca bağlı zincirler, daireler). Birbirini kesen veya birbirine değen
+  //    konturlar bir grup oluşturur (birleşim); bir bölgeyi çevreleyen grup sayısı tekse bölge malzemedir.
+  //    Böylece kesişen şekiller birleşir ama kolların çevrelediği boşluk dolmaz. Kontur yoksa bileşen kuralı kalır.
+  const cons=skContours(sk,ents);const of={};cons.forEach((c,i)=>{for(const id of c.ids)of[id]=i});
+  const gp=cons.map((_,i)=>i);const gf=x=>{while(gp[x]!==x){gp[x]=gp[gp[x]];x=gp[x]}return x};
+  for(const [a,b] of touch)if(of[a]!==undefined&&of[b]!==undefined){const x=gf(of[a]),y=gf(of[b]);if(x!==y)gp[x]=y}
+  const groups=new Map();cons.forEach((c,i)=>{const g=gf(i);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(c)});
+  const depthC=p=>{let n=0;for(const g of groups.values())if(g.some(c=>c.polys.some(q=>pip(p,q))))n++;return n};
+  for(const c of cycles)c.depthC=depthC(c.sp);
+  if(cycles.some(c=>c.area>0&&c.depthC%2===1))for(const c of cycles)c.depth=c.depthC;
+  return {V,H,cycles,cyc,outer,ext,ents};
+}
+/* Çizimdeki kapalı konturlar: uç noktalarıyla birbirine bağlanan çizgi/yay zincirleri (boşta kalan dallar ayıklanır) ve daireler.
+   Dallanan (bir noktada ikiden fazla öğe birleşen) zincirlerde kontur, o öğelerin dış sınırıdır. */
+function skContours(sk,ents){
+  const deg={},inc={};const lines=ents.filter(e=>e.t!=='circle');
+  for(const e of lines)for(const p of [e.a,e.b]){deg[p]=(deg[p]||0)+1;(inc[p]=inc[p]||[]).push(e)}
+  const alive=new Set(lines);const st=Object.keys(deg).filter(p=>deg[p]===1);
+  while(st.length){const p=st.pop();for(const e of inc[p]){if(!alive.has(e))continue;alive.delete(e);for(const q of [e.a,e.b]){deg[q]--;if(deg[q]===1)st.push(q)}}}
+  const out=[];
+  for(const e of ents)if(e.t==='circle'){const t=tessEnt(sk,e);t.pop();out.push({ids:[e.id],polys:[t]})}
+  const seen=new Set();
+  for(const e of alive){if(seen.has(e))continue;const comp=[],stk=[e];seen.add(e);
+    while(stk.length){const x=stk.pop();comp.push(x);for(const p of [x.a,x.b])for(const y of inc[p])if(alive.has(y)&&!seen.has(y)){seen.add(y);stk.push(y)}}
+    let polys=[];
+    if(comp.every(x=>deg[x.a]===2&&deg[x.b]===2)){
+      const pts=[];let cur=comp[0],from=cur.a,g=0;const used=new Set();
+      while(cur&&g++<100000){used.add(cur);const seg=tessEnt(sk,cur);const ord=cur.a===from?seg:seg.slice().reverse();for(let i=0;i<ord.length-1;i++)pts.push(ord[i]);
+        from=cur.a===from?cur.b:cur.a;cur=inc[from].find(y=>alive.has(y)&&!used.has(y))}
+      polys=[pts];
+    }else{try{const A=skArrangement({pts:sk.pts,ents:comp,cons:[]},true);polys=[...A.outer.values()].map(c=>c.pts)}catch(err){polys=[]}}
+    out.push({ids:comp.map(x=>x.id),polys});
+  }
+  return out;
+}
+/* Bölgeler (sınırlı yüzler): arayüzde gösterim ve seçim için */
+function sketchFaces(sk){
+  const A=skArrangement(sk);
+  return A.cycles.filter(c=>c.area>0).map(c=>({pts:c.pts,area:c.area,mat:c.depth%2===1,sp:c.sp}));
+}
+/* Bölgelerden profil şekilleri: malzeme bölgelerinin dış sınırı + delikleri */
+function sketchRegionShapes(sk,seeds){
+  const A=skArrangement(sk);const {V,H,cycles,cyc}=A;
+  let mat;
+  if(seeds&&seeds.length){
+    // tohum noktasını içeren en küçük sınırlı yüz seçilir
+    const pick=new Set();for(const s of seeds){let best=null;for(const c of cycles)if(c.area>0&&pip(s,c.pts)&&(!best||c.area<best.area))best=c;if(best)pick.add(best)}
+    mat=c=>pick.has(c);
+  }else mat=c=>c.depth%2===1;
+  const M=cycles.map(mat);const bnd=h=>M[cyc[h]]&&!M[cyc[H[h].tw]];
+  const used=new Set();const loops=[];
+  for(let i=0;i<H.length;i++){if(used.has(i)||!bnd(i))continue;const pts=[],src=new Set();let h=i,g=0;
+    do{used.add(h);pts.push(V[H[h].o]);src.add(H[h].src);let n=H[h].nx,k=0;while(!bnd(n)&&k++<1e5)n=H[H[n].tw].nx;h=n}while(h!==i&&g++<1e6);
+    // aynı doğru üzerindeki ara noktaları at
+    const q=pts.filter((p,k)=>{const a=pts[(k-1+pts.length)%pts.length],b=pts[(k+1)%pts.length];const cr=(p[0]-a[0])*(b[1]-p[1])-(p[1]-a[1])*(b[0]-p[0]);const ln=Math.hypot(p[0]-a[0],p[1]-a[1])*Math.hypot(b[0]-p[0],b[1]-p[1]);return Math.abs(cr)>1e-12*(1+ln)||(p[0]-a[0])*(b[0]-p[0])+(p[1]-a[1])*(b[1]-p[1])<0});
+    if(q.length<3)continue;const ar=area2d(q);if(Math.abs(ar)<1e-9*A.ext*A.ext)continue;
+    let circle;if(src.size===1){const e=A.ents.find(x=>x.id===[...src][0]);if(e&&e.t==='circle'){const c=skP(sk,e.c);circle={x:c.x,y:c.y,r:e.r}}}
+    loops.push({pts:q,area:ar,circle});
+  }
+  const outers=loops.filter(l=>l.area>0),holes=loops.filter(l=>l.area<0);
+  const shapes=outers.map(l=>({outer:l.pts,holes:[],circle:l.circle,area:l.area}));
+  for(const h of holes){const a=h.pts[0],b=h.pts[1];const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];let best=null;
+    for(const s of shapes)if(pip(m,s.outer)&&(!best||s.area<best.area))best=s;if(best)best.holes.push({pts:h.pts,circle:h.circle})}
+  return shapes.map(({area,...s})=>s);
 }
 
 /* ============ Kısıt çözücü (Levenberg–Marquardt) ============ */
@@ -503,10 +682,52 @@ function extrudeRange(f,L){
     z0=Math.min(0,s*a);z1=Math.max(0,s*a);
     if(f.dir2){const b=f.end2==='through'?L:num(f.depth2);if(!(b>0))throw new Error('Yön 2 derinliği sıfırdan büyük olmalı.');z0=Math.min(z0,-s*b);z1=Math.max(z1,-s*b)}
   }
-  return {z0,z1,s};
+  // başlangıç ofseti: özellik çizim düzleminden değil, normal boyunca kaydırılmış paralel düzlemden başlar
+  const off=f.fromOff?num(f.fromOff):0;if(!isFinite(off))throw new Error('Başlangıç ofseti geçerli değil.');
+  return {z0:z0+off,z1:z1+off,s};
+}
+/* İnce özellik: profil öğeleri (açık veya kapalı zincirler) verilen kalınlıkta şeride dönüştürülür.
+   side: 'a' zincirin bir tarafı, 'b' diğer tarafı, 'mid' iki yana eşit. */
+function thinProfiles(sk,t,side){
+  if(!(t>0))throw new Error('İnce özellik kalınlığı sıfırdan büyük olmalı.');
+  const ents=sk.ents.filter(e=>!e.cons);if(!ents.length)throw new Error('Çizimde profil yok.');
+  const dA=side==='b'?-t:side==='mid'?-t/2:0,dB=side==='b'?0:side==='mid'?t/2:t;
+  const adj={};for(const e of ents)if(e.t!=='circle')for(const p of [e.a,e.b])(adj[p]=adj[p]||[]).push(e);
+  for(const p in adj)if(adj[p].length>2)throw new Error('İnce özellik için zincir dallanmamalı: bir noktada ikiden fazla öğe birleşiyor.');
+  const used=new Set(),shapes=[];
+  const offPoly=(pts,closed,d)=>{
+    if(!d)return pts.map(p=>p.slice());const n=pts.length,out=[];
+    const nr=i=>{const a=pts[i],b=pts[(i+1)%n];const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;return [-dy/l,dx/l]};
+    for(let k=0;k<n;k++){
+      let m;if(!closed&&k===0)m=nr(0);else if(!closed&&k===n-1)m=nr(n-2);
+      else{const a=nr((k-1+n)%n),b=nr(k);const s=[a[0]+b[0],a[1]+b[1]],l=Math.hypot(...s);
+        if(l<1e-9)m=b;else{const u=[s[0]/l,s[1]/l];const c=Math.max(0.25,u[0]*b[0]+u[1]*b[1]);m=[u[0]/c,u[1]/c]}}
+      out.push([pts[k][0]+m[0]*d,pts[k][1]+m[1]*d]);
+    }
+    return out};
+  const arcCheck=(e,fwd)=>{if(e.t==='line')return;const r=curveR(sk,e);for(const d of [dA,dB]){const re=e.t==='circle'?r-d:r-d*(fwd?1:-1);if(!(re>1e-9))throw new Error('İnce özellik kalınlığı bir yayın yarıçapından büyük; kalınlığı küçült veya yarıçapı büyüt.')}};
+  const band=(pts,closed)=>{
+    if(closed){const A=offPoly(pts,true,dA),B=offPoly(pts,true,dB);let o=Math.abs(area2d(A))>Math.abs(area2d(B))?A:B,h=o===A?B:A;
+      if(area2d(o)<0)o.reverse();if(area2d(h)>0)h.reverse();shapes.push({outer:o,holes:[{pts:h}]})}
+    else{const A=offPoly(pts,false,dA),B=offPoly(pts,false,dB);const L=A.concat(B.reverse());if(area2d(L)<0)L.reverse();shapes.push({outer:L,holes:[]})}};
+  for(const e of ents){
+    if(used.has(e.id))continue;
+    if(e.t==='circle'){used.add(e.id);arcCheck(e,true);const p=tessEnt(sk,e);p.pop();band(p,true);continue}
+    // zincirin bir ucuna git
+    let start=e,from=e.a,g=0;
+    for(;;){const nx=(adj[from]||[]).find(x=>x!==start);if(!nx||nx===e||g++>10000)break;from=nx.a===from?nx.b:nx.a;start=nx}
+    // 'from' uçtan başlayarak zinciri dolaş
+    const items=[];let cur=start,at=from;g=0;
+    while(cur&&!used.has(cur.id)&&g++<10000){used.add(cur.id);const fwd=cur.a===at;items.push({e:cur,fwd});at=fwd?cur.b:cur.a;cur=(adj[at]||[]).find(x=>x!==cur&&!used.has(x.id))}
+    const closed=items.length>1&&at===(items[0].fwd?items[0].e.a:items[0].e.b)||(items.length===1&&items[0].e.a===items[0].e.b);
+    const pts=[];for(const it of items){arcCheck(it.e,it.fwd);const s=tessEnt(sk,it.e);const q=it.fwd?s:s.slice().reverse();for(let i=0;i<q.length-1;i++)pts.push(q[i])}
+    if(!closed){const l=items[items.length-1];const q=tessEnt(sk,l.e);pts.push(l.fwd?q[q.length-1]:q[0])}
+    band(pts,closed);
+  }
+  return shapes;
 }
 function extrudeTool(f,sk,F,L){
-  const shapes=sketchProfiles(sk);const {z0,z1,s}=extrudeRange(f,L);
+  const shapes=f.thin?thinProfiles(sk,num(f.thick),f.thinSide):sketchProfiles(sk,f.regions);const {z0,z1,s}=extrudeRange(f,L);
   const M=frameMatrix(F);let polys=[];const ann=[];
   for(const sh of shapes){
     const shape=new T.Shape(sh.outer.map(q=>new T.Vector2(q[0],q[1])));
@@ -545,7 +766,7 @@ function revolveLoop(pts2,phi0,phiLen,M,shared){
 function revolveTool(f,sk,F){
   const E=entMap(sk);const ax=E[f.axis];
   if(!ax||ax.t!=='line')throw new Error('Döndürme ekseni seçilmedi. Çizime bir merkez çizgisi ekle.');
-  const shapes=sketchProfiles(sk);
+  const shapes=sketchProfiles(sk,f.regions);
   const P=skP(sk,ax.a),Q=skP(sk,ax.b);let a=[Q.x-P.x,Q.y-P.y];const al=Math.hypot(a[0],a[1]);if(al<1e-9)throw new Error('Eksen çizgisinin uzunluğu sıfır.');a=[a[0]/al,a[1]/al];
   let b=[-a[1],a[0]];
   const loc=q=>[(q[0]-P.x)*b[0]+(q[1]-P.y)*b[1],(q[0]-P.x)*a[0]+(q[1]-P.y)*a[1]];
@@ -702,10 +923,15 @@ var HOLE_STD={
 };
 const fmtN=x=>Number(x).toLocaleString('tr-TR',{maximumFractionDigits:2});
 function holeSpec(f){
-  const s=HOLE_STD[f.size]||HOLE_STD.M8;const nom=parseFloat(String(f.size||'M8').slice(1));const fi={fine:0,normal:1,coarse:2}[f.fit||'normal'];
+  const s=HOLE_STD[f.size]||HOLE_STD.M8;if(f.htype==='tapped'&&!HOLE_STD[f.size])f={...f,size:'M8'};const nom=parseFloat(String(f.size||'M8').slice(1));const fi={fine:0,normal:1,coarse:2}[f.fit||'normal'];
   let d,txt,thread=null,cb=null,cs=null;
   if(f.htype==='simple'){d=num(f.dia);if(!(d>0))throw new Error('Delik çapı sıfırdan büyük olmalı.');txt='Ø'+fmtN(d)}
   else if(f.htype==='tapped'){d=s.tap;thread={R:nom/2};txt=f.size+'×'+fmtN(s.p)}
+  else if(f.size==='custom'){
+    // özel ölçüler: standart dışı geçiş, faturalı veya havşa delik
+    d=num(f.dia);if(!(d>0))throw new Error('Delik çapı sıfırdan büyük olmalı.');txt='Ø'+fmtN(d);
+    if(f.htype==='cbore'){cb=[num(f.cbd),num(f.cbh)];if(!(cb[1]>0))throw new Error('Fatura derinliği sıfırdan büyük olmalı.');txt+=', faturalı Ø'+fmtN(cb[0])+' derinlik '+fmtN(cb[1])}
+    else if(f.htype==='csink'){cs=num(f.csd);if(!(cs>d))throw new Error('Havşa çapı delik çapından büyük olmalı.');txt+=', havşa Ø'+fmtN(cs)+'×90°'}}
   else{d=s.cl[fi];txt='Ø'+fmtN(d);if(f.htype==='cbore'){cb=s.cb;txt+=', faturalı Ø'+fmtN(cb[0])+' derinlik '+fmtN(cb[1])}else if(f.htype==='csink'){cs=s.cs;txt+=', havşa Ø'+fmtN(cs)+'×90°'}}
   const through=f.end!=='blind';const D=num(f.depth);if(!through&&!(D>0))throw new Error('Delik derinliği sıfırdan büyük olmalı.');
   if(thread){const td=through?null:Math.min(num(f.tdepth)||D,D);thread.len=td;txt+=through?'':(' derinlik '+fmtN(td))}

@@ -387,3 +387,31 @@ test('çizimden çıkınca eksen ve yapı çizgileri görünmez', async ({ page 
   expect(r.onAxis).toBe(0);       // eksen çizgisi çizim dışında çizilmiyor
   expect(errors).toEqual([]);
 });
+
+test('çizim düzenlenirken onu kullanan özellik gizlenir, koyu temada gövde koyulaşır', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.evaluate(() => { const T = __tz; T.setTool('crect'); T.toolClick(0, 0); T.toolClick(31, 19); T.exitSketch(true); T.cmd('extrude'); });
+  await page.waitForFunction(() => !!__tz.pm);
+  const r = await page.evaluate(() => {
+    const T = __tz; T.commitPM();
+    const id = T.state.features.find(f => f.type === 'sketch').id;
+    const out = { before: T.shown.polys.length, color0: T.solidMesh.material.color.getHex() };
+    T.editSketch(id);
+    Object.assign(out, { during: T.shown.polys.length, color1: T.solidMesh.material.color.getHex() });
+    T.exitSketch(true);
+    Object.assign(out, { after: T.shown.polys.length, color2: T.solidMesh.material.color.getHex(), err: T.model.errors });
+    return out;
+  });
+  expect(r.before).toBeGreaterThan(0);
+  expect(r.during).toBe(0);          // ekstrüzyon düzenleme boyunca görünmez
+  expect(r.after).toBe(r.before);    // çıkınca geri gelir
+  expect(r.color1).not.toBe(r.color0);
+  expect(r.color2).toBe(r.color0);
+  expect(r.err).toEqual({});
+  expect(errors).toEqual([]);
+});

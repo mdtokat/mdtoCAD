@@ -239,8 +239,10 @@ function rebuild(){
   model.version++;model.box=r.polys.length?bboxPolys(r.polys):null;model.props=r.polys.length?massProps(r.polys):null;
   model.ms=Math.round(performance.now()-t0);
   model.dof={};for(const f of state.features)if(f.type==='sketch'){try{model.dof[f.id]=analyzeSketch(f).dof}catch(e){}}
-  showSolid(model.polys);rebuildPlanes();renderSketchDisplays();updateMass();updateStatus();
+  showSolid(sk&&sk.base?sk.base:model.polys);rebuildPlanes();renderSketchDisplays();updateMass();updateStatus();
 }
+/* çizim düzenlenirken koyu temada gövde koyulaşır; açık renkli çizim çizgileri normal görünümde parlayan yüzeyde kaybolmaz */
+function solidTone(){matSolid.color.setHex(sk&&isDark()?0x2A3139:0xA9B5C1)}
 function updateStatus(){
   if(activeTab==='asm')return asmStatus();
   const el=$('#vpStatus');const ne=Object.keys(model.errors).length;const nf=state.features.filter(f=>f.type!=='sketch').length;

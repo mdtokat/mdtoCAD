@@ -40,7 +40,10 @@ function editSketch(id){
 function beginSession(f,F,isNew){
   sk={feat:f,F,M:frameMatrix(F),isNew,orig:JSON.stringify(f),tool:null,st:{},sel:[],hover:null,cursor:null,drag:null,hist:[],redo:[],an:null,ok:true,dirty:true,
       opts:{grid:true,rels:true,polyN:6,filletR:5}};
-  skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setControlsForSketch(true);vpEl.classList.add('sketching');
+  // çizimi kullanan özellik (ekstrüzyon, kesme, döndürme) düzenleme boyunca gizlenir
+  const user=!isNew&&consumedMap()[f.id];
+  if(user){try{sk.base=rebuildModel(state.features.map(x=>x.id===user?{...x,suppressed:true}:x)).polys;showSolid(sk.base)}catch(e){}}
+  solidTone();  skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setControlsForSketch(true);vpEl.classList.add('sketching');
   cmTab='sketch';renderRibbon();$('#confirm').classList.add('on');$('#sbar').classList.add('on');
   analyze();renderTree();renderPM();updateStatus();updateMass();renderSketchDisplays();updatePlaneVis();normalTo(F);
   if(pendingTool){setTool(pendingTool);pendingTool=null}
@@ -56,7 +59,7 @@ function exitSketch(accept){
       if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' Bu çizimden katı özellik oluşturulamaz; çizimi düzenleyip kırmızı noktaları düzelt.'+(msg?' '+msg:'');
       if(msg)toast(msg)}}
-  sk=null;closeDimPop();
+  sk=null;closeDimPop();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
   cmTab='features';afterChange();

@@ -11,9 +11,11 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Çizim araçları: çizgi, merkez çizgisi, köşe/merkez dikdörtgen, daire, merkez nokta yay, 3 nokta yay, teğet yay, düz kanal, çokgen, çizim radyusu (çizgi ve yay köşelerinde), budama (kesişen öğeleri böler, kontur kapalı kalır), ofset (tek ölçüyle), aynalama, doğrusal/dairesel çizim çoğaltma (aralık/açı ölçüsüyle parametrik), yapı geometrisi.
 - Yakalama: noktalar, orta noktalar, öğe kesişimleri, görünür ızgara; çizerken yatay/dikey, önceki çizgiye dik ve yaya teğet yönler. Boşta uçlar, kesişmeler ve T-birleşimleri çizimde kırmızıyla işaretlenir.
 - İlişkiler: yatay, dikey, paralel, dik, eşit, doğrusal, teğet, çakışık, orta nokta, eşmerkezli, simetrik (iki nokta veya iki daire + eksen), sabitle. Kısıt çözücü serbestlik derecesini hesaplar; tanımsız öğeler mavi, tam tanımlılar siyah görünür.
+- **Bölgeler:** birbirini kesen veya üst üste binen şekiller (daire + dikdörtgen, köşe göbekleri + kollar) budamaya gerek kalmadan birleşir; iç içe ve birbirine değmeyen konturlar delik olur, bir bölgeyi bölen çizgiler ve boşta uçlar profili bozmaz. Ekstrüzyon/Döndürme panelinde ekranda bölgeye tıklayarak yalnızca istenen bölgeler kullanılabilir.
+- **Çizerken ölçü yazma:** çizgi, dikdörtgen, daire ve çokgende ilk noktadan sonra rakam yazınca giriş kutusu açılır (uzunluk; genişlik × yükseklik; çap). Değer hem şekli çizer hem sürücü ölçü olarak eklenir.
 - Ölçüye dayalı çizim: çizimi düzenlemeye girince tüm ölçüler görünür; ölçüye çift tıklayarak veya paneldeki **Ölçüler** listesinden değer girilir, geometri yeni ölçüye göre güncellenir.
 - **Tam Tanımla:** eksik ölçü ve ilişkiler geometriyi oynatmadan otomatik eklenir. Ölçüsüz çizimler (kendi çizdiklerin veya dışarıdan yüklenen dosyalar) çizime girerken ve çıkarken kendiliğinden tam tanımlanır; panelden kapatılabilir.
-- Özellikler: Ekstrüzyon Katman/Taban, Ekstrüzyon Kesme (kör, tümünden geç, orta düzlem, ters yön, yön 2), Döndürme Katman/Taban ve Kesme, Delik Sihirbazı (ISO metrik M3–M20: basit, geçiş, diş, faturalı, havşa), Radyus ve Pah (düz ve dairesel kenarlar), Doğrusal/Dairesel Çoğaltma, Aynala, Referans Düzlem.
+- Özellikler: Ekstrüzyon Katman/Taban, Ekstrüzyon Kesme (kör, tümünden geç, orta düzlem, ters yön, yön 2, çizim düzleminden başlangıç ofseti, **İnce özellik**: açık çizgi/yay zinciri kalınlık verilerek bükülmüş sac veya U profil olarak ekstrüde edilir), Döndürme Katman/Taban ve Kesme, Delik Sihirbazı (ISO metrik M3–M20: basit, geçiş, diş, faturalı, havşa; standart dışı faturalı/havşa için özel ölçü), Radyus ve Pah (düz ve dairesel kenarlar), Doğrusal/Dairesel Çoğaltma, Aynala, Referans Düzlem.
 - FeatureManager ağacı, özellik düzenlerken geri sarma, bastırma, parça başına geri al/yinele.
 - Malzeme, hacim, yüzey alanı, kütle; Ölç aracı (uzunluk, mesafe, açı, çap, alan).
 
@@ -88,6 +90,12 @@ Dosya indirme (PDF, STL, proje), Claude ortamında Claude'un indirme yeteneğiyl
 
 - `dort-kanatli-disk.tezgah.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Çizimler teknik resimdeki ölçülerle (Ø813, Ø772, 147,5, R41,2, 20°, 318,5) ve dört katlı simetriyle tam tanımlıdır; bir ölçüyü değiştirmek dört kanadı birlikte günceller. Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
 
+Aşağıdaki üç örnek, eklerdeki teknik resimlerden programın kendi araçlarıyla çizildi. `npm run ornekler` (önce `npm install`) aynı adımları uygulamada yeniden oynatıp dosyaları üretir; adımlar `ornekler/ornekleri-ciz.mjs` içinde bir kullanıcının izleyeceği sırayla yazılıdır.
+
+- `bukulmus-braket.tezgah.json` — 10 mm kalınlıkta bükülmüş braket (124 × 165, genişlik 50). Dış kenar açık bir çizgi zinciri olarak çizilip R16 / R16,5 / R22 çizim radyuslarıyla yuvarlatılır ve **İnce özellik** ile kalınlaştırılır. Ø38 üst göbek, Ø9/Ø20 faturalı delik (**özel ölçülü Delik Sihirbazı**), Ø38 yan kulaklar (R10 geçişli; **başlangıç ofsetli** ekstrüzyon + Aynala), Ø16 kulak deliği, ayak uçlarında R25 (dikdörtgen + daire çizilip **kesilecek bölge seçilir**), Ø9/Ø18 ayak delikleri.
+- `yatakli-stand.tezgah.json` — izometrik resimden yorumlanan yataklı stand: 80 × 80 aralıklı dört göbek ve kollardan oluşan taban (tek çizimde üst üste çizilir, **bölge çözümü** birleştirir), üstü R30 kolon, 20'şer mm kademeli R20 / R15 / R9 üst yatak (Döndürme Kesme), R12 / R7 alt yatak, Ø8 yağ deliği, 9 mm et kalınlıklı U kutu (**İnce özellik**). İzometrik resim bazı ayrıntılarda belirsiz olduğundan ölçüler resimdekilerle (80, 60, 36, 9, 42, R30, R20, R15, R9, R12) uyumlu bir yorumdur.
+- `l-destek.tezgah.json` — L destek (30 × 35 taban, 65 yükseklik): yan profil tek çizimde, üst kenarlar R5, Ø27 göbek ile 6 mm kaburga üst üste çizilip tek seferde çıkarılır, Ø16 ve iki Ø10 delik, 10 mm kanal.
+
 ## Proje yapısı
 
 ```
@@ -97,6 +105,7 @@ src/
   core/geometry.js         DOM'suz geometri çekirdeği: CSG, profiller, kısıt çözücü, özellikler, kenarlar
   app/01-temel.js …        Arayüz modülleri; ad sırasına göre tek bir kapsam içinde birleştirilir
   app/99-baslat.js         Başlatma ve test arayüzü
+ornekler/                Örnek projeler ve onları üreten betikler
 scripts/build.mjs          Derleyici (bağımlılıksız): sözdizimi denetimi + tek HTML
 tests/                     Playwright testleri
 docs/                      Mimari, dosya biçimi, yol haritası

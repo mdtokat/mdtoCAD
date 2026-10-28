@@ -192,23 +192,27 @@ function buildSheet(forExport,opts){
   let [ax0,ay0,ax1,ay1]=areaFor(W,H,layout);const bomH=bom?(bom.length+1)*6:0;
   if(bom&&layout==='full')ay1-=bomH+4;else if(bom)ax1-=Math.min(184,(ax1-ax0)*0.42);
   const m=16,gapX=30,gapY=28;
-  let pos,s;
-  if(isoOnly){const e=ext('iso');const sF=Math.min((ax1-ax0-2*m)/e.w,(ay1-ay0-2*m)/e.h);s=scaleSet==='auto'?(STD_SCALES.find(x=>x<=sF*1.0001)||STD_SCALES[STD_SCALES.length-1]):+scaleSet;ctx.scale=s;info.scale=scaleLabel(s);pos={iso:[(ax0+ax1)/2,(ay0+ay1)/2]}}
+  let pos,s,si;
+  if(isoOnly){const e=ext('iso');const sF=Math.min((ax1-ax0-2*m)/e.w,(ay1-ay0-2*m)/e.h);s=scaleSet==='auto'?(STD_SCALES.find(x=>x<=sF*1.0001)||STD_SCALES[STD_SCALES.length-1]):+scaleSet;ctx.scale=s;si=s;info.scale=scaleLabel(s);pos={iso:[(ax0+ax1)/2,(ay0+ay1)/2]}}
   else{
   const fw=ext('front').w,fh=ext('front').h,sw_=ext(side).w,th=ext('top').h,iw=S.iso?ext('iso').w:0,ih=S.iso?ext('iso').h:0;
   const AW=ax1-ax0-2*m,AH=ay1-ay0-2*m;
   // Yerleşim A: 2×2 ızgara (izometrik sağ alt/sağ üst). Yerleşim B: izometrik ayrı satırda (dikey kağıtta daha iyi).
-  const c2wA=Math.max(sw_,iw),rTopA=Math.max(th,ih);
-  const sA=Math.min((AW-gapX)/(fw+c2wA),(AH-gapY)/(fh+rTopA));
+  const std=x=>STD_SCALES.find(y=>y<=x*1.0001)||STD_SCALES[STD_SCALES.length-1];
+  // Yerleşim A: ölçek yalnızca ön/üst/yan görünüşlerden; izometrik kalan hücreye kendi (en çok aynı) ölçeğiyle sığar.
+  s=scaleSet==='auto'?std(Math.min((AW-gapX)/(fw+sw_),(AH-gapY)/(fh+th))):+scaleSet;
+  si=s;
+  if(S.iso){const cw=AW-gapX-fw*s,ch=AH-gapY-fh*s;si=Math.min(s,cw>0?cw/iw:s,ch>0?ch/ih:s);si=si>=s?s:std(si)}
+  const c2wA=Math.max(sw_*s,iw*si),rTopA=Math.max(th*s,ih*si);
+  // Yerleşim B: izometrik ayrı satırda, tüm görünüşler aynı ölçekte (dikey kağıtta daha iyi)
   const sB=S.iso?Math.min((AW-gapX)/Math.max(fw+sw_,iw),(AH-2*gapY)/(fh+th+ih)):0;
-  const useB=S.iso&&sB>sA*1.08;const sFit=useB?sB:sA;
-  s=scaleSet==='auto'?(STD_SCALES.find(x=>x<=sFit*1.0001)||STD_SCALES[STD_SCALES.length-1]):+scaleSet;
+  const useB=scaleSet==='auto'&&S.iso&&std(sB)>=s;if(useB){s=std(sB);si=s}
   ctx.scale=s;info.scale=scaleLabel(s);
   if(!useB){
-    const r1h=S.method==='E'?fh:rTopA,r2h=S.method==='E'?rTopA:fh;
-    const totW=(fw+c2wA)*s+gapX,totH=(r1h+r2h)*s+gapY;
+    const r1h=S.method==='E'?fh*s:rTopA,r2h=S.method==='E'?rTopA:fh*s;
+    const totW=fw*s+c2wA+gapX,totH=r1h+r2h+gapY;
     const lx=ax0+(ax1-ax0-totW)/2,ty=ay0+(ay1-ay0-totH)/2;
-    const cx1=lx+fw*s/2,cx2=lx+fw*s+gapX+c2wA*s/2,cy1=ty+r1h*s/2,cy2=ty+r1h*s+gapY+r2h*s/2;
+    const cx1=lx+fw*s/2,cx2=lx+fw*s+gapX+c2wA/2,cy1=ty+r1h/2,cy2=ty+r1h+gapY+r2h/2;
     pos=S.method==='E'?{front:[cx1,cy1],[side]:[cx2,cy1],top:[cx1,cy2],iso:[cx2,cy2]}:{top:[cx1,cy1],iso:[cx2,cy1],front:[cx1,cy2],[side]:[cx2,cy2]};
   }else{
     const gw=(fw+sw_)*s+gapX,totW=Math.max(gw,iw*s),totH=(fh+th+ih)*s+2*gapY;
@@ -220,11 +224,14 @@ function buildSheet(forExport,opts){
   }
   for(const k of keys){
     const d=vd[k],[cx,cy]=pos[k];const ac=(d.bb.minA+d.bb.maxA)/2,bc=(d.bb.minB+d.bb.maxB)/2;
-    ctx.views[k]={key:k,d,map:(a,b)=>[cx+(a-ac)*s,cy-(b-bc)*s],inv:(x,y)=>[ac+(x-cx)/s,bc-(y-cy)/s]};
+    const vs=k==='iso'?si:s;
+    ctx.views[k]={key:k,d,s:vs,map:(a,b)=>[cx+(a-ac)*vs,cy-(b-bc)*vs],inv:(x,y)=>[ac+(x-cx)/vs,bc-(y-cy)/vs]};
   }
   const segPath=(arr,v)=>{let p='';for(const q of arr){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);p+=Lp(A[0],A[1],B[0],B[1])}return p};
   for(const k of keys){
     const v=ctx.views[k],d=v.d;
+    // farklı ölçekli izometrik görünüşün altına kendi ölçeği yazılır
+    if(k==='iso'&&v.s!==s){const [cx,cy]=pos.iso;o.push(`<text class="d-l" x="${f2(cx)}" y="${f2(cy+(d.bb.maxB-d.bb.minB)*v.s/2+6)}" font-size="3.2" text-anchor="middle">Ölçek ${esc(scaleLabel(v.s))}</text>`)}
     if(S.hidden&&k!=='iso'&&k!==(secInfo&&secInfo.key)&&d.hid.length)o.push(`<path class="d-hid" d="${segPath(d.hid,v)}"/>`);
     if(secInfo&&k===secInfo.key)o.push(hatchMarkup(d.secPolys,v,src.kind==='asm'));
     if(k!=='iso'&&d.threads.length)o.push(threadMarkup(d.threads,v,s));

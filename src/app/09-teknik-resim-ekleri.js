@@ -152,7 +152,7 @@ function dwToolClick(p,ptype){
   const S=dwS();
   if(dwTool==='detail'){
     if(!dwSt.stage){const v=viewAt(p);if(!v){toast('Bir görünüşün (izometrik hariç) içine tıkla.');return}dwSt={stage:1,view:v.key,c:v.inv(p[0],p[1])}}
-    else if(dwSt.stage===1){const v=dctx.views[dwSt.view];const C=v.map(dwSt.c[0],dwSt.c[1]);const r=Math.max(3,Math.hypot(p[0]-C[0],p[1]-C[1]));dwSt.r=r/dctx.scale;dwSt.stage=2}
+    else if(dwSt.stage===1){const v=dctx.views[dwSt.view];const C=v.map(dwSt.c[0],dwSt.c[1]);const r=Math.max(3,Math.hypot(p[0]-C[0],p[1]-C[1]));dwSt.r=r/(v.s||dctx.scale);dwSt.stage=2}
     else{S.details=S.details||[];const used=new Set(S.details.map(d=>d.label));let L=66;while(used.has(String.fromCharCode(L)))L++;
       S.details.push({view:dwSt.view,c:dwSt.c,r:dwSt.r,k:2,pos:[p[0],p[1]],label:String.fromCharCode(L)});saveState();setDwTool(null);renderDrawing();return}
     dwTip();drawOverlay(p);return;
@@ -165,7 +165,7 @@ function dwToolOverlay(p){
   const w=f2(pxToSheet(1.5));
   if(dwTool==='detail'){
     if(dwSt.stage===1){const v=dctx.views[dwSt.view];const C=v.map(dwSt.c[0],dwSt.c[1]);h+=`<circle cx="${f2(C[0])}" cy="${f2(C[1])}" r="${f2(Math.hypot(p[0]-C[0],p[1]-C[1]))}" fill="none" stroke="${acc}" stroke-width="${w}"/>`}
-    if(dwSt.stage===2)h+=`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="${f2(dwSt.r*dctx.scale*2)}" fill="none" stroke="${acc}" stroke-width="${w}" stroke-dasharray="${f2(pxToSheet(4))}"/>`;
+    if(dwSt.stage===2)h+=`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="${f2(dwSt.r*((dctx.views[dwSt.view]||{}).s||dctx.scale)*2)}" fill="none" stroke="${acc}" stroke-width="${w}" stroke-dasharray="${f2(pxToSheet(4))}"/>`;
   }
   if(dwTool==='surf'){const s=nearestEdgePoint(p,4);if(s)h+=`<circle cx="${f2(s.X[0])}" cy="${f2(s.X[1])}" r="${f2(pxToSheet(5))}" fill="rgba(31,111,235,.2)" stroke="${acc}" stroke-width="${w}"/>`}
   return h;

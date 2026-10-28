@@ -13,7 +13,7 @@ FT.hole={n:'Delik',label:'Delik Sihirbazı',icon:'hole'};
 const HOLE_TYPES=[['simple','Basit'],['clear','Geçiş'],['tapped','Diş (kılavuz)'],['cbore','Faturalı'],['csink','Havşa']];
 function openHolePM(){
   if(!model.polys.length){toast('Önce bir gövde oluştur.');return}
-  const d={type:'hole',htype:'tapped',size:'M8',fit:'normal',dia:10,end:'through',depth:20,tdepth:16,on:null,pts:[]};
+  const d={type:'hole',htype:'tapped',size:'M8',fit:'normal',dia:10,cbd:18,cbh:2,csd:18,end:'through',depth:20,tdepth:16,on:null,pts:[]};
   d.id=uid();d.name=nextName(d);openPM('hole',null,d);
   if(sel&&sel.kind==='face'){holeAddPoint(sel)}
   else prompt_('Deliğin açılacağı düz yüzeye tıkla. Aynı yüzeye tıklayarak başka konumlar ekleyebilirsin.');
@@ -36,8 +36,10 @@ function holePMBody(f){
   b=grp('',b);
   let t=`<div class="relbtns">${HOLE_TYPES.map(([k,n])=>`<button data-htype="${k}" style="${f.htype===k?'border-color:var(--accent);background:var(--accent-soft)':''}">${n}</button>`).join('')}</div>`;
   if(f.htype==='simple')t+=fNum('Çap','dia');
-  else{t+=`<div class="row2">`+fSel('Boyut (ISO metrik)','size',Object.keys(HOLE_STD).map(k=>[k,k]));
-    t+=(f.htype!=='tapped'?fSel('Geçme','fit',[['fine','İnce'],['normal','Normal'],['coarse','Kaba']]):'<span></span>')+`</div>`}
+  else{const custom=f.size==='custom'&&f.htype!=='tapped';
+    t+=`<div class="row2">`+fSel('Boyut (ISO metrik)','size',Object.keys(HOLE_STD).map(k=>[k,k]).concat(f.htype!=='tapped'?[['custom','Özel ölçü']]:[]));
+    t+=(f.htype!=='tapped'&&!custom?fSel('Geçme','fit',[['fine','İnce'],['normal','Normal'],['coarse','Kaba']]):'<span></span>')+`</div>`;
+    if(custom){t+=fNum('Delik çapı','dia');if(f.htype==='cbore')t+=`<div class="row2">${fNum('Fatura çapı','cbd')}${fNum('Fatura derinliği','cbh')}</div>`;if(f.htype==='csink')t+=fNum('Havşa çapı (90°)','csd')}}
   b+=grp('Delik türü',t);
   let e=fSel('Bitiş koşulu','end',[['through','Tümünden geç'],['blind','Kör']]);
   if(f.end==='blind'){e+=fNum('Delik derinliği','depth');if(f.htype==='tapped')e+=fNum('Diş derinliği','tdepth')}
@@ -52,7 +54,7 @@ function holePMBody(f){
   return b;
 }
 function holePmClick(e){
-  const t=e.target.closest('[data-htype]');if(t){pm.draft.htype=t.dataset.htype;renderPM();schedulePreview();return true}
+  const t=e.target.closest('[data-htype]');if(t){pm.draft.htype=t.dataset.htype;if(t.dataset.htype==='tapped'&&!HOLE_STD[pm.draft.size])pm.draft.size='M8';renderPM();schedulePreview();return true}
   const dl=e.target.closest('[data-hdel]');if(dl){pm.draft.pts.splice(+dl.dataset.hdel,1);renderPM();schedulePreview();return true}
   return false;
 }
@@ -175,28 +177,7 @@ function entParamPt(f,e,q){ // tıklanan noktanın öğe üzerindeki parametresi
   if(e.t==='line'){const a=P2(e.a),b=P2(e.b);const dx=b[0]-a[0],dy=b[1]-a[1];return ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/(dx*dx+dy*dy||1)}
   const c=P2(e.c);return Math.atan2(q[1]-c[1],q[0]-c[0]);
 }
-function intersectEnts(f,e,o){
-  const out=[];const P=P2;
-  // tolerans çizim ölçeğine göre: çözücünün bıraktığı küçük hatalar teğet ve uç noktalarındaki kesişimi kaybettirmesin
-  const pts=[e,o].flatMap(x=>[x.a,x.b,x.c].filter(Boolean).map(P));const tol=1e-7*(1+Math.max(...pts.map(p=>Math.abs(p[0])+Math.abs(p[1]))));
-  const lineLine=(a,b,c,d)=>{const r=[b[0]-a[0],b[1]-a[1]],s=[d[0]-c[0],d[1]-c[1]];const den=r[0]*s[1]-r[1]*s[0];if(Math.abs(den)<1e-12)return [];const t=((c[0]-a[0])*s[1]-(c[1]-a[1])*s[0])/den;return [[a[0]+r[0]*t,a[1]+r[1]*t]]};
-  // teğet durumda (merkezin doğruya uzaklığı ≈ R) tek nokta: dikme ayağı
-  const lineCirc=(a,b,C,R)=>{const d=[b[0]-a[0],b[1]-a[1]],L=Math.hypot(d[0],d[1]);if(L<1e-12)return [];const u=[d[0]/L,d[1]/L];
-    const t0=(C[0]-a[0])*u[0]+(C[1]-a[1])*u[1];const F=[a[0]+u[0]*t0,a[1]+u[1]*t0];const h=Math.hypot(C[0]-F[0],C[1]-F[1]);
-    if(h>R+tol)return [];if(h>R-tol)return [F];const k=Math.sqrt(R*R-h*h);return [[F[0]-u[0]*k,F[1]-u[1]*k],[F[0]+u[0]*k,F[1]+u[1]*k]]};
-  const circCirc=(c1,r1,c2,r2)=>{const dx=c2[0]-c1[0],dy=c2[1]-c1[1],d=Math.hypot(dx,dy);if(d<1e-9||d>r1+r2+tol||d<Math.abs(r1-r2)-tol)return [];const a=(r1*r1-r2*r2+d*d)/(2*d),h2=r1*r1-a*a;const xm=c1[0]+a*dx/d,ym=c1[1]+a*dy/d;
-    if(h2<=0||Math.abs(d-r1-r2)<tol||Math.abs(d-Math.abs(r1-r2))<tol)return [[xm,ym]];const h=Math.sqrt(h2);return [[xm+h*dy/d,ym-h*dx/d],[xm-h*dy/d,ym+h*dx/d]]};
-  // öğe üzerinde mi: çizgide parametre [0,1], yayda açı aralığı (başlangıçtaki 2π sarmasıyla birlikte), uçlarda tolerans
-  const onEnt=(en,p)=>{if(en.t==='line'){const a=P(en.a),b=P(en.b);const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1;const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(L*L);return t>-tol/L&&t<1+tol/L}
-    if(en.t==='circle')return true;const A=arcInfo(f,en);const ta=tol/(A.r||1);let da=Math.atan2(p[1]-A.c.y,p[0]-A.c.x)-A.a0;while(da<0)da+=Math.PI*2;while(da>=Math.PI*2)da-=Math.PI*2;return da<=A.sw+ta||da>=Math.PI*2-ta};
-  let cand=[];
-  if(e.t==='line'&&o.t==='line')cand=lineLine(P(e.a),P(e.b),P(o.a),P(o.b));
-  else if(e.t==='line')cand=lineCirc(P(e.a),P(e.b),P(o.c),curveR(f,o));
-  else if(o.t==='line')cand=lineCirc(P(o.a),P(o.b),P(e.c),curveR(f,e));
-  else cand=circCirc(P(e.c),curveR(f,e),P(o.c),curveR(f,o));
-  for(const p of cand)if(onEnt(e,p)&&onEnt(o,p)&&!out.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<tol*10))out.push(p);
-  return out;
-}
+function intersectEnts(f,e,o){return entIntersect(f,e,o)}
 /* budanacak öğe: imlece en yakın olan; profil öğesi ile yapı çizgisi üst üste geliyorsa profil öğesi seçilir */
 function trimPick(f,q,tol){let e=null,bd=tol;for(const x of f.ents){const [d]=entDist(x,q);const k=d+(x.cons?tol*0.3:0);if(d<tol&&k<bd){bd=k;e=x}}return e}
 function trimAt(q,tol){

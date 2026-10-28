@@ -160,10 +160,12 @@ $('#hud').addEventListener('click',e=>{
 function defaultAxis(s){if(!s)return null;const c=s.ents.find(e=>e.t==='line'&&e.cons);if(c)return c.id;const l=s.ents.find(e=>e.t==='line');return l?l.id:null}
 function openNewProfile(type,op,sid){
   const s=byId(sid);
-  const d=type==='extrude'?{type,op,sketch:sid,end:op==='cut'?'through':'blind',depth:op==='cut'?10:20,flip:false,dir2:false,end2:'blind',depth2:10}
+  const d=type==='extrude'?{type,op,sketch:sid,end:op==='cut'?'through':'blind',depth:op==='cut'?10:20,flip:false,dir2:false,end2:'blind',depth2:10,fromOff:0,thin:openOnly(s),thinSide:'a',thick:5}
     :{type,op,sketch:sid,axis:defaultAxis(s),angle:360,mode:'one',flip:false};
   d.id=uid();d.name=nextName(d);openPM(type,null,d);
 }
+/* kapalı bölgesi olmayan (yalnızca açık zincirli) çizim: ekstrüzyon ince özellik olarak açılır */
+function openOnly(s){if(!s||!s.ents.some(e=>!e.cons))return false;try{return !sketchProfiles(s).length}catch(e){return true}}
 function openNewSimple(type){
   const tg=state.features.filter(x=>x.type==='extrude'||x.type==='revolve'||x.type==='hole');
   const selT=sel&&sel.kind==='feature'&&tg.find(x=>x.id===sel.id)?[sel.id]:[];
@@ -185,6 +187,7 @@ function openPM(type,feat,draft){
     const idx=state.features.indexOf(feat);const r=rebuildModel(state.features,idx);
     pm={type,draft:clone(feat),isNew:false,base:r};showSolid(r.polys);
     if(pm.draft.edges===undefined&&(type==='fillet'||type==='chamfer'))pm.draft.edges=[];
+    if(type==='extrude')pm.draft=Object.assign({fromOff:0,thin:false,thinSide:'a',thick:5},pm.draft);
   }else pm={type,draft,isNew:true,base:{polys:model.polys,frames:model.frames,tools:model.tools,caps:model.caps}};
   sel=null;renderPM();renderTree();updateSelVisual();schedulePreview(0);
 }
@@ -241,6 +244,11 @@ function renderPM(){
         if(f.dir2){d2+=fSel('Bitiş koşulu','end2',[['blind','Kör'],['through','Tümünden geç']]);if(f.end2!=='through')d2+=fNum('Derinlik','depth2')}
         b+=grp('Yön 2',d2);
       }
+      b+=grp('Başlangıç',fNum('Çizim düzleminden ofset','fromOff')+`<p class="note">0: özellik çizim düzleminden başlar. Ör. 34 yazarsan normal yönünde 34 mm ötedeki paralel düzlemden başlar (negatif değer ters taraf); ayrı referans düzlem gerekmez.</p>`);
+      let t=fChk('İnce özellik (kalınlık ver)','thin');
+      if(f.thin)t+=`<div class="row2">${fSel('Yön','thinSide',[['a','Tek yön'],['b','Ters yön'],['mid','Orta düzlem']])}${fNum('Kalınlık','thick')}</div>`;
+      t+=`<p class="note">Açık bir çizgi/yay zinciri (ör. bükülmüş sac, U profil) seçilen kalınlıkta şerit olarak ekstrüde edilir; kapalı kontur halkaya dönüşür.</p>`;
+      b+=grp('İnce özellik',t);
     }else{
       const s=byId(f.sketch);const lines=s?s.ents.filter(e=>e.t==='line'):[];
       b+=grp('Döndürme ekseni',fSel('Eksen (çizimdeki çizgi)','axis',lines.length?lines.map((e,i)=>[e.id,(e.cons?'Merkez çizgisi ':'Çizgi ')+(i+1)]):[['','(çizimde çizgi yok)']])+`<p class="note">Çizime bir merkez çizgisi ekleyip ekseni burada seç.</p>`);
@@ -248,6 +256,7 @@ function renderPM(){
       if(f.mode!=='mid')d+=`<button type="button" class="sbtn" data-flip="1">⇅ Ters yön${f.flip?' (açık)':''}</button>`;
       b+=grp('Yön 1',d);
     }
+    if(!f.thin)b+=grp('Profil bölgeleri',(f.regions&&f.regions.length?`<p class="note" style="color:var(--ink)">${f.regions.length} bölge seçili; yalnızca bunlar kullanılıyor.</p><button type="button" class="sbtn" data-regclr="1">Tüm bölgeleri kullan</button>`:`<p class="note" style="color:var(--ink)">Tüm kapalı bölgeler kullanılıyor.</p>`)+`<p class="note">Birbirini kesen şekiller otomatik birleşir. Yalnızca bazı bölgeleri kullanmak için ekranda çizimin içindeki bölgelere tıkla; tekrar tıklamak seçimi kaldırır.</p>`);
   }else if(f.type==='fillet'||f.type==='chamfer'){
     b=grp('',b)+grp(f.type==='fillet'?'Radyus parametreleri':'Pah parametreleri',f.type==='fillet'?fNum('Yarıçap','r'):fNum('Mesafe (eşit)','d'));
     b+=grp(`Kenarlar (${f.edges.length})`,(f.edges.length?`<div class="lst">${f.edges.map((e,i)=>`<div><span>Kenar ${i+1}: ${fmt(vl(vs(e.b,e.a)),1)} mm</span><button data-rmedge="${i}" aria-label="Kaldır">✕</button></div>`).join('')}</div>`:'')+`<p class="note">Modelde düz kenarlara tıkla. Tekrar tıklarsan seçim kalkar.</p>`);
@@ -276,6 +285,7 @@ pmEl.addEventListener('click',e=>{
   if(pm.type==='hole'&&holePmClick(e))return;
   const sg=e.target.closest('[data-seg]');if(sg){setPath(pm.draft,sg.dataset.seg,sg.dataset.v);renderPM();schedulePreview();return}
   if(e.target.closest('[data-flip]')){pm.draft.flip=!pm.draft.flip;renderPM();schedulePreview();return}
+  if(e.target.closest('[data-regclr]')){delete pm.draft.regions;renderPM();schedulePreview();return}
   const rm=e.target.closest('[data-rmedge]');if(rm){pm.draft.edges.splice(+rm.dataset.rmedge,1);renderPM();updateSelVisual();schedulePreview();return}
 });
 pmEl.addEventListener('input',e=>{
@@ -308,6 +318,7 @@ function updatePreview(){
   try{
     if(f.type==='extrude'||f.type==='revolve'){
       const s=byId(f.sketch);if(!s)throw new Error('Bir çizim seç.');const F=B.frames[s.id]||model.frames[s.id];if(!F)throw new Error('Çizim düzlemi çözülemedi.');
+      if(!f.thin)regionOverlay(s,F,f.regions);
       const r=f.type==='extrude'?extrudeTool(f,s,F,reachFor(B.polys,F)):revolveTool(f,s,F);addPreview(r.polys,f.op==='cut');
     }else if(['lpattern','cpattern','mirror'].includes(f.type)){
       if(!f.targets.length)throw new Error('Ağaçtan çoğaltılacak özelliği seç.');

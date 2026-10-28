@@ -19,7 +19,7 @@ Uygulama modülleri tek bir `(function(){ ... })()` kapsamında birleşir. Çeki
 | Vektör yardımcıları | `va, vs, vk, vd, vc, vl, vn` (dizi tabanlı 3B vektör), `num()` (virgül/nokta, dört işlem ve parantez: `800/2`, `5+(20+2)*3`) |
 | CSG | csg.js yaklaşımıyla BSP ağacı: `Vec`, `Plane`, `Poly`, `BSP`, `csgUnion`, `csgSubtract`. Gövdeler `Poly` dizileridir; `poly.shared` onu oluşturan özelliğin kimliğidir (seçim ve kesit için) |
 | Çerçeveler | Standart düzlemler `STD.front/top/right` (u, v, n eksenleri, u×v=n), `faceFrame`, `frameMatrix` |
-| Çizim geometrisi | `sketchProfiles(sk)`: kapalı konturları bulur, iç içe geçmeyi çözer (dış kontur + delikler), kesişimleri reddeder |
+| Çizim geometrisi | `sketchProfiles(sk, regions)`: profil şekilleri (dış kontur + delikler). `skArrangement` öğeleri kesişim ve dokunma noktalarında böler (`entIntersect`), düzlemsel grafın yüzlerini (bölgeler) bulur; `skContours` kapalı konturları çıkarır, birbirini kesen konturlar bir grup olur ve bir bölgeyi çevreleyen grup sayısı tekse bölge malzemedir. `sketchRegionShapes` malzeme bölgelerinin sınırlarını izler, `sketchFaces` arayüzde seçim için bölgeleri verir. `thinProfiles` İnce özellik için zincirleri gönye birleşimli şeritlere çevirir |
 | Kısıt çözücü | `sysBuild` (değişkenler: nokta x,y ve daire yarıçapları; artıklar: ilişkiler ve ölçüler), Levenberg–Marquardt `lm`, `solveSketch` (sürükleme hedefleriyle iki aşamalı), `analyzeSketch` (Jacobian rütbesi → serbestlik derecesi ve tanımlı öğeler), `sketchRank` (aşırı tanımlama denetimi), `autoDefine` (otomatik tam tanımlama: aday ilişki/ölçüleri öncelik sırasıyla dener, rankı artıranları ekler; `placeDimLabels` etiketleri çakışmayacak yere koyar). Ofset (`doff`/`offd`) ve çizim çoğaltma (`tr`/`rot`) da kısıt olarak çözülür |
 | Özellik gövdeleri | `extrudeTool`, `revolveTool`/`revolveLoop` (kısmi açı ve kapaklar), `holeTool`/`holeSpec` (ISO tabloları `HOLE_STD`), `edgeOpBodies` + `curvedEdgeBody` (radyus/pah), `patternMatrices` |
 | Kenarlar | `computeEdges(polys, D, detail)`: aynı doğru üzerindeki kenarları gruplar, T-birleşimlerini aralıklara bölerek çözer; özellik kenarı (açı > 20°) ve görünüşe bağlı siluet kenarlarını döndürür |
@@ -51,6 +51,8 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 | `07-montaj-araclari.js` | Çizim belgesi soyutlaması (`dwDoc`, `dwS`, `dwSrc`: parça veya montaj), patlatılmış görünüm, girişim algılama, parça listesi ve balonlar |
 | `08-araclar.js` | Delik Sihirbazı paneli, dairesel kenar seçimi, Ölç aracı, çizim işlemleri (budama, ofset, aynalama, çoğaltma) |
 | `09-teknik-resim-ekleri.js` | Kesit (CSG ile yarım uzay çıkarma + tarama), detay görünüşü, tolerans editörü, yüzey işareti, notlar, diş gösterimi |
+| `10-bolgeler.js` | Ekstrüzyon/Döndürme panelinde bölgelerin gösterimi ve tıklanarak seçilmesi |
+| `11-olcu-girisi.js` | Çizerken ölçü yazma (uzunluk, genişlik × yükseklik, çap) |
 | `99-baslat.js` | Sekmeler, Dosya menüsü, içe/dışa aktarma, klavye, başlatma, `window.__tz` |
 
 ### Durum
@@ -84,6 +86,8 @@ PDF'te yazılar standart Helvetica ile, Türkçe karakterler (ğ, ş, ı, İ, Ğ
 | `cmd(ad)` | Şerit komutu çalıştırır (`'sketch'`, `'extrude'`, `'hole'`…) |
 | `startSketch(on)`, `exitSketch(kabul)`, `setTool(ad)`, `toolClick(x, y)` | Çizim oturumu (çizim koordinatlarında) |
 | `setDimVal(id, değer)`, `addRelation(tür)`, `selectItems([...])` | Çizim ölçü/ilişki |
+| `applySkInput({L} \| {W,H} \| {D})`, `openSkInput(ilk)` | Çizerken ölçü yazma (imleç `sk.cursor`) |
+| `sketchProfiles(çizim, bölgeler)`, `sketchFaces(çizim)`, `regionClick(olay)` | Bölgeler ve bölge seçimi |
 | `openPM(tür, özellik)`, `commitPM()` | Özellik düzenleme |
 | `curAsm()`, `solveAsm(a)`, `asmDof(a)`, `addComp(parçaId)` | Montaj |
 | `getCtx()`, `buildSheet(...)`, `openPdfDialog(tür)`, `pdfOpt`, `makePdf()` | Teknik resim ve PDF |

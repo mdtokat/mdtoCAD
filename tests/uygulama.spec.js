@@ -339,3 +339,27 @@ test('fare tekerleği imlecin altındaki noktaya doğru yakınlaştırır', asyn
   expect(Math.hypot(r.sc[0] - pt.sc[0], r.sc[1] - pt.sc[1])).toBeGreaterThan(30); // merkez kaydı: gerçekten yakınlaştı
   expect(errors).toEqual([]);
 });
+
+test('özellik silinince çizimi ağaçta kalır; çizim silinince bağlı özellik de gider', async ({ page }) => {
+  const errors = await openApp(page);
+  const ex = await page.evaluate(() => __tz.state.features.find(f => f.type === 'extrude' && f.sketch).id);
+  const skId = await page.evaluate(id => __tz.state.features.find(f => f.id === id).sketch, ex);
+  await page.click(`.ti[data-id="${ex}"]`);
+  await page.click(`.ti[data-id="${ex}"] [data-a="del"]`);
+  const r = await page.evaluate(([ex, s]) => ({ ids: __tz.state.features.map(f => f.id), err: __tz.model.errors }), [ex, skId]);
+  expect(r.ids).not.toContain(ex);
+  expect(r.ids).toContain(skId);
+  // çizim artık ağaçta kendi satırında görünür ve ayrıca silinebilir
+  await expect(page.locator(`.ti[data-id="${skId}"]:not(.child)`)).toHaveCount(1);
+  await page.click(`.ti[data-id="${skId}"]`);
+  await page.click(`.ti[data-id="${skId}"] [data-a="del"]`);
+  expect(await page.evaluate(s => __tz.state.features.some(f => f.id === s), skId)).toBe(false);
+  // tüketilmiş bir çizimi silmek bağlı özelliği de siler (özellik çizimsiz kalmasın)
+  const ids2 = await page.evaluate(() => { const f = __tz.state.features.find(f => f.type === 'extrude' && f.sketch); return [f.id, f.sketch]; });
+  await page.click(`.ti[data-id="${ids2[1]}"]`);
+  await page.click(`.ti[data-id="${ids2[1]}"] [data-a="del"]`);
+  const left = await page.evaluate(() => __tz.state.features.map(f => f.id));
+  expect(left).not.toContain(ids2[0]);
+  expect(left).not.toContain(ids2[1]);
+  expect(errors).toEqual([]);
+});

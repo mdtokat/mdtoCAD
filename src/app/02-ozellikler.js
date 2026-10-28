@@ -63,10 +63,12 @@ $('#tree').addEventListener('click',e=>{
   if(sk||pm)return;
   if(act==='sup'){pushHist();f.suppressed=!f.suppressed;if(f.sketch){const s=byId(f.sketch);if(s)s.suppressed=f.suppressed}afterChange()}
   else if(act==='del'){
-    pushHist();const ids=new Set([id]);if(f.sketch&&consumedMap()[f.sketch]===id)ids.add(f.sketch);
-    if(f.type==='sketch'){const c=consumedMap()[id];if(c)ids.add(c)}
+    // özellik silinince çizimi ağaçta kalır (SolidWorks gibi); çizim ayrıca silinir.
+    // çizim silinirse ona bağlı özellik çizimsiz kalacağı için onunla birlikte gider.
+    pushHist();const ids=new Set([id]);let dep=null;
+    if(f.type==='sketch'){const c=consumedMap()[id];if(c){ids.add(c);dep=byId(c)}}
     state.features=state.features.filter(x=>!ids.has(x.id));sel=null;afterChange();
-    toast(`“${f.name}” silindi.`,{label:'Geri al',fn:undo});
+    toast(dep?`“${f.name}” ve ona bağlı “${dep.name}” silindi.`:f.sketch?`“${f.name}” silindi; “${(byId(f.sketch)||{}).name||'çizim'}” ağaçta kaldı.`:`“${f.name}” silindi.`,{label:'Geri al',fn:undo});
   }
 });
 $('#tree').addEventListener('dblclick',e=>{

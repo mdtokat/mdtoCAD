@@ -121,7 +121,8 @@ function cleanupOrphans(f){
   const used=new Set(['O']);for(const e of f.ents){for(const k of ['a','b','c'])if(e[k])used.add(e[k])}
   for(const c of f.cons){if(c.t==='mid'||c.t==='fix'||DIMT.has(c.t)||c.t==='h'||c.t==='v'){if(c.p&&used.has(c.p))continue}}
   const consUsed=new Set();for(const c of f.cons)for(const k of ['p','q'])if(c[k])consUsed.add(c[k]);
-  for(const id of Object.keys(f.pts)){if(!used.has(id)){const keep=f.cons.some(c=>c.t==='mid'&&c.p===id);if(!keep)delete f.pts[id]}}
+  // öğeye ait olmayan nokta: orta nokta ilişkisi varsa veya iki öğeyi bağlıyorsa (ör. daire çevresi çizgi üstünde) kalır
+  for(const id of Object.keys(f.pts)){if(!used.has(id)){const keep=f.cons.some(c=>c.t==='mid'&&c.p===id)||f.cons.filter(c=>(c.t==='pol'||c.t==='poc')&&c.p===id).length>=2;if(!keep)delete f.pts[id]}}
   f.cons=f.cons.filter(c=>!CPK.some(k=>c[k]&&c[k]!=='O'&&!f.pts[c[k]]));
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
@@ -205,8 +206,13 @@ function unsnapNear(s,q,c,px){if(s.pid||s.rels||s.rel)return s;if(Math.hypot(s.x
 function resolvePt(s,added){
   const f=sk.feat;if(s.pid)return s.pid;
   const id=newId(f,'p');f.pts[id]={x:s.x,y:s.y};
-  for(const r of (s.rels||(s.rel?[s.rel]:[]))){const c={id:newId(f,'c'),t:r.t,p:id,e:r.e};f.cons.push(c);if(added)added.push(c.id)}
+  snapTie(s,id,added);
   return id;
+}
+/* yakalanan öğelerle çakışıklık: nokta bir öğenin üstüne (veya iki öğenin kesişimine) tıklandıysa ona bağlanır */
+function snapTie(s,id,added){
+  const f=sk.feat;if(s.pid)return;
+  for(const r of (s.rels||(s.rel?[s.rel]:[]))){const c={id:newId(f,'c'),t:r.t,p:id,e:r.e};f.cons.push(c);if(added)added.push(c.id)}
 }
 function addEnt(e){e.id=newId(sk.feat,'e');sk.feat.ents.push(e);return e}
 function addCon(c,added){c.id=newId(sk.feat,'c');sk.feat.cons.push(c);if(added)added.push(c.id);return c}
@@ -304,7 +310,10 @@ function toolClick(q,px,tol){
   if(t==='circle'){
     if(!st.c){skPush();const s=skSnap(q,tol,null,null);st.c=resolvePt(s);st.newPts=s.pid?[]:[st.c];sk.dirty=true;return}
     const c=P2(st.c);const s=unsnapNear(skSnap(q,tol,null,new Set([st.c])),q,c,px);const r=Math.hypot(s.x-c[0],s.y-c[1]);if(r<px*2)return;
-    const en=addEnt({t:'circle',c:st.c,r:Math.round(r*1000)/1000});const added=[];if(s.pid&&s.pid!=='O')addCon({t:'poc',p:s.pid,e:en.id},added);
+    const en=addEnt({t:'circle',c:st.c,r:Math.round(r*1000)/1000});const added=[];
+    if(s.pid){const c={t:'poc',p:s.pid,e:en.id};if(s.pid!=='O'||sketchRank(f,[c])>sketchRank(f))addCon(c,added)}
+    // çevre bir öğenin üstüne tıklandıysa o noktada bağlantı noktası oluşur (öğe üstünde ve çevre üstünde)
+    else if(s.rel||s.rels){const id=resolvePt(s,added);addCon({t:'poc',p:id,e:en.id},added)}
     sk.st={};finishOp(added);return;
   }
   if(t==='arc'){
@@ -312,10 +321,18 @@ function toolClick(q,px,tol){
     if(!st.a){const c=P2(st.c);const s=skSnap(q,tol,null,new Set([st.c]));if(Math.hypot(s.x-c[0],s.y-c[1])<px*2)return;st.a=resolvePt(s);if(!s.pid)st.newPts.push(st.a);st.acc=0;st.last=Math.atan2(s.y-c[1],s.x-c[0]);sk.dirty=true;return}
     const c=P2(st.c),a=P2(st.a);const r=Math.hypot(a[0]-c[0],a[1]-c[1]);const ang=Math.atan2(q[1]-c[1],q[0]-c[0]);
     let s=skSnap(q,tol,null,new Set([st.c,st.a]));let bId;
-    if(s.pid&&Math.abs(Math.hypot(s.x-c[0],s.y-c[1])-r)<tol)bId=s.pid;else{bId=newId(f,'p');f.pts[bId]={x:c[0]+r*Math.cos(ang),y:c[1]+r*Math.sin(ang)}}
+    // bitiş bir öğenin üstüne tıklandıysa yay çemberinin o öğeyle kesişimine konur ve öğeye bağlanır (diğer öğeler yerinden oynamaz)
+    let tie=null;
+    if(!s.pid&&s.rel&&(s.rel.t==='pol'||s.rel.t==='poc')){const en=f.ents.find(e=>e.id===s.rel.e);
+      const X=en?intersectEnts(f,{t:'circle',c:st.c,r},en).filter(p=>Math.hypot(p[0]-q[0],p[1]-q[1])<tol*2).sort((u,w)=>Math.hypot(u[0]-q[0],u[1]-q[1])-Math.hypot(w[0]-q[0],w[1]-q[1]))[0]:null;
+      if(X)tie={x:X[0],y:X[1],s}}
+    else if(!s.pid&&(s.rel||s.rels)&&Math.abs(Math.hypot(s.x-c[0],s.y-c[1])-r)<tol)tie={x:s.x,y:s.y,s};
+    if(s.pid&&Math.abs(Math.hypot(s.x-c[0],s.y-c[1])-r)<tol)bId=s.pid;
+    else{bId=newId(f,'p');f.pts[bId]=tie?{x:tie.x,y:tie.y}:{x:c[0]+r*Math.cos(ang),y:c[1]+r*Math.sin(ang)}}
     if(bId===st.a)return;
+    const added=[];if(tie)snapTie(tie.s,bId,added);
     const ccw=(st.acc||0)>=0;addEnt(ccw?{t:'arc',c:st.c,a:st.a,b:bId}:{t:'arc',c:st.c,a:bId,b:st.a});
-    sk.st={};finishOp([]);return;
+    sk.st={};finishOp(added);return;
   }
   if(t==='arc3'){
     if(!st.a){skPush();const s=skSnap(q,tol,null,null);st.a=resolvePt(s);st.newPts=s.pid?[]:[st.a];sk.dirty=true;return}
@@ -355,10 +372,11 @@ function toolClick(q,px,tol){
     const c=P2(st.c);const s=unsnapNear(skSnap(q,tol,null,new Set([st.c])),q,c,px);const r=Math.hypot(s.x-c[0],s.y-c[1]);if(r<px*3)return;
     const n=Math.max(3,Math.min(32,Math.round(sk.opts.polyN)||6));const a0=Math.atan2(s.y-c[1],s.x-c[0]);
     const circ=addEnt({t:'circle',c:st.c,r,cons:true});const vsx=[];
-    for(let i=0;i<n;i++){const id=newId(f,'p');f.pts[id]={x:c[0]+r*Math.cos(a0+i*2*Math.PI/n),y:c[1]+r*Math.sin(a0+i*2*Math.PI/n)};vsx.push(id)}
+    for(let i=0;i<n;i++){if(i===0&&s.pid){vsx.push(s.pid);continue}const id=newId(f,'p');f.pts[id]={x:c[0]+r*Math.cos(a0+i*2*Math.PI/n),y:c[1]+r*Math.sin(a0+i*2*Math.PI/n)};vsx.push(id)}
     const ls=[];for(let i=0;i<n;i++)ls.push(addEnt({t:'line',a:vsx[i],b:vsx[(i+1)%n]}));
     for(const id of vsx)addCon({t:'poc',p:id,e:circ.id});for(let i=1;i<n;i++)addCon({t:'eq',e1:ls[0].id,e2:ls[i].id});
-    sk.st={};finishOp([]);return;
+    const added=[];snapTie(s,vsx[0],added);
+    sk.st={};finishOp(added);return;
   }
   if(t==='sfillet'){
     const h=skHit(q,tol);if(!h||h.k!=='pt'){toast('İki çizginin birleştiği köşe noktasına tıkla.');return}

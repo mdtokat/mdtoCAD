@@ -468,3 +468,40 @@ test('ölçü girişinde dört işlem: 800/2 ve 5+(20+2)*3', async ({ page }) =>
   expect(await len()).toBeCloseTo(71, 4);
   expect(errors).toEqual([]);
 });
+
+test('öğe üstüne tıklanınca çakışıklık: daire çevresi, yay bitişi, çokgen köşesi', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  const r = await page.evaluate(() => {
+    const T = __tz, f = T.sk.feat;
+    T.setTool('line'); T.toolClick(-50, 0); T.toolClick(50, 0); T.setTool(null);
+    const line = f.ents.find(e => e.t === 'line').id;
+    const onLine = id => f.cons.some(c => c.t === 'pol' && c.p === id && c.e === line);
+    // daire: merkez yukarıda, çevre çizginin üstüne
+    T.setTool('circle'); T.toolClick(-20, 10); T.toolClick(-20, 0);
+    const circ = f.ents.find(e => e.t === 'circle');
+    const tie = f.cons.find(c => c.t === 'poc' && c.e === circ.id);
+    // merkez nokta yay: bitiş çizginin üstüne
+    T.setTool('arc'); T.toolClick(20, 5); T.toolClick(30, 5); T.toolClick(28.5, 0);
+    const arc = f.ents.find(e => e.t === 'arc');
+    // çokgen: ilk köşe çizginin ucuna (mevcut noktaya)
+    const end = f.ents.find(e => e.id === line).b;
+    T.setTool('polygon'); T.toolClick(50, 20); T.toolClick(50, 0);
+    const poly = f.ents.filter(e => e.t === 'line' && !e.cons && e.id !== line);
+    const out = { circTie: !!tie && onLine(tie.p), arcTie: onLine(arc.a) || onLine(arc.b), polyShares: poly.some(e => e.a === end || e.b === end) };
+    T.setTool(null); T.exitSketch(true);
+    const g = T.state.features.find(x => x.type === 'sketch');
+    out.kept = !!g.pts[tie.p];
+    const P = g.pts[tie.p], C = g.pts[circ.c];
+    out.onCircle = Math.abs(Math.hypot(P.x - C.x, P.y - C.y) - g.ents.find(e => e.id === circ.id).r) < 1e-6;
+    const L = g.ents.find(e => e.id === line), A = g.pts[L.a], B = g.pts[L.b];
+    out.onLine = Math.abs((P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)) / Math.hypot(B.x - A.x, B.y - A.y) < 1e-6;
+    out.lineY = [A.y, B.y];
+    return out;
+  });
+  expect(r).toEqual({ circTie: true, arcTie: true, polyShares: true, kept: true, onCircle: true, onLine: true, lineY: [0, 0] });
+  expect(errors).toEqual([]);
+});

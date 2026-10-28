@@ -1,6 +1,7 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Çizim: bir öğenin üstüne tıklanınca çakışıklık artık daire çevresinde (çevre o noktadan geçer, bağlantı noktası kalır), merkez nokta yayın bitişinde (bitiş kesişime oturur, diğer öğeler kaymaz) ve çokgenin ilk köşesinde de otomatik eklenir.
 - Sayı girişleri (ölçüler ve tüm sayısal alanlar) dört işlemi ve parantezi kabul eder: `800/2` → 400, `5+(20+2)*3` → 71.
 - Çizim: yeni çizimde ilk ölçü girilince görünüm çizimin gerçek boyutuna göre yakınlaşır/uzaklaşır; tekerlek yakınlaştırma sınırları çizimin boyutunu da hesaba katar.
 - Çizim: bir çizim düzenlenirken onu kullanan Ekstrüzyon/Kesme/Döndürme gizlenir; çizimden çıkınca yeniden görünür.

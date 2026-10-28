@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tezgâh CAD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- @styles -->
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.8 20 7.2v9.6L12 21.2 4 16.8V7.2z"/><path d="M4 7.2 12 11.6l8-4.4M12 11.6v9.6"/></svg>
+      <span class="bt">Tezgâh <small>CAD</small></span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="on" data-tab="model" role="tab">Parça</button>
+      <button data-tab="asm" role="tab">Montaj</button>
+      <button data-tab="drawing" role="tab">Teknik Resim</button>
+    </nav>
+    <div class="top-actions">
+      <button class="ibtn" id="undoBtn" title="Geri al (Ctrl+Z)" aria-label="Geri al"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/></svg></button>
+      <button class="ibtn" id="redoBtn" title="Yinele (Ctrl+Y)" aria-label="Yinele"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5h-9a5 5 0 0 0 0 10h2"/></svg></button>
+      <button class="ibtn" id="fileBtn" aria-haspopup="true">Dosya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 10 5 5 5-5"/></svg></button>
+      <div class="menu" id="fileMenu">
+        <button data-m="new">Yeni boş proje</button>
+        <button data-m="demo">Örnek projeyi yükle</button>
+        <button data-m="open">Proje aç (.json)</button>
+        <button data-m="save" class="dl-only">Projeyi kaydet (.json)</button>
+        <hr>
+        <button data-m="importpart">Parça içe aktar (.json veya .stl)</button>
+        <button data-m="exportpart" class="dl-only">Etkin parçayı dışa aktar (.json)</button>
+        <button data-m="stlpart" class="dl-only">Etkin parçayı STL olarak al (.zip)</button>
+        <button data-m="stlasm" class="dl-only">Montajı STL olarak al (.zip)</button>
+        <hr>
+        <button data-m="pdf2">PDF olarak al: 2B teknik resim</button>
+        <button data-m="pdf3">PDF olarak al: 3B görünüş</button>
+      </div>
+      <input type="file" id="fileInput" accept=".json,.stl,application/json" hidden>
+    </div>
+  </header>
+
+  <section class="tab on" id="modelTab">
+    <div class="cm">
+      <div class="cm-tabs" id="cmTabs"><button data-cm="features" class="on">Özellikler</button><button data-cm="sketch">Çizim</button></div>
+      <div class="ribbon" id="ribbon"></div>
+    </div>
+    <div class="workspace" id="ws">
+      <aside class="tree" id="tree"></aside>
+      <div class="viewport" id="viewport">
+        <div id="labels"></div>
+        <div class="hud" id="hud"></div>
+        <div class="vp-status" id="vpStatus">Hazır</div>
+        <div class="vp-prompt" id="vpPrompt"></div>
+        <div class="confirm" id="confirm"><button class="ok" data-cf="ok">✓ Çizimden çık</button><button data-cf="cancel">✕ Değişiklikleri at</button></div>
+        <div class="mass" id="mass"></div>
+        <div class="sbar" id="sbar"><span class="st" id="sbSt"></span><span id="sbTool"></span><span class="xy" id="sbXY"></span></div>
+      </div>
+      <aside class="pm" id="pm"></aside>
+    </div>
+  </section>
+
+  <section class="tab" id="drawingTab">
+    <div class="cm"><div class="ribbon" id="drawRibbon"></div></div>
+    <div class="dws">
+      <div class="sheetwrap" id="sheetWrap">
+        <svg id="sheet" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="dw-busy" id="dwBusy">Görünüşler hazırlanıyor…</div>
+        <div class="dw-tip" id="dwTip"></div>
+      </div>
+      <aside class="dwp" id="dwPanel"></aside>
+    </div>
+  </section>
+</div>
+<div class="dlg-back" id="pdfDlg" role="dialog" aria-modal="true" aria-labelledby="pdfTitle">
+  <div class="dlg">
+    <div class="dlg-head"><div class="pm-title" id="pdfTitle">PDF olarak al</div><button class="ibtn" data-pdf="close" aria-label="Kapat">✕</button></div>
+    <div class="dlg-body">
+      <div class="dlg-opts" id="pdfOpts"></div>
+      <div class="dlg-prev"><div class="prev-box" id="pdfPrev"></div><div class="note" id="pdfInfo"></div></div>
+    </div>
+    <div class="dlg-foot"><span class="note" id="pdfMsg"></span><button class="sbtn" data-pdf="close">İptal</button><button class="sbtn primary" data-pdf="go" id="pdfGo">PDF indir</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<!-- @core -->
+
+<!-- @app -->
+</body>
+</html>

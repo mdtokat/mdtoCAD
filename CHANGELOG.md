@@ -1,6 +1,7 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Sayı girişleri (ölçüler ve tüm sayısal alanlar) dört işlemi ve parantezi kabul eder: `800/2` → 400, `5+(20+2)*3` → 71.
 - Çizim: yeni çizimde ilk ölçü girilince görünüm çizimin gerçek boyutuna göre yakınlaşır/uzaklaşır; tekerlek yakınlaştırma sınırları çizimin boyutunu da hesaba katar.
 - Çizim: bir çizim düzenlenirken onu kullanan Ekstrüzyon/Kesme/Döndürme gizlenir; çizimden çıkınca yeniden görünür.
 - Çizim: koyu temada çizim düzenlenirken gövde koyulaşır; açık renkli çizim çizgileri ve ölçüler yüzeyin üstünde okunur kalır.

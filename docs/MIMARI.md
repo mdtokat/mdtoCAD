@@ -16,7 +16,7 @@ Uygulama modülleri tek bir `(function(){ ... })()` kapsamında birleşir. Çeki
 
 | Bölüm | İçerik |
 |---|---|
-| Vektör yardımcıları | `va, vs, vk, vd, vc, vl, vn` (dizi tabanlı 3B vektör), `num()` (virgül/nokta) |
+| Vektör yardımcıları | `va, vs, vk, vd, vc, vl, vn` (dizi tabanlı 3B vektör), `num()` (virgül/nokta, dört işlem ve parantez: `800/2`, `5+(20+2)*3`) |
 | CSG | csg.js yaklaşımıyla BSP ağacı: `Vec`, `Plane`, `Poly`, `BSP`, `csgUnion`, `csgSubtract`. Gövdeler `Poly` dizileridir; `poly.shared` onu oluşturan özelliğin kimliğidir (seçim ve kesit için) |
 | Çerçeveler | Standart düzlemler `STD.front/top/right` (u, v, n eksenleri, u×v=n), `faceFrame`, `frameMatrix` |
 | Çizim geometrisi | `sketchProfiles(sk)`: kapalı konturları bulur, iç içe geçmeyi çözer (dış kontur + delikler), kesişimleri reddeder |

@@ -441,3 +441,30 @@ test('yeni çizimde ilk ölçü girilince görünüm çizime sığar', async ({ 
   expect(Math.abs(r.a[0] - r.b[0])).toBeGreaterThan((r.v[2] - r.v[0]) * 0.3); // çizgi ekranda küçük kalmaz
   expect(errors).toEqual([]);
 });
+
+test('ölçü girişinde dört işlem: 800/2 ve 5+(20+2)*3', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.evaluate(() => {
+    const T = __tz;
+    T.setTool('line'); T.toolClick(5, 5); T.toolClick(35, 5); T.setTool(null);
+    T.setTool('smartdim'); T.toolClick(20, 5); T.toolClick(20, 11);
+  });
+  const pop = page.locator('.pop input');
+  await pop.fill('800/2');
+  await pop.press('Enter');
+  const len = () => page.evaluate(() => { const f = __tz.sk.feat, l = f.ents.find(e => e.t === 'line'); return Math.hypot(f.pts[l.a].x - f.pts[l.b].x, f.pts[l.a].y - f.pts[l.b].y); });
+  expect(await len()).toBeCloseTo(400, 4);
+  const row = page.locator('.dimrow input').first();
+  await row.fill('5+(20+2)*3');
+  await row.press('Enter');
+  expect(await len()).toBeCloseTo(71, 4);
+  await row.fill('5+(2');
+  await row.press('Enter');
+  await expect(row).toHaveClass(/bad/);
+  expect(await len()).toBeCloseTo(71, 4);
+  expect(errors).toEqual([]);
+});

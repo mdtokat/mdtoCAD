@@ -486,7 +486,7 @@ function closeDimPop(){if(dimPopEl){dimPopEl.remove();dimPopEl=null}}
 function openDimPop(cid){
   closeDimPop();if(!sk)return;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
   const s=skToScreen(c.lp[0],c.lp[1]);const el=document.createElement('div');el.className='pop';
-  el.innerHTML=`<input inputmode="decimal" value="${String(Math.round(c.val*1e4)/1e4).replace('.',',')}" aria-label="Ölçü değeri"><button class="ok" aria-label="Uygula">${IC.ok}</button><button aria-label="Kapat">${IC.x}</button>`;
+  el.innerHTML=`<input inputmode="decimal" value="${String(Math.round(c.val*1e4)/1e4).replace('.',',')}" aria-label="Ölçü değeri" title="Dört işlem kullanılabilir, ör. 800/2 veya 5+(20+2)*3"><button class="ok" aria-label="Uygula">${IC.ok}</button><button aria-label="Kapat">${IC.x}</button>`;
   const r=vpEl.getBoundingClientRect();el.style.left=Math.max(4,Math.min(r.width-180,s[0]+10))+'px';el.style.top=Math.max(4,Math.min(r.height-50,s[1]+10))+'px';
   vpEl.appendChild(el);dimPopEl=el;const inp=el.querySelector('input');inp.focus();inp.select();
   const apply=()=>{const v=num(inp.value);if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){inp.style.borderColor='var(--warn)';return}setDimVal(c.id,v);closeDimPop()};

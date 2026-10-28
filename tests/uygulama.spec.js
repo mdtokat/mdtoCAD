@@ -167,3 +167,153 @@ test('ölçüsüz çizimler girişte ve çıkışta otomatik tam tanımlanır', 
   expect(r.err).toEqual({});
   expect(errors).toEqual([]);
 });
+
+/** Ön düzlemde boş bir çizim açar. */
+async function newSketch(page) {
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+}
+/** Çizimden çıkar, ekstrüzyon (20 mm) yapar; hata ve hacmi döndürür. */
+const extrudeJS = `(() => { const T = __tz; T.exitSketch(true); T.cmd('extrude'); if (T.pm) T.commitPM(); return { err: T.model.errors, vol: T.model.props && T.model.props.vol }; })()`;
+
+test('budama: kesişen öğeler bölünür, birleşim konturu kapalı kalır', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  const a = await page.evaluate(() => {
+    const T = __tz; T.setTool('rect'); T.toolClick(-30, -10); T.toolClick(30, 10); T.setTool('rect'); T.toolClick(-10, -30); T.toolClick(10, 30);
+    T.setTool('trim'); for (const q of [[0, 10], [0, -10], [10, 0], [-10, 0]]) T.toolClick(...q);
+    return { ents: T.sk.feat.ents.length, pts: Object.keys(T.sk.feat.pts).length, issues: T.sk.issues.n };
+  });
+  expect(a).toEqual({ ents: 12, pts: 12, issues: 0 });
+  const r = await page.evaluate(extrudeJS);
+  expect(r.err).toEqual({});
+  expect(r.vol).toBeCloseTo(2000 * 20, 0);
+  // iki daire: kesişim içindeki yaylar budanır
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.setTool('circle'); T.toolClick(0, 0); T.toolClick(20, 0); T.setTool('circle'); T.toolClick(30, 0); T.toolClick(50, 0); T.setTool('trim'); T.toolClick(10, 0); T.toolClick(20, 0); });
+  const c = await page.evaluate(extrudeJS);
+  expect(c.err).toEqual({});
+  const lens = 2 * 400 * Math.acos(0.75) - 15 * Math.sqrt(700);
+  expect(c.vol / 20).toBeGreaterThan((2 * Math.PI * 400 - lens) * 0.99);
+  expect(errors).toEqual([]);
+});
+
+test('ofset tek ölçüyle tüm kenarları sürer; çoğaltmalar parametriktir', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  const o = await page.evaluate(() => {
+    const T = __tz; const f = T.sk.feat; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(60, 40); T.setTool(null);
+    // dikdörtgeni ölçülendir: 60 × 40
+    const top = f.ents[0], side = f.ents[1];
+    f.cons.push({ id: 'cw', t: 'd', p: top.a, q: top.b, val: 60, lp: [30, -8] }, { id: 'ch', t: 'd', p: side.a, q: side.b, val: 40, lp: [68, 20] });
+    T.solveSketch(f);
+    T.selectItems(f.ents.map(e => ({ k: 'ent', id: e.id }))); T.setSkOp('offset'); T.sk.op.d = 5; T.applySkOp();
+    const dof = T.sk.an.dof; const off = f.cons.find(c => c.t === 'doff'); T.setDimVal(off.id, 8);
+    const xs = Object.values(f.pts).map(p => p.x), ys = Object.values(f.pts).map(p => p.y);
+    return { dof, w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys), followers: f.cons.filter(c => c.t === 'offd').length };
+  });
+  expect(o.dof).toBe(0);
+  expect(o.followers).toBe(3);
+  expect(o.w).toBeCloseTo(76, 4);
+  expect(o.h).toBeCloseTo(56, 4);
+  await page.evaluate(() => __tz.exitSketch(false));
+  await newSketch(page);
+  const p = await page.evaluate(() => {
+    const T = __tz; const f = T.sk.feat; T.setTool('circle'); T.toolClick(10, 10); T.toolClick(14, 10);
+    const c = f.ents[0]; T.setTool(null); T.selectItems([{ k: 'ent', id: c.id }]); T.setSkOp('lpat'); Object.assign(T.sk.op, { n: 4, sp: 20, ang: 0 }); T.applySkOp();
+    const dof = T.sk.an.dof; const sp = f.cons.find(x => x.t === 'd'); T.setDimVal(sp.id, 25);
+    const xs = f.ents.filter(e => e.t === 'circle').map(e => f.pts[e.c].x).sort((a, b) => a - b);
+    return { dof, gaps: xs.slice(1).map((x, i) => x - xs[i]) };
+  });
+  expect(p.dof).toBe(3); // yalnızca kaynak daire: merkez + yarıçap
+  for (const g of p.gaps) expect(g).toBeCloseTo(25, 4);
+  await page.evaluate(() => __tz.exitSketch(false));
+  await newSketch(page);
+  const q = await page.evaluate(() => {
+    const T = __tz; const f = T.sk.feat; T.setTool('circle'); T.toolClick(30, 0); T.toolClick(34, 0);
+    T.setTool(null); T.selectItems([{ k: 'ent', id: f.ents[0].id }]); T.setSkOp('cpat'); Object.assign(T.sk.op, { n: 6, tot: 360 }); T.applySkOp();
+    const dof = T.sk.an.dof; const a = f.cons.find(x => x.t === 'dang'); T.setDimVal(a.id, 45);
+    const an = f.ents.filter(e => e.t === 'circle').map(e => Math.atan2(f.pts[e.c].y, f.pts[e.c].x) * 180 / Math.PI).map(v => (v + 360) % 360).sort((a, b) => a - b);
+    return { dof, steps: an.slice(1).map((v, i) => v - an[i]) };
+  });
+  expect(q.dof).toBe(3);
+  for (const s of q.steps) expect(s).toBeCloseTo(45, 3);
+  expect(errors).toEqual([]);
+});
+
+test('simetrik ilişki, çizgi–yay radyusu, 3 nokta ve teğet yay', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  const s = await page.evaluate(() => {
+    const T = __tz; const f = T.sk.feat; T.setTool('centerline'); T.toolClick(0, -20); T.toolClick(0, 20);
+    T.setTool('circle'); T.toolClick(-20, 0); T.toolClick(-15, 0); T.setTool('circle'); T.toolClick(22, 4); T.toolClick(28, 4);
+    const [cl, c1, c2] = f.ents; T.setTool(null); T.selectItems([{ k: 'pt', id: c1.c }, { k: 'pt', id: c2.c }, { k: 'ent', id: cl.id }]);
+    const offered = [...document.querySelectorAll('[data-rel]')].map(b => b.dataset.rel);
+    T.addRelation('sym');
+    const a = f.pts[cl.a], b = f.pts[cl.b], p = f.pts[c1.c], q = f.pts[c2.c];
+    const m = [(p.x + q.x) / 2, (p.y + q.y) / 2], d = [b.x - a.x, b.y - a.y];
+    return { offered, onAxis: Math.abs((m[0] - a.x) * d[1] - (m[1] - a.y) * d[0]) / Math.hypot(...d), perp: (q.x - p.x) * d[0] + (q.y - p.y) * d[1] };
+  });
+  expect(s.offered).toContain('sym');
+  expect(s.onAxis).toBeLessThan(1e-5);
+  expect(Math.abs(s.perp)).toBeLessThan(1e-5);
+  await page.evaluate(() => __tz.exitSketch(false));
+  // D şekli: çizgi ile yarım daire köşesine radyus
+  await newSketch(page);
+  const d = await page.evaluate(() => {
+    const T = __tz; const f = T.sk.feat; T.setTool('line'); T.toolClick(0, -20); T.toolClick(0, 20);
+    T.setTool('arc'); T.toolClick(0, 0); T.toolClick(0, 20); T.toolClick(0, -20);
+    T.sk.opts.filletR = 4; T.setTool('sfillet'); T.toolClick(0, 20);
+    return { arcs: f.ents.filter(e => e.t === 'arc').length, tan: f.cons.filter(c => c.t === 'tan').length };
+  });
+  expect(d).toEqual({ arcs: 2, tan: 2 });
+  expect((await page.evaluate(extrudeJS)).err).toEqual({});
+  // 3 nokta yay: yarım daire
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.setTool('line'); T.toolClick(-20, 0); T.toolClick(20, 0); T.setTool('arc3'); T.toolClick(-20, 0); T.toolClick(20, 0); T.toolClick(0, 20); });
+  const a3 = await page.evaluate(extrudeJS);
+  expect(a3.err).toEqual({});
+  expect(a3.vol).toBeCloseTo(Math.PI * 200 * 20, -2);
+  // teğet yaylarla kanal
+  await newSketch(page);
+  const t = await page.evaluate(() => {
+    const T = __tz; T.setTool('line'); T.toolClick(0, 0); T.toolClick(40, 0); T.setTool('tarc'); T.toolClick(40, 0); T.toolClick(40, 20);
+    T.setTool('line'); T.toolClick(40, 20); T.toolClick(0, 20); T.setTool('tarc'); T.toolClick(0, 20); T.toolClick(0, 0);
+    return T.sk.feat.cons.filter(c => c.t === 'tan').length;
+  });
+  expect(t).toBe(2);
+  const tv = await page.evaluate(extrudeJS);
+  expect(tv.err).toEqual({});
+  expect(tv.vol).toBeCloseTo((800 + Math.PI * 100) * 20, -2);
+  expect(errors).toEqual([]);
+});
+
+test('yakalama: kesişim, dik çıkarım, ızgara; profil sorunları işaretlenir', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  const r = await page.evaluate(() => {
+    const T = __tz; const f = T.sk.feat;
+    T.setTool('line'); T.toolClick(-30, 10); T.toolClick(30, 10); T.setTool('line'); T.toolClick(5, -30); T.toolClick(5, 30);
+    T.setTool('circle'); T.toolClick(5.3, 10.2); T.toolClick(12, 10);
+    const c = f.ents.find(e => e.t === 'circle'); const cp = f.pts[c.c];
+    T.setTool('line'); T.toolClick(40, 0); T.toolClick(70, 17); T.toolClick(61.7, 31.6);
+    const l2 = f.ents[f.ents.length - 1]; T.setTool(null);
+    return { c: [cp.x, cp.y], ccons: f.cons.filter(x => x.p === c.c).map(x => x.t), perp: f.cons.some(x => x.t === 'perp' && x.e2 === l2.id) };
+  });
+  expect(r.c[0]).toBeCloseTo(5, 6);
+  expect(r.c[1]).toBeCloseTo(10, 6);
+  expect(r.ccons).toEqual(['pol', 'pol']);
+  expect(r.perp).toBe(true);
+  await expect(page.locator('.warnnote')).toContainText('boşta uç');
+  // ızgara görünür
+  expect(await page.evaluate(() => __tz.sk.opts.grid)).toBe(true);
+  await page.evaluate(() => __tz.exitSketch(false));
+  // T-birleşimi: anlaşılır hata
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(60, 40); T.setTool('line'); T.toolClick(30, 0); T.toolClick(30, 40); });
+  const e = await page.evaluate(extrudeJS);
+  expect(Object.values(e.err)[0]).toContain('T-birleşimi');
+  expect(errors).toEqual([]);
+});

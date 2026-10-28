@@ -156,7 +156,17 @@ function sketchProfiles(sk){
   if(!ents.length)throw new Error('Çizimde profil yok. Yapı geometrisi dışındaki çizgilerle kapalı bir kontur çiz.');
   const deg={},adj={};
   for(const e of ents)if(e.t==='line'||e.t==='arc'){for(const p of [e.a,e.b]){deg[p]=(deg[p]||0)+1;(adj[p]=adj[p]||[]).push(e)}}
-  for(const p in deg){if(deg[p]===1)throw new Error('Çizimde açık kontur var: bir çizginin ucu boşta.');if(deg[p]>2)throw new Error('Bir noktada ikiden fazla çizgi birleşiyor; profil belirsiz.')}
+  for(const p in deg){
+    if(deg[p]===1){
+      // uç başka bir öğenin ortasına dayanıyorsa (T-birleşimi) bunu söyle
+      const q=skP(sk,p);const on=ents.some(e=>{if(e.a===p||e.b===p||e.c===p)return false;
+        if(e.t==='line'){const a=skP(sk,e.a),b=skP(sk,e.b);const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1e-12;return Math.abs((q.x-a.x)*dy-(q.y-a.y)*dx)/L<1e-6*(1+L)}
+        const c=skP(sk,e.c);return Math.abs(Math.hypot(q.x-c.x,q.y-c.y)-curveR(sk,e))<1e-6*(1+curveR(sk,e))});
+      if(on)throw new Error('Çizimde T-birleşimi var: bir çizginin ucu başka bir öğenin ortasında bitiyor. Profil uç uca bağlı kapalı konturlardan oluşmalı; fazla parçaları Budama ile temizle.');
+      throw new Error('Çizimde açık kontur var: bir çizginin ucu boşta.');
+    }
+    if(deg[p]>2)throw new Error('Bir noktada ikiden fazla çizgi birleşiyor; profil belirsiz.');
+  }
   const loops=[],used=new Set();
   for(const e of ents){
     if(e.t==='circle'){const t=tessEnt(sk,e);t.pop();const c=skP(sk,e.c);loops.push({pts:t,circle:{x:c.x,y:c.y,r:e.r}});continue}
@@ -191,6 +201,8 @@ function sketchProfiles(sk){
 
 /* ============ Kısıt çözücü (Levenberg–Marquardt) ============ */
 var AK=50;
+/* kısıtlarda nokta tutan alanlar: p,q (genel), r,s (çoğaltma referansı), o (dairesel çoğaltma merkezi) */
+const CPK=['p','q','r','s','o'];
 function sysBuild(sk,extraCons){
   const E=entMap(sk);const cons=extraCons?sk.cons.concat(extraCons):sk.cons;
   const fixed=new Set();for(const c of cons)if(c.t==='fix')fixed.add(c.p);
@@ -210,6 +222,7 @@ function sysBuild(sk,extraCons){
   for(const c of cons){
     const e=c.e?E[c.e]:null,e1=c.e1?E[c.e1]:null,e2=c.e2?E[c.e2]:null;
     if((c.e&&!e)||(c.e1&&!e1)||(c.e2&&!e2))continue;
+    if(CPK.some(k=>c[k]&&c[k]!=='O'&&!sk.pts[c[k]]))continue;
     switch(c.t){
       case 'h':if(e)fs.push(X=>gy(X,e.a)-gy(X,e.b));else fs.push(X=>gy(X,c.p)-gy(X,c.q));break;
       case 'v':if(e)fs.push(X=>gx(X,e.a)-gx(X,e.b));else fs.push(X=>gx(X,c.p)-gx(X,c.q));break;
@@ -233,6 +246,15 @@ function sysBuild(sk,extraCons){
       case 'drad':fs.push(X=>R(X,e)-c.val);break;
       case 'sym':fs.push(X=>{const mx=(gx(X,c.p)+gx(X,c.q))/2,my=(gy(X,c.p)+gy(X,c.q))/2;const ax=gx(X,e.a),ay=gy(X,e.a),dx=gx(X,e.b)-ax,dy=gy(X,e.b)-ay,l=Math.hypot(dx,dy)||1e-12;return ((mx-ax)*dy-(my-ay)*dx)/l},
         X=>{const dx=gx(X,e.b)-gx(X,e.a),dy=gy(X,e.b)-gy(X,e.a),l=Math.hypot(dx,dy)||1e-12;return ((gx(X,c.q)-gx(X,c.p))*dx+(gy(X,c.q)-gy(X,c.p))*dy)/l});break;
+      // ofset: e2, e1'in sg yönünde val kadar ofsetidir (doff sürücü ölçü, offd ona bağlı izleyici)
+      case 'doff':case 'offd':{const dc=c.t==='doff'?c:cons.find(x=>x.id===c.dim&&x.t==='doff');if(!dc)break;
+        if(e1.t==='line')fs.push(X=>(c.sg||1)*lpd(X,e1,e2.a)-dc.val);else fs.push(X=>(R(X,e2)-R(X,e1))*(c.sg||1)-dc.val);break}
+      // doğrusal çoğaltma: q = p + k·(s − r)
+      case 'tr':fs.push(X=>gx(X,c.q)-gx(X,c.p)-c.k*(gx(X,c.s)-gx(X,c.r)),X=>gy(X,c.q)-gy(X,c.p)-c.k*(gy(X,c.s)-gy(X,c.r)));break;
+      // dairesel çoğaltma: q = o + Rot(k·θ)(p − o), θ = (r−o)'dan (s−o)'ya açı
+      case 'rot':{const rp=X=>{const ox=gx(X,c.o),oy=gy(X,c.o);const u=un([gx(X,c.r)-ox,gy(X,c.r)-oy]),w=un([gx(X,c.s)-ox,gy(X,c.s)-oy]);
+          const th=c.k*Math.atan2(u[0]*w[1]-u[1]*w[0],u[0]*w[0]+u[1]*w[1]),ca=Math.cos(th),sa=Math.sin(th);const px=gx(X,c.p)-ox,py=gy(X,c.p)-oy;return [ox+px*ca-py*sa,oy+px*sa+py*ca]};
+        fs.push(X=>gx(X,c.q)-rp(X)[0],X=>gy(X,c.q)-rp(X)[1]);break}
       case 'dang':fs.push(X=>{let a=un(dir(X,e1)),b=un(dir(X,e2));if(c.r1)a=[-a[0],-a[1]];if(c.r2)b=[-b[0],-b[1]];return AK*(Math.atan2(Math.abs(a[0]*b[1]-a[1]*b[0]),a[0]*b[0]+a[1]*b[1])-c.val*Math.PI/180)});break;
     }
   }
@@ -335,7 +357,7 @@ function sketchRank(sk,extra){
 /* Otomatik tam tanımlama (SolidWorks "Çizimi Tam Tanımla"): geometriyi oynatmadan,
    mevcut değerlerle ilişki ve ölçü ekleyerek serbestlik derecesini sıfıra indirir.
    Aday kısıtlar öncelik sırasıyla denenir; yalnızca rankı artıranlar (bağımsız olanlar) eklenir. */
-function autoDefine(sk){
+function autoDefine(sk,opt){
   const S=sysBuild(sk);const n=S.n;if(!n)return [];
   const X=S.X0;
   // analyzeSketch ile aynı ölçüt: merkezi farklı Jacobian + rrefInfo rankı
@@ -402,8 +424,50 @@ function autoDefine(sk){
     if(Math.abs(p[0])>=tol)tryAdd({t:'dh',p:'O',q:id,val:Math.round(Math.abs(p[0])*1e4)/1e4,lp:[p[0]/2,p[1]+sy*off*0.5]});
     if(Math.abs(p[1])>=tol)tryAdd({t:'dv',p:'O',q:id,val:Math.round(Math.abs(p[1])*1e4)/1e4,lp:[p[0]+sx*off*0.5,p[1]/2]});
   }
+  placeDimLabels(sk,out,(opt&&opt.px)||ext/250);
   sk.cons.push(...out);
   return out;
+}
+/* Yeni ölçülerin etiketlerini (lp) mevcut etiketlerin, ilişki simgelerinin ve geometrinin üstüne binmeyecek yere taşır.
+   px: ekrandaki 1 pikselin çizim birimi karşılığı (etiket boyutu tahmini için). */
+function placeDimLabels(sk,added,px){
+  const dims=added.filter(c=>c.lp);if(!dims.length)return;
+  const E=entMap(sk);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  const txt=c=>{const v=String(Math.round(c.val*1000)/1000);return c.t==='ddia'||c.t==='drad'?v.length+1:c.t==='dang'?v.length+1:v.length};
+  const boxOf=(c,lp)=>{const w=(txt(c)*7+10)*px/2,h=10*px;return [lp[0]-w,lp[1]-h,lp[0]+w,lp[1]+h]};
+  const boxes=[];const segs=[];const pts=[];
+  for(const c of sk.cons)if(c.lp&&!dims.includes(c))boxes.push(boxOf(c,c.lp));
+  // ilişki simgeleri (uygulamadaki relAnchors ile aynı yerler)
+  const off=px*13;
+  const entMid=e=>{if(!e)return null;if(e.t==='line'){const a=P(e.a),b=P(e.b);const d=[b[0]-a[0],b[1]-a[1]],l=Math.hypot(...d)||1;return [(a[0]+b[0])/2-d[1]/l*off,(a[1]+b[1])/2+d[0]/l*off]}
+    const C=P(e.c),r=curveR(sk,e);let ang=Math.PI/4;if(e.t==='arc'){const A=arcInfo(sk,e);ang=A.a0+A.sw/2}return [C[0]+(r+off)*Math.cos(ang),C[1]+(r+off)*Math.sin(ang)]};
+  for(const c of sk.cons.concat(added))if(!c.lp)for(const k of ['e','e1','e2']){const m=c[k]&&!(k==='e'&&c.p)?entMid(E[c[k]]):null;if(m)boxes.push([m[0]-9*px,m[1]-9*px,m[0]+9*px,m[1]+9*px])}
+  for(const e of sk.ents){const t=tessEnt(sk,e,48);for(let i=0;i<t.length-1;i++)segs.push([t[i],t[i+1]])}
+  for(const id in sk.pts)pts.push(P(id));pts.push([0,0]);
+  const segBox=(a,b,B)=>{ // Liang–Barsky ile kesişim
+    let t0=0,t1=1;const dx=b[0]-a[0],dy=b[1]-a[1];
+    for(const [p,q] of [[-dx,a[0]-B[0]],[dx,B[2]-a[0]],[-dy,a[1]-B[1]],[dy,B[3]-a[1]]]){if(Math.abs(p)<1e-15){if(q<0)return false}else{const r=q/p;if(p<0){if(r>t1)return false;if(r>t0)t0=r}else{if(r<t0)return false;if(r<t1)t1=r}}}
+    return true};
+  const cost=B=>{let n=0;for(const o of boxes)if(B[0]<o[2]&&B[2]>o[0]&&B[1]<o[3]&&B[3]>o[1])n+=3;for(const [a,b] of segs)if(segBox(a,b,B))n++;for(const p of pts)if(p[0]>B[0]&&p[0]<B[2]&&p[1]>B[1]&&p[1]<B[3])n++;return n};
+  const rad=id=>{let r=0;for(const e of sk.ents)if(e.t!=='line'&&e.c===id)r=Math.max(r,curveR(sk,e));return r};
+  const step=px*22;
+  for(const c of dims){
+    const cands=[];
+    if(c.t==='d'){const a=P(c.p),b=P(c.q);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];const d0=[c.lp[0]-m[0],c.lp[1]-m[1]];const l0=Math.hypot(...d0)||1;const n=[d0[0]/l0,d0[1]/l0];
+      for(const sg of [1,-1])for(let k=0;k<8;k++){const t=l0+k*step;cands.push([m[0]+n[0]*t*sg,m[1]+n[1]*t*sg])}}
+    else if(c.t==='dh'||c.t==='dv'){const q=P(c.q);const i=c.t==='dh'?1:0;const sg=Math.sign(c.lp[i]-q[i])||1;const base=Math.max(Math.abs(c.lp[i]-q[i]),rad(c.q)+step*0.6);
+      for(const s2 of [sg,-sg])for(let k=0;k<10;k++){const lp=c.lp.slice();lp[i]=q[i]+s2*(base+k*step*0.8);cands.push(lp)}}
+    else if(c.t==='ddia'||c.t==='drad'){const e=E[c.e];const C=P(e.c),r=curveR(sk,e);const a0=Math.atan2(c.lp[1]-C[1],c.lp[0]-C[0]);
+      for(const rr of [r+step,r+step*2])for(let j=0;j<12;j++){const a=a0+(j%2?-1:1)*Math.ceil(j/2)*Math.PI/6;cands.push([C[0]+rr*Math.cos(a),C[1]+rr*Math.sin(a)])}}
+    else if(c.t==='dang'){const X=c.lp;cands.push(X)}
+    let best=c.lp,bc=Infinity;
+    for(const lp of cands){const k=cost(boxOf(c,lp));if(k<bc){bc=k;best=lp}if(!k)break}
+    c.lp=best;boxes.push(boxOf(c,best));
+    // ölçü çizgisi de sonraki etiketler için engel
+    if(c.t==='dh'){const a=P(c.p),b=P(c.q);segs.push([[a[0],best[1]],[b[0],best[1]]])}
+    else if(c.t==='dv'){const a=P(c.p),b=P(c.q);segs.push([[best[0],a[1]],[best[0],b[1]]])}
+    else if(c.t==='d'){const a=P(c.p),b=P(c.q);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];const o=[best[0]-m[0],best[1]-m[1]];segs.push([[a[0]+o[0],a[1]+o[1]],[b[0]+o[0],b[1]+o[1]]])}
+  }
 }
 
 /* ============ Özellik gövdeleri ============ */

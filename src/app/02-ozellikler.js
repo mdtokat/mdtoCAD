@@ -83,7 +83,7 @@ $('#tree').addEventListener('change',e=>{
 
 /* ================= KOMUT YÖNETİCİSİ (CommandManager) ================= */
 function rb(cmd,icon,label,cls='',title=''){return `<button class="rb ${cls}" data-cmd="${cmd}" title="${esc(title||label)}">${IC[icon]}<span>${label}</span></button>`}
-const SKTOOLS=['smartdim','line','centerline','rect','crect','circle','arc','slot','polygon','sfillet','trim'];
+const SKTOOLS=['smartdim','line','centerline','rect','crect','circle','arc','arc3','tarc','slot','polygon','sfillet','trim'];
 function renderRibbon(){
   $('#cmTabs').classList.toggle('hidden',activeTab==='asm');
   if(activeTab==='asm'){renderAsmRibbon();return}
@@ -99,7 +99,7 @@ function renderRibbon(){
     const t=sk?sk.tool:null;const on=c=>t===c?'on':'';
     h=rb('sketch',sk?'exitSketch':'sketch',sk?'Çizimden Çık':'Çizim')+rb('smartdim','smartdim','Akıllı Ölçülendirme',on('smartdim'))+rb('fulldef','fulldef','Tam Tanımla','','Eksik ölçü ve ilişkileri otomatik ekleyerek çizimi tam tanımla')+'<div class="rsep"></div>'+
       rb('select','select','Seç',sk&&!t?'on':'')+rb('line','line','Çizgi',on('line'))+rb('centerline','centerline','Merkez Çizgisi',on('centerline'))+rb('rect','rect','Köşe Dikdörtgen',on('rect'))+rb('crect','crect','Merkez Dikdörtgen',on('crect'))+
-      rb('circle','circle','Daire',on('circle'))+rb('arc','arc','Merkez Nokta Yay',on('arc'))+rb('slot','slot','Düz Kanal',on('slot'))+rb('polygon','polygon','Çokgen',on('polygon'))+
+      rb('circle','circle','Daire',on('circle'))+rb('arc','arc','Merkez Nokta Yay',on('arc'))+rb('arc3','arc3','3 Nokta Yay',on('arc3'))+rb('tarc','tarc','Teğet Yay',on('tarc'))+rb('slot','slot','Düz Kanal',on('slot'))+rb('polygon','polygon','Çokgen',on('polygon'))+
       '<div class="rsep"></div>'+rb('sfillet','sfillet','Çizim Radyusu',on('sfillet'))+rb('trim','trim','Budama',on('trim'))+rb('soffset','offset','Varlıkları Ofsetle',sk&&sk.op&&sk.op.t==='offset'?'on':'')+rb('smirror','smirror','Varlıkları Aynala',sk&&sk.op&&sk.op.t==='mirror'?'on':'')+rb('slpat','slpat','Doğrusal Çoğaltma',sk&&sk.op&&sk.op.t==='lpat'?'on':'')+rb('scpat','scpat','Dairesel Çoğaltma',sk&&sk.op&&sk.op.t==='cpat'?'on':'')+
       '<div class="rsep"></div>'+rb('construction','construction','Yapı Geometrisi')+rb('normal','normal','Normal Görünüm');
   }

@@ -1,6 +1,16 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Çizim: **Budama** kesişen öğeyi kesim noktasında böler ve noktaları paylaştırır; budanan şekiller (örneğin iki dairenin veya iki dikdörtgenin birleşimi) kapalı kontur olarak kalır.
+- Çizim: ızgara artık görünür; yakalama yalnızca ızgara çizgilerine yakınken olur, küçük daireler sessizce yok sayılmaz.
+- Çizim: **Varlıkları Ofsetle** tüm öğeleri tek bir ofset ölçüsüne bağlar (yeni `doff`/`offd`); ölçü değişince tüm kenarlar birlikte kayar.
+- Çizim: doğrusal ve dairesel çizim çoğaltma parametrik (yeni `tr`/`rot` ilişkileri; aralık veya açı ölçüsü değişince kopyalar güncellenir).
+- Çizim: **Simetrik** ilişkisi panelden eklenebilir (iki nokta veya iki daire + eksen çizgisi).
+- Çizim: çizim radyusu çizgi–yay ve yay–yay köşelerinde de çalışır.
+- Çizim: **3 Nokta Yay** ve **Teğet Yay** araçları; öğe kesişimlerine yakalama; çizerken önceki çizgiye dik ve yaya teğet çıkarımı.
+- Çizim: boşta uçlar, kesişmeler ve ikiden fazla öğenin birleştiği noktalar kırmızıyla işaretlenir; T-birleşimi için anlaşılır hata mesajı.
+- Tam Tanımla: ölçü etiketleri birbirinin, ilişki simgelerinin ve geometrinin üstüne binmeyecek yerlere konur.
+- Ölçüler listesi: aynı adlı ölçüler ölçülen öğeyle ayırt edilir; satırın üzerine gelince ölçü çizimde vurgulanır.
 - Çizim: **Tam Tanımla** komutu; eksik ölçü ve ilişkiler mevcut geometriden otomatik eklenir.
 - Ölçüsüz çizimler çizime girerken ve çıkarken otomatik tam tanımlanır (panelden kapatılabilir).
 - Çizim panelinde düzenlenebilir **Ölçüler** listesi.

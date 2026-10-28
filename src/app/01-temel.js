@@ -396,10 +396,28 @@ function faceRef(f){
     if(Math.abs(z-c.zn)<1e-3)return {kind:'face',feat:f.feat,which:'near',sgn:Math.sign(dn),frame:faceFrame(f.n,f.pt)}}}
   return {kind:'face',feat:f.feat,which:null,frame:faceFrame(f.n,f.pt)};
 }
-function isPlanarFace(f){if(!f)return false;const same=shown.polys.filter(p=>Math.abs(p.plane.n.x*f.n[0]+p.plane.n.y*f.n[1]+p.plane.n.z*f.n[2]-1)<1e-6&&Math.abs(p.plane.w-f.w)<1e-4);return same.length>0}
+/* yüzey seçimi/vurgusu: düz yüzeyde aynı düzlemdeki çokgenler; eğri yüzeyde (silindir…) normali yumuşakça değişen komşu çokgenlerin tamamı */
+function facePolys(f){
+  const same=shown.polys.filter(p=>Math.abs(p.plane.n.x*f.n[0]+p.plane.n.y*f.n[1]+p.plane.n.z*f.n[2]-1)<1e-6&&Math.abs(p.plane.w-f.w)<1e-4);
+  if(!same.length||!isCurvedFacet(same))return same;
+  if(!shown.adj){const k=v=>Math.round(v.x*1e4)+','+Math.round(v.y*1e4)+','+Math.round(v.z*1e4);const by=new Map();
+    shown.polys.forEach((p,i)=>{for(const v of p.verts){const q=k(v);if(!by.has(q))by.set(q,[]);by.get(q).push(i)}});shown.adj={k,by}}
+  const {k,by}=shown.adj,lo=Math.cos(12*Math.PI/180);const out=new Set(same),st=[...same];
+  while(st.length){const p=st.pop();const cnt=new Map();for(const v of p.verts)for(const j of by.get(k(v))||[])cnt.set(j,(cnt.get(j)||0)+1);
+    for(const [j,c] of cnt){if(c<2)continue;const o=shown.polys[j];if(out.has(o)||o.plane.n.dot(p.plane.n)<lo)continue;out.add(o);st.push(o)}}
+  return [...out];
+}
+function isPlanarFace(f){if(!f)return false;const same=shown.polys.filter(p=>Math.abs(p.plane.n.x*f.n[0]+p.plane.n.y*f.n[1]+p.plane.n.z*f.n[2]-1)<1e-6&&Math.abs(p.plane.w-f.w)<1e-4);return same.length>0&&!isCurvedFacet(same)}
+/* eğri yüzeyin (silindir, koni…) tek bir üçgeni mi: aynı düzlemdeki çokgenler, normali birkaç derece farklı bir komşuyla kenar paylaşıyorsa */
+function isCurvedFacet(same){
+  const k=v=>Math.round(v.x*1e4)+','+Math.round(v.y*1e4)+','+Math.round(v.z*1e4);const set=new Set(same);const vs_=new Set();for(const p of same)for(const v of p.verts)vs_.add(k(v));
+  const n=same[0].plane.n,lo=Math.cos(12*Math.PI/180),hi=Math.cos(0.3*Math.PI/180);
+  for(const p of shown.polys){if(set.has(p))continue;const d=p.plane.n.dot(n);if(d<lo||d>hi)continue;let c=0;for(const v of p.verts)if(vs_.has(k(v))&&++c>=2)return true}
+  return false;
+}
 function updateSelVisual(){
   selMesh.geometry.dispose();
-  if(sel&&sel.kind==='face')selMesh.geometry=polysToBuffers(shown.polys,p=>Math.abs(p.plane.n.x*sel.n[0]+p.plane.n.y*sel.n[1]+p.plane.n.z*sel.n[2]-1)<1e-6&&Math.abs(p.plane.w-sel.w)<1e-4).g;
+  if(sel&&sel.kind==='face'){const fs=new Set(facePolys(sel));selMesh.geometry=polysToBuffers(shown.polys,p=>fs.has(p)).g}
   else if(sel&&sel.kind==='feature')selMesh.geometry=polysToBuffers(shown.polys,p=>p.shared===sel.id).g;
   else selMesh.geometry=new T.BufferGeometry();
   let segs=[];
@@ -435,11 +453,12 @@ function hover3D(e){
   if(pm&&(pm.type==='fillet'||pm.type==='chamfer')){const ed=pickEdge(e);hovMesh.geometry.dispose();hovMesh.geometry=new T.BufferGeometry();renderer.domElement.style.cursor=ed?'pointer':'';return}
   const f=(pickMode==='plane'||!pm||pm.type==='hole')?pickFace(e):null;
   hovMesh.geometry.dispose();
-  hovMesh.geometry=f?polysToBuffers(shown.polys,p=>Math.abs(p.plane.n.x*f.n[0]+p.plane.n.y*f.n[1]+p.plane.n.z*f.n[2]-1)<1e-6&&Math.abs(p.plane.w-f.w)<1e-4).g:new T.BufferGeometry();
+  let fs=null;if(f){fs=new Set(facePolys(f))}
+  hovMesh.geometry=f?polysToBuffers(shown.polys,p=>fs.has(p)).g:new T.BufferGeometry();
 }
 function click3D(e){
   if(meas){measureClick(e);return}
-  if(pm&&pm.type==='hole'){const f=pickFace(e);if(f)holeAddPoint(f);return}
+  if(pm&&pm.type==='hole'){const f=pickFace(e);if(f&&!isPlanarFace(f)){toast('Delik düz bir yüzeye açılır.');return}if(f)holeAddPoint(f);return}
   if(pm&&(pm.type==='fillet'||pm.type==='chamfer')){
     const ed=pickEdge(e,12);if(!ed)return;
     const i=pm.draft.edges.findIndex(se=>sameEdgeSel(se,ed));
@@ -450,7 +469,8 @@ function click3D(e){
   if(pm&&(pm.type==='mirror'||pm.type==='plane')){const pl=pickPlane(e);if(pl){if(pm.type==='mirror')pm.draft.plane=pl.key;else pm.draft.base=pl.key;renderPM();updatePlaneVis();schedulePreview()}return}
   if(pm)return;
   if(pickMode==='plane'){
-    const f=pickFace(e);if(f){startSketch(faceRef(f));return}
+    const f=pickFace(e);if(f&&isPlanarFace(f)){startSketch(faceRef(f));return}
+    if(f){toast('Eğri yüzeye çizim yapılamaz. Düz bir yüzey veya düzlem seç.');return}
     const pl=pickPlane(e);if(pl){startSketch(planeRef(pl.key));return}
     return;
   }

@@ -141,7 +141,7 @@ function beginSketchCommand(pend,tool){
   pending=pend;pendingTool=tool;
   if(pm)closePM(true);
   if(sel&&sel.kind==='plane'){startSketch(planeRef(sel.key));return}
-  if(sel&&sel.kind==='face'){if(isPlanarFace(sel)){startSketch(faceRef(sel));return}}
+  if(sel&&sel.kind==='face'){if(isPlanarFace(sel)){startSketch(faceRef(sel));return}toast('Seçili yüzey düz değil; düz bir yüzey veya düzlem seç.')}
   pickMode='plane';updatePlaneVis();
   prompt_('Çizim için bir düzlem (Ön, Üst, Sağ) veya modelde düz bir yüzey seç. İptal için Esc.');
   renderTree();
@@ -257,9 +257,10 @@ function renderPM(){
     b+=fSel('Çizim (profil)','sketch',sks.map(x=>[x.id,x.name+(model.dof[x.id]>0?' (tam tanımlı değil)':'')]));
     b=grp('',b);
     if(f.type==='extrude'){
-      let d=fSel('Bitiş koşulu','end',[['blind','Kör'],['through','Tümünden geç'],['mid','Orta düzlem']]);
+      let d=fSel('Bitiş koşulu','end',[['blind','Kör'],['through','Tümünden geç'],['mid','Orta düzlem']].concat(f.op==='add'?[['body','Gövdeye kadar']]:[]));
       if(f.end!=='mid')d+=`<button type="button" class="sbtn" data-flip="1" style="margin-bottom:8px">⇅ Ters yön${f.flip?' (açık)':''}</button>`;
-      if(f.end!=='through')d+=fNum('Derinlik','depth');
+      if(f.end==='body')d+=`<p class="note">Profil, önündeki gövdeye tamamen değene kadar uzatılır; gövde değişince uzunluk da güncellenir. Ör. referans düzlemden aşağı inen çıkıntı.</p>`;
+      else if(f.end!=='through')d+=fNum('Derinlik','depth');
       b+=grp('Yön 1',d);
       if(f.end!=='mid'){
         let d2=fChk('Yön 2 kullan','dir2');
@@ -341,7 +342,7 @@ function updatePreview(){
     if(f.type==='extrude'||f.type==='revolve'){
       const s=byId(f.sketch);if(!s)throw new Error('Bir çizim seç.');const F=B.frames[s.id]||model.frames[s.id];if(!F)throw new Error('Çizim düzlemi çözülemedi.');
       if(!f.thin)regionOverlay(s,F,f.regions);
-      const r=f.type==='extrude'?extrudeTool(f,s,F,reachFor(B.polys,F)):revolveTool(f,s,F);addPreview(r.polys,f.op==='cut');
+      const r=f.type==='extrude'?extrudeTool(f,s,F,reachFor(B.polys,F),B.polys):revolveTool(f,s,F);addPreview(r.polys,f.op==='cut');
     }else if(['lpattern','cpattern','mirror'].includes(f.type)){
       if(!f.targets.length)throw new Error('Ağaçtan çoğaltılacak özelliği seç.');
       const Ms=patternMatrices(f,B.frames);

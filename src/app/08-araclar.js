@@ -15,7 +15,7 @@ function openHolePM(){
   if(!model.polys.length){toast('Önce bir gövde oluştur.');return}
   const d={type:'hole',htype:'tapped',size:'M8',fit:'normal',dia:10,cbd:18,cbh:2,csd:18,end:'through',depth:20,tdepth:16,on:null,pts:[]};
   d.id=uid();d.name=nextName(d);openPM('hole',null,d);
-  if(sel&&sel.kind==='face'){holeAddPoint(sel)}
+  if(sel&&sel.kind==='face'&&isPlanarFace(sel)){holeAddPoint(sel)}
   else prompt_('Deliğin açılacağı düz yüzeye tıkla. Aynı yüzeye tıklayarak başka konumlar ekleyebilirsin.');
 }
 function holeFrame(d){try{return sketchFrame({on:d.on},{frames:pm.base.frames||model.frames,caps:pm.base.caps||model.caps})}catch(e){return null}}

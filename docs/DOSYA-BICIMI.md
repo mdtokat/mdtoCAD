@@ -54,13 +54,13 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
 ### `extrude`
 ```jsonc
 { "type":"extrude", "op":"add"|"cut", "sketch":"s1",
-  "end":"blind"|"through"|"mid", "depth":20, "flip":false,
+  "end":"blind"|"through"|"mid"|"body", "depth":20, "flip":false, // body: Gövdeye kadar (yalnızca add)
   "dir2":false, "end2":"blind"|"through", "depth2":10,
   "fromOff":0,                                   // isteğe bağlı: başlangıç düzleminin çizim normali boyunca ofseti (mm)
   "thin":false, "thick":5, "thinSide":"a"|"b"|"mid", // isteğe bağlı: İnce özellik (zincir bu kalınlıkta şerit olur)
   "regions":[[x,y], ...] }                       // isteğe bağlı: yalnızca bu çizim noktalarını içeren bölgeler
 ```
-Malzeme ekleme varsayılan olarak çizim normali yönünde, kesme ters yönde ilerler. `regions` yoksa çizimin tüm malzeme bölgeleri kullanılır: kapalı konturlar (uç uca bağlı zincirler ve daireler) birbirini kesiyorsa birleşir; bir bölgeyi çevreleyen kontur grubu sayısı tekse bölge malzeme, çiftse boşluktur. İnce özellikte `thinSide` `a` zincirin yürüme yönüne göre sol tarafıdır.
+Malzeme ekleme varsayılan olarak çizim normali yönünde, kesme ters yönde ilerler. `body` bitişinde uzunluk, profilin noktalarından ilerleme yönünde atılan ışınların gövdeye ilk çarptığı uzaklıkların en büyüğüdür (profil gövdeye tamamen değer). `regions` yoksa çizimin tüm malzeme bölgeleri kullanılır: kapalı konturlar (uç uca bağlı zincirler ve daireler) birbirini kesiyorsa birleşir; bir bölgeyi çevreleyen kontur grubu sayısı tekse bölge malzeme, çiftse boşluktur. İnce özellikte `thinSide` `a` zincirin yürüme yönüne göre sol tarafıdır.
 
 ### `revolve`
 ```jsonc

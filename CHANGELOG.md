@@ -1,6 +1,10 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Düzeltme: silindirik (eğri) bir yüzey seçilip Çizim'e basılınca tek bir yüzey üçgeninin düzleminde çizim açılıyordu; artık uyarı verilir. Delik Sihirbazı da yalnızca düz yüzeyi kabul eder. Eğri yüzey seçilince ve üzerine gelince yüzeyin tamamı vurgulanır.
+- Çözücü: ön aşama göreli yakınsamada durur; büyük çizimde sürükleme öncekinden hızlıdır.
+- Arayüz: dar telefon ekranında (≤420 px) üst çubuk sığar.
+- Ekstrüzyon: **Gövdeye kadar** bitiş koşulu — profil önündeki gövdeye tamamen değene kadar uzatılır (ör. referans düzlemden aşağı inen çıkıntı); gövde değişince uzunluk da güncellenir (yeni `end: "body"`).
 - Düzeltme (çözücü): tam tanımlanmamış çizimde ölçü değiştirmek şekli ters çevirebiliyordu (ör. yamukta paralel aralık ölçüsü üst kenarın uçlarını yer değiştirip kenarları çaprazlıyordu). Çözücü önce geometriyi en az hareketle oynatan bir ön aşama kullanır.
 - Düzeltme (bölgeler): üst üste düşen özdeş öğeler (ör. aynalanmış dairenin üstüne düşen çoğaltma kopyası) deliği dolduruyordu; artık tek öğe sayılır.
 - Düzeltme: özellik ağacında çift tıklama özelliği/çizimi düzenlemeye açmıyordu (ilk tıklama ağacı yeniden çizdiği için).

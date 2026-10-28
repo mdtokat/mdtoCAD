@@ -771,3 +771,40 @@ test('şerit dar ekranda sığar', async ({ page }) => {
   const r = await page.evaluate(() => { const el = document.querySelector('#ribbon'); return el.scrollWidth - el.clientWidth; });
   expect(r).toBeLessThanOrEqual(1);
 });
+
+test('ekstrüzyon: gövdeye kadar', async ({ page }) => {
+  await openApp(page);
+  const r = await page.evaluate(() => {
+    const F = [
+      { id: 's1', type: 'sketch', name: 'Ç1', on: { kind: 'std', key: 'front' }, pts: { p1: { x: -40, y: 0 }, p2: { x: 40, y: 0 }, p3: { x: 40, y: 20 }, p4: { x: -40, y: 20 } },
+        ents: [{ id: 'e1', t: 'line', a: 'p1', b: 'p2' }, { id: 'e2', t: 'line', a: 'p2', b: 'p3' }, { id: 'e3', t: 'line', a: 'p3', b: 'p4' }, { id: 'e4', t: 'line', a: 'p4', b: 'p1' }], cons: [] },
+      { id: 'x1', type: 'extrude', name: 'E1', op: 'add', sketch: 's1', end: 'mid', depth: 40 },
+      { id: 'pl', type: 'plane', name: 'D1', base: 'top', offset: 50, flip: false },
+      { id: 's2', type: 'sketch', name: 'Ç2', on: { kind: 'plane', id: 'pl' }, pts: { c: { x: 10, y: 5 } }, ents: [{ id: 'k', t: 'circle', c: 'c', r: 6 }], cons: [] },
+      { id: 'x2', type: 'extrude', name: 'E2', op: 'add', sketch: 's2', end: 'body', flip: true, depth: 10 }];
+    const a = __tz.rebuildModel(F);
+    const b = JSON.parse(JSON.stringify(F)); b[4].flip = false;
+    // gövdeye kadar: kör ile 30 mm yapılan çıkıntıyla aynı hacim
+    const c = JSON.parse(JSON.stringify(F)); Object.assign(c[4], { end: 'blind', depth: 30 });
+    const vol = m => __tz.rebuildModel(m).polys.reduce((s, p) => { const v = p.verts; for (let i = 1; i < v.length - 1; i++) s += v[0].dot(v[i].cross(v[i + 1])) / 6; return s; }, 0);
+    return { err: a.errors, err2: __tz.rebuildModel(b).errors.x2, v: vol(F), v30: vol(c) };
+  });
+  expect(r.err).toEqual({});
+  expect(r.err2).toContain('gövde yok');
+  expect(r.v).toBeCloseTo(r.v30, 0);
+});
+
+test('eğri yüzey: silindir yüzeyi çizim düzlemi olarak kabul edilmez', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.evaluate(() => { const T = __tz; T.startSketch({ kind: 'std', key: 'top' }); T.setTool('circle'); T.toolClick(0, 0); T.toolClick(20, 0); T.exitSketch(true); T.cmd('extrude'); T.commitPM(); });
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => {
+    const [x, y] = __tz.scrW([14.142, 10, 14.142]); __tz.click3D({ clientX: x, clientY: y, button: 0 });
+    __tz.cmd('sketch');
+    return { sk: !!__tz.sk, toast: document.querySelector('#toast').textContent };
+  });
+  expect(r.sk).toBe(false);
+  expect(r.toast).toContain('düz değil');
+  expect(errors).toEqual([]);
+});

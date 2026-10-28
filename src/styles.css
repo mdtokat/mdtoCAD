@@ -280,4 +280,10 @@ button:disabled{cursor:default}
   .rb{min-width:56px;padding:5px 3px 4px;font-size:11px}
   .hud button{width:29px}
 }
+@media (max-width: 420px){
+  .topbar{gap:2px;padding:0 4px}
+  .tabs button{padding:0 5px;font-size:13px}
+  .top-actions{gap:0}
+  .ibtn{padding:0 4px;min-width:28px}
+}
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}

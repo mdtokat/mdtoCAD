@@ -1,6 +1,7 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Çizim: yeni çizimde ilk ölçü girilince görünüm çizimin gerçek boyutuna göre yakınlaşır/uzaklaşır; tekerlek yakınlaştırma sınırları çizimin boyutunu da hesaba katar.
 - Çizim: bir çizim düzenlenirken onu kullanan Ekstrüzyon/Kesme/Döndürme gizlenir; çizimden çıkınca yeniden görünür.
 - Çizim: koyu temada çizim düzenlenirken gövde koyulaşır; açık renkli çizim çizgileri ve ölçüler yüzeyin üstünde okunur kalır.
 - Çizim: eksen (merkez) çizgileri ve yapı (kesikli) çizgileri yalnızca çizim düzenlenirken görünür; çizimden çıkınca 3B görünümde gösterilmez.

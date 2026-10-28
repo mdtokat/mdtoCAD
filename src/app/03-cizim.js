@@ -496,7 +496,21 @@ function openDimPop(cid){
 function setDimVal(cid,v){
   const f=sk.feat;const c=f.cons.find(x=>x.id===cid);if(!c)return;skPush();const old=c.val;c.val=v;
   if(!solveSketch(f)){c.val=old;solveSketch(f);sk.hist.pop();toast('Çizim bu değerle çözülemiyor.')}
+  // yeni çizimde ilk (tek) ölçü girilince görünüm çizimin gerçek boyutuna göre ayarlanır
+  else if(sk.isNew&&f.cons.filter(x=>DIMT.has(x.t)).length===1)fitSketch();
   skChanged();
+}
+/* çizim öğelerinin yerel sınır kutusu (orijin dahil) */
+function skBox(f){let x0=0,y0=0,x1=0,y1=0;for(const e of f.ents)for(const p of tessEnt(f,e,36)){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]}return {x0,y0,x1,y1}}
+/* görünümü bakış yönünü değiştirmeden çizime sığdırır */
+function fitSketch(){
+  if(!sk)return;const b=skBox(sk.feat);const r=Math.max(1,Math.hypot(b.x1-b.x0,b.y1-b.y0)/2)*1.25;
+  const c=v3(fpt(sk.F,(b.x0+b.x1)/2,(b.y0+b.y1)/2));
+  const fv=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fv/2)*camera.aspect);const dist=r/Math.tan(Math.min(fv,hf)/2);
+  const d=camera.position.clone().sub(controls.target).normalize();const toPos=c.clone().addScaledVector(d,dist);
+  camera.near=Math.max(.01,dist/200);camera.far=Math.max(camera.far,dist*60);camera.updateProjectionMatrix();
+  if(reduceMotion){camera.position.copy(toPos);controls.target.copy(c);controls.update();camAnim=null;sk.dirty=true;return}
+  camAnim={p0:camera.position.clone(),t0:controls.target.clone(),p1:toPos,t1:c,s:performance.now(),dur:420};
 }
 
 /* ---------- etiketler (ölçü değerleri ve ilişki simgeleri) ---------- */

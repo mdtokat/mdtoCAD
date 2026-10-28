@@ -266,7 +266,10 @@ function applyDisplay(){
   $$('[data-hud="planes"]').forEach(b=>b.classList.toggle('on',showPlanes));
 }
 function curBox(){return activeTab==='asm'?(asmView.box||null):model.box}
-function modelExtent(){const b=curBox();if(!b)return 100;return Math.max(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2],...b.min.map(Math.abs),...b.max.map(Math.abs))}
+function modelExtent(){const b=curBox();let m=b?Math.max(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2],...b.min.map(Math.abs),...b.max.map(Math.abs)):100;
+  // çizim düzenlenirken çizimin boyutu da hesaba katılır (yakınlaştırma sınırları büyük çizimlerde de çalışsın)
+  if(sk&&activeTab!=='asm'){const k=skBox(sk.feat);m=Math.max(m,k.x1-k.x0,k.y1-k.y0)}
+  return m}
 function rebuildPlanes(){
   for(const o of planeObjs){planeGroup.remove(o);o.traverse(c=>{if(c.geometry)c.geometry.dispose()})}
   planeObjs=[];const S=Math.max(80,modelExtent()*1.25);

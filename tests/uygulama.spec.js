@@ -415,3 +415,29 @@ test('çizim düzenlenirken onu kullanan özellik gizlenir, koyu temada gövde k
   expect(r.err).toEqual({});
   expect(errors).toEqual([]);
 });
+
+test('yeni çizimde ilk ölçü girilince görünüm çizime sığar', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.waitForTimeout(600);
+  await page.evaluate(() => {
+    const T = __tz;
+    T.setTool('line'); T.toolClick(5, 5); T.toolClick(35, 5); T.setTool(null);
+    T.setTool('smartdim'); T.toolClick(20, 5); T.toolClick(20, 11);
+    T.setDimVal(T.sk.feat.cons.find(c => c.t === 'd' || c.t === 'dh').id, 800);
+  });
+  await page.waitForTimeout(700);
+  const r = await page.evaluate(() => {
+    const f = __tz.sk.feat, l = f.ents.find(e => e.t === 'line');
+    const a = __tz.scr(f.pts[l.a].x, f.pts[l.a].y), b = __tz.scr(f.pts[l.b].x, f.pts[l.b].y);
+    const v = document.querySelector('canvas').getBoundingClientRect();
+    return { len: Math.hypot(f.pts[l.a].x - f.pts[l.b].x, f.pts[l.a].y - f.pts[l.b].y), a, b, v: [v.left, v.top, v.right, v.bottom] };
+  });
+  expect(r.len).toBeCloseTo(800, 3);
+  for (const p of [r.a, r.b]) { expect(p[0]).toBeGreaterThan(r.v[0]); expect(p[0]).toBeLessThan(r.v[2]); expect(p[1]).toBeGreaterThan(r.v[1]); expect(p[1]).toBeLessThan(r.v[3]); }
+  expect(Math.abs(r.a[0] - r.b[0])).toBeGreaterThan((r.v[2] - r.v[0]) * 0.3); // çizgi ekranda küçük kalmaz
+  expect(errors).toEqual([]);
+});

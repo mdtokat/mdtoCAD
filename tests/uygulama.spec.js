@@ -4,8 +4,10 @@ import { openApp, blobHead } from './helpers.js';
 
 test('örnek parça hatasız oluşur ve tüm çizimler tam tanımlıdır', async ({ page }) => {
   const errors = await openApp(page);
-  const r = await page.evaluate(() => ({ err: __tz.model.errors, dof: __tz.model.dof, n: __tz.model.polys.length, parts: __tz.project.parts.length }));
+  const r = await page.evaluate(() => ({ err: __tz.model.errors, dof: __tz.model.dof, n: __tz.model.polys.length, parts: __tz.project.parts.length,
+    auto: __tz.project.parts.flatMap(p => p.features.filter(f => f.type === 'sketch').map(f => __tz.autoDefine(JSON.parse(JSON.stringify(f))).length)) }));
   expect(r.err).toEqual({});
+  for (const n of r.auto) expect(n).toBe(0); // tam tanımlı çizimlere otomatik ölçü eklenmez
   expect(r.n).toBeGreaterThan(1000);
   expect(r.parts).toBe(3);
   for (const v of Object.values(r.dof)) expect(v).toBe(0);
@@ -96,4 +98,72 @@ test('STL ve ZIP üretimi', async ({ page }) => {
   });
   expect(r.ok).toBe(true);
   expect(r.zipSig).toEqual([0x50, 0x4b, 0x03, 0x04]);
+});
+
+test('ölçüye dayalı çizim: disk dosyası tam tanımlı, ölçü listeden değişir', async ({ page }) => {
+  const errors = await openApp(page);
+  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
+  await fc.setFiles(new URL('../ornekler/dort-kanatli-disk.tezgah.json', import.meta.url).pathname);
+  await page.waitForFunction(() => __tz.state.partName.startsWith('Dört'));
+  const r0 = await page.evaluate(() => ({ err: __tz.model.errors, dof: __tz.model.dof, vol: __tz.model.props.vol }));
+  expect(r0.err).toEqual({});
+  for (const v of Object.values(r0.dof)) expect(v).toBe(0);
+  const n0 = await page.evaluate(() => { __tz.editSketch('s1'); return { cons: __tz.sk.feat.cons.length, dof: __tz.sk.an.dof }; });
+  expect(n0.dof).toBe(0);
+  const rows = page.locator('.dimrow');
+  await expect(rows).toHaveCount(6);
+  await expect(page.locator('#labels .dlab')).toHaveCount(6);
+  const inp = page.locator('.dimrow input[value="318,5"]');
+  await inp.fill('325');
+  await inp.press('Enter');
+  const r1 = await page.evaluate(() => {
+    const c = __tz.sk.feat.cons.find(c => c.t === 'dpl');
+    __tz.exitSketch(true);
+    return { val: c.val, cons: __tz.state.features[0].cons.length, err: __tz.model.errors, vol: __tz.model.props.vol };
+  });
+  expect(r1.val).toBe(325);
+  expect(r1.cons).toBe(n0.cons);
+  expect(r1.err).toEqual({});
+  expect(r1.vol).toBeGreaterThan(r0.vol);
+  expect(errors).toEqual([]);
+});
+
+test('ölçüsüz çizimler girişte ve çıkışta otomatik tam tanımlanır', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  const a = await page.evaluate(() => {
+    const T = __tz; T.setTool('line');
+    T.toolClick(10, 10); T.toolClick(60, 10); T.toolClick(40, 45); T.toolClick(10, 10);
+    const id = T.sk.feat.id; T.exitSketch(true);
+    const f = T.state.features.find(x => x.id === id);
+    return { dof: T.model.dof[id], dims: f.cons.filter(c => /^d/.test(c.t)).length };
+  });
+  expect(a.dof).toBe(0);
+  expect(a.dims).toBeGreaterThan(0);
+  // dışarıdan gelen, hiç ölçüsü olmayan çizim
+  const sx = { id: 's1', type: 'sketch', name: 'Çizim1', on: { kind: 'std', key: 'front' },
+    pts: { a: { x: 100, y: 0 }, b: { x: 140, y: 0 }, c: { x: 140, y: 20 }, d: { x: 100, y: 20 }, m: { x: 120, y: 20 } },
+    ents: [{ id: 'e1', t: 'line', a: 'a', b: 'b' }, { id: 'e2', t: 'line', a: 'b', b: 'c' }, { id: 'e3', t: 'arc', c: 'm', a: 'c', b: 'd' }, { id: 'e4', t: 'line', a: 'd', b: 'a' }], cons: [] };
+  const proj = { app: 'tezgah-cad', version: 3, parts: [{ id: 'P1', partName: 'Dış parça', features: [sx,
+    { id: 'x1', type: 'extrude', name: 'Ekstrüzyon1', op: 'add', sketch: 's1', end: 'blind', depth: 10 }] }], asms: [], cur: { part: 'P1' } };
+  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
+  await fc.setFiles({ name: 'dis.tezgah.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(proj)) });
+  await page.waitForFunction(() => __tz.state.partName === 'Dış parça');
+  const b = await page.evaluate(() => { const before = __tz.model.dof.s1; __tz.editSketch('s1'); return { before, dof: __tz.sk.an.dof }; });
+  expect(b.before).toBeGreaterThan(0);
+  expect(b.dof).toBe(0);
+  await expect(page.locator('#labels .dlab').first()).toBeVisible();
+  const nl = await page.locator('#labels .dlab').count();
+  await expect(page.locator('.dimrow')).toHaveCount(nl);
+  // yarıçapı listeden değiştir
+  const rad = page.locator('.dimrow', { hasText: 'Yarıçap' }).locator('input');
+  await rad.fill('25');
+  await rad.press('Enter');
+  const r = await page.evaluate(() => { const f = __tz.sk.feat; const m = f.pts.m, c = f.pts.c; __tz.exitSketch(true); return { r: Math.hypot(c.x - m.x, c.y - m.y), err: __tz.model.errors }; });
+  expect(r.r).toBeCloseTo(25, 4);
+  expect(r.err).toEqual({});
+  expect(errors).toEqual([]);
 });

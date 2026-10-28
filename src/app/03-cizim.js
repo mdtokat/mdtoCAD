@@ -40,13 +40,15 @@ function beginSession(f,F,isNew){
   cmTab='sketch';renderRibbon();$('#confirm').classList.add('on');$('#sbar').classList.add('on');
   analyze();renderTree();renderPM();updateStatus();updateMass();renderSketchDisplays();updatePlaneVis();normalTo(F);
   if(pendingTool){setTool(pendingTool);pendingTool=null}
+  if(!isNew&&autoDefOn())autoDefineSketch(true);
   updUndo();updSbar();
 }
 function exitSketch(accept){
   if(!sk)return true;const f=sk.feat,wasNew=sk.isNew;
   endChainIfAny();
   if(!accept){if(wasNew)state.features=state.features.filter(x=>x!==f);else Object.assign(f,JSON.parse(sk.orig));hist.undo.pop();pending=null}
-  else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);hist.undo.pop();pending=null}}
+  else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);hist.undo.pop();pending=null}
+    else if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f).length;if(n){solveSketch(f);toast(`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`)}}catch(e){}}}
   sk=null;closeDimPop();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
@@ -59,6 +61,21 @@ function exitSketch(accept){
 $('#confirm').addEventListener('click',e=>{const b=e.target.closest('[data-cf]');if(!b)return;exitSketch(b.dataset.cf==='ok')});
 
 function analyze(){try{sk.an=analyzeSketch(sk.feat)}catch(e){sk.an=null}}
+/* Otomatik tam tanımlama: çizime girerken, çıkarken ve "Tam Tanımla" ile */
+const AUTODEF_KEY='tezgah-cad-otomatik-tam-tanimla';
+function autoDefOn(){try{return localStorage.getItem(AUTODEF_KEY)!=='0'}catch(e){return true}}
+function setAutoDef(on){try{localStorage.setItem(AUTODEF_KEY,on?'1':'0')}catch(e){}}
+function autoDefineSketch(silent){
+  if(!sk)return 0;const f=sk.feat;if(!f.ents.length){if(!silent)toast('Çizimde öğe yok.');return 0}
+  endChainIfAny();skPush();let added=[];
+  try{added=autoDefine(f)}catch(e){added=[]}
+  if(!added.length){sk.hist.pop();updUndo();if(!silent)toast('Çizim zaten tam tanımlı.');return 0}
+  if(!solveSketch(f)){skRestore(sk.hist.pop());toast('Çizim otomatik tanımlanamadı.');skChanged();return 0}
+  skChanged();
+  const nd=added.filter(c=>DIMT.has(c.t)).length;
+  toast(`${nd} ölçü ve ${added.length-nd} ilişki eklendi; çizim tam tanımlı. Ölçüye çift tıklayarak veya soldaki listeden değiştirebilirsin.`,{label:'Geri al',fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
+  return added.length;
+}
 function skChanged(){analyze();sk.dirty=true;renderSketchPM();updSbar();renderRibbon()}
 function cleanupOrphans(f){
   const ids=new Set(f.ents.map(e=>e.id));
@@ -567,7 +584,10 @@ function renderSketchPM(){
   }else if(!sk.tool){
     b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Fare: orta tuş döndür, sağ tuş kaydır, tekerlek yakınlaştır. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p>`);
   }
-  b+=grp('Seçenekler',`<label class="chk"><input type="checkbox" data-opt="grid" ${sk.opts.grid?'checked':''}> Izgaraya yakala</label><label class="chk"><input type="checkbox" data-opt="rels" ${sk.opts.rels?'checked':''}> İlişki simgelerini göster</label>`);
+  const dims=f.cons.filter(c=>DIMT.has(c.t));
+  if(dims.length)b+=grp(`Ölçüler (${dims.length})`,`<div class="dimlist">${dims.map(c=>`<label class="dimrow${sk.sel.some(h=>h.k==='con'&&h.id===c.id)?' on':''}" data-dimrow="${c.id}"><span>${esc(dimName(c))}</span><input inputmode="decimal" autocomplete="off" data-dimin="${c.id}" value="${esc(String(Math.round(c.val*1e4)/1e4).replace('.',','))}"><em>${c.t==='dang'?'°':'mm'}</em></label>`).join('')}</div><p class="note">Değeri yazıp Enter'a bas; çizim yeni ölçüye göre güncellenir.</p>`);
+  else if(f.ents.length)b+=grp('Ölçüler',`<p class="note">Bu çizimde ölçü yok. Şeritten <b>Tam Tanımla</b> ile ölçüleri otomatik ekle veya Akıllı Ölçülendirme ile kendin ver.</p>`);
+  b+=grp('Seçenekler',`<label class="chk"><input type="checkbox" data-opt="grid" ${sk.opts.grid?'checked':''}> Izgaraya yakala</label><label class="chk"><input type="checkbox" data-opt="rels" ${sk.opts.rels?'checked':''}> İlişki simgelerini göster</label><label class="chk"><input type="checkbox" data-opt="autodef" ${autoDefOn()?'checked':''}> Çizime girerken ve çıkarken eksik ölçüleri otomatik ekle</label>`);
   el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${esc(f.name)}</div><div class="pm-sub">Çizim düzenleniyor</div></div><div class="pm-actions"><button class="ok" data-skx="ok" title="Çizimden çık" aria-label="Çizimden çık">${IC.ok}</button><button data-skx="cancel" title="Değişiklikleri at" aria-label="Değişiklikleri at">${IC.x}</button></div></div><div class="pm-body">${b}</div>`;
 }
 function skPmClick(e){
@@ -579,7 +599,26 @@ function skPmClick(e){
   const o=e.target.closest('[data-skop]');if(o){const k=o.dataset.skop;if(k==='cons')toggleConstruction();else if(k==='del')deleteSel();else if(k==='editdim'){const h=sk.sel.find(h=>h.k==='con');if(h)openDimPop(h.id)}}
 }
 function skPmInput(e){if(skOpInput(e))return;const t=e.target;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.opts[t.dataset.k]=v;sk.dirty=true}}
-function skPmChange(e){if(skOpInput(e))return;const t=e.target;if(t.dataset.opt){sk.opts[t.dataset.opt]=t.checked;sk.dirty=true}}
+function skPmChange(e){
+  if(skOpInput(e))return;const t=e.target;
+  if(t.dataset.dimin){const v=num(t.value);const c=sk.feat.cons.find(x=>x.id===t.dataset.dimin);if(!c)return;if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){t.classList.add('bad');return}if(Math.abs(v-c.val)>1e-9)setDimVal(c.id,v);return}
+  if(t.dataset.opt==='autodef'){setAutoDef(t.checked);if(t.checked)autoDefineSketch(true);return}
+  if(t.dataset.opt){sk.opts[t.dataset.opt]=t.checked;sk.dirty=true}
+}
+function dimName(c){
+  const E=entMap(sk.feat);const e=c.e&&E[c.e];
+  switch(c.t){
+    case 'ddia':return e&&e.cons?'Çap (yapı)':'Çap';
+    case 'drad':return 'Yarıçap';
+    case 'dang':return 'Açı';
+    case 'dh':return c.p==='O'?'Yatay konum':'Yatay mesafe';
+    case 'dv':return c.p==='O'?'Dikey konum':'Dikey mesafe';
+    case 'dpl':return c.p==='O'?'Çizginin merkeze uzaklığı':'Nokta–çizgi mesafesi';
+    case 'dll':return 'Paralel çizgi aralığı';
+    case 'd':{const l=sk.feat.ents.find(x=>x.t==='line'&&((x.a===c.p&&x.b===c.q)||(x.a===c.q&&x.b===c.p)));return l?'Uzunluk':'Mesafe'}
+  }
+  return 'Ölçü';
+}
 function toggleConstruction(){
   const es=sk.sel.filter(h=>h.k==='ent');if(!es.length){toast('Önce çizgi veya daire seç.');return}
   skPush();for(const h of es){const e=sk.feat.ents.find(x=>x.id===h.id);if(e)e.cons=!e.cons}skChanged();

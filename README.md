@@ -10,6 +10,8 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Düzlem veya düz yüzey seç → **Çizim** → çiz → **Akıllı Ölçülendirme** ve ilişkilerle tam tanımla → özellik oluştur.
 - Çizim araçları: çizgi, merkez çizgisi, köşe/merkez dikdörtgen, daire, merkez nokta yay, düz kanal, çokgen, çizim radyusu, budama, ofset, aynalama, doğrusal/dairesel çizim çoğaltma, yapı geometrisi.
 - İlişkiler: yatay, dikey, paralel, dik, eşit, doğrusal, teğet, çakışık, orta nokta, eşmerkezli, simetrik, sabitle. Kısıt çözücü serbestlik derecesini hesaplar; tanımsız öğeler mavi, tam tanımlılar siyah görünür.
+- Ölçüye dayalı çizim: çizimi düzenlemeye girince tüm ölçüler görünür; ölçüye çift tıklayarak veya paneldeki **Ölçüler** listesinden değer girilir, geometri yeni ölçüye göre güncellenir.
+- **Tam Tanımla:** eksik ölçü ve ilişkiler geometriyi oynatmadan otomatik eklenir. Ölçüsüz çizimler (kendi çizdiklerin veya dışarıdan yüklenen dosyalar) çizime girerken ve çıkarken kendiliğinden tam tanımlanır; panelden kapatılabilir.
 - Özellikler: Ekstrüzyon Katman/Taban, Ekstrüzyon Kesme (kör, tümünden geç, orta düzlem, ters yön, yön 2), Döndürme Katman/Taban ve Kesme, Delik Sihirbazı (ISO metrik M3–M20: basit, geçiş, diş, faturalı, havşa), Radyus ve Pah (düz ve dairesel kenarlar), Doğrusal/Dairesel Çoğaltma, Aynala, Referans Düzlem.
 - FeatureManager ağacı, özellik düzenlerken geri sarma, bastırma, parça başına geri al/yinele.
 - Malzeme, hacim, yüzey alanı, kütle; Ölç aracı (uzunluk, mesafe, açı, çap, alan).
@@ -83,7 +85,7 @@ Dosya indirme (PDF, STL, proje), Claude ortamında Claude'un indirme yeteneğiyl
 
 `ornekler/` klasöründeki `*.tezgah.json` dosyaları **Dosya → Aç** ile açılır.
 
-- `dort-kanatli-disk.tezgah.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
+- `dort-kanatli-disk.tezgah.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Çizimler teknik resimdeki ölçülerle (Ø813, Ø772, 147,5, R41,2, 20°, 318,5) ve dört katlı simetriyle tam tanımlıdır; bir ölçüyü değiştirmek dört kanadı birlikte günceller. Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
 
 ## Proje yapısı
 

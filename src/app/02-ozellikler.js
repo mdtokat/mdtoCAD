@@ -97,7 +97,7 @@ function renderRibbon(){
       '<div class="rsep"></div>'+rb('plane','plane','Referans Düzlem');
   }else{
     const t=sk?sk.tool:null;const on=c=>t===c?'on':'';
-    h=rb('sketch',sk?'exitSketch':'sketch',sk?'Çizimden Çık':'Çizim')+rb('smartdim','smartdim','Akıllı Ölçülendirme',on('smartdim'))+'<div class="rsep"></div>'+
+    h=rb('sketch',sk?'exitSketch':'sketch',sk?'Çizimden Çık':'Çizim')+rb('smartdim','smartdim','Akıllı Ölçülendirme',on('smartdim'))+rb('fulldef','fulldef','Tam Tanımla','','Eksik ölçü ve ilişkileri otomatik ekleyerek çizimi tam tanımla')+'<div class="rsep"></div>'+
       rb('select','select','Seç',sk&&!t?'on':'')+rb('line','line','Çizgi',on('line'))+rb('centerline','centerline','Merkez Çizgisi',on('centerline'))+rb('rect','rect','Köşe Dikdörtgen',on('rect'))+rb('crect','crect','Merkez Dikdörtgen',on('crect'))+
       rb('circle','circle','Daire',on('circle'))+rb('arc','arc','Merkez Nokta Yay',on('arc'))+rb('slot','slot','Düz Kanal',on('slot'))+rb('polygon','polygon','Çokgen',on('polygon'))+
       '<div class="rsep"></div>'+rb('sfillet','sfillet','Çizim Radyusu',on('sfillet'))+rb('trim','trim','Budama',on('trim'))+rb('soffset','offset','Varlıkları Ofsetle',sk&&sk.op&&sk.op.t==='offset'?'on':'')+rb('smirror','smirror','Varlıkları Aynala',sk&&sk.op&&sk.op.t==='mirror'?'on':'')+rb('slpat','slpat','Doğrusal Çoğaltma',sk&&sk.op&&sk.op.t==='lpat'?'on':'')+rb('scpat','scpat','Dairesel Çoğaltma',sk&&sk.op&&sk.op.t==='cpat'?'on':'')+
@@ -122,6 +122,7 @@ function cmd(c){
   if(['soffset','smirror','slpat','scpat'].includes(c)){if(!sk){toast('Bu işlem çizim içinde kullanılır. Önce bir çizime gir.');return}setSkOp({soffset:'offset',smirror:'mirror',slpat:'lpat',scpat:'cpat'}[c]);return}
   if(c==='hole'){if(sk&&!exitSketch(true))return;if(pm)closePM(true);openHolePM();return}
   if(SKTOOLS.includes(c)){if(!sk){beginSketchCommand(null,c);return}setTool(sk.tool===c?null:c);return}
+  if(c==='fulldef'){if(sk)autoDefineSketch(false);else toast('Tam Tanımla çizim içinde kullanılır. Önce bir çizime gir.');return}
   if(c==='construction'){if(sk)toggleConstruction();else toast('Yapı geometrisi çizim içinde kullanılır.');return}
   if(c==='normal'){if(sk)normalTo(sk.F);else if(sel&&sel.kind==='face')normalTo(faceFrame(sel.n,sel.pt));else if(sel&&sel.kind==='plane')normalTo(STD[sel.key]||model.frames[sel.key]);return}
   if(['fillet','chamfer','lpattern','cpattern','mirror','plane'].includes(c)){if(sk&&!exitSketch(true))return;openNewSimple(c)}

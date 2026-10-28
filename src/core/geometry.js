@@ -255,6 +255,13 @@ function numJac(fun,X,r0){
   for(let j=0;j<n;j++){const h=1e-6*(1+Math.abs(X[j]));Xp[j]=X[j]+h;const r=fun(Xp);for(let i=0;i<m;i++)J[i][j]=(r[i]-r0[i])/h;Xp[j]=X[j]}
   return J;
 }
+/* merkezi farkla Jacobian: rank (serbestlik derecesi) hesabında ileri farkın gürültüsünden kaçınır */
+function numJacC(fun,X){
+  const n=X.length,Xp=X.slice();const cols=[];
+  for(let j=0;j<n;j++){const h=1e-5*(1+Math.abs(X[j]));Xp[j]=X[j]+h;const a=fun(Xp);Xp[j]=X[j]-h;const b=fun(Xp);Xp[j]=X[j];cols.push(a.map((v,i)=>(v-b[i])/(2*h)))}
+  const m=cols.length?cols[0].length:0,J=[];for(let i=0;i<m;i++){const r=new Array(n);for(let j=0;j<n;j++)r[j]=cols[j][i];J.push(r)}
+  return J;
+}
 function lm(fun,X,iters){
   iters=iters||100;let x=X.slice();let r=fun(x);let cost=r.reduce((s,v)=>s+v*v,0);let lam=1e-3;const n=x.length;
   if(!n)return {x,cost};
@@ -311,7 +318,7 @@ function analyzeSketch(sk){
   if(!n)return {dof:0,ptDef:()=>true,rDef:()=>true};
   const r0=S.res(S.X0);let rank=0,det=new Array(n).fill(false);
   if(r0.length){
-    const J=numJac(S.res,S.X0,r0);const R=rrefInfo(J,n);rank=R.rank;
+    const J=numJacC(S.res,S.X0);const R=rrefInfo(J,n);rank=R.rank;
     const isP=new Set(R.piv);const free=[];for(let c=0;c<n;c++)if(!isP.has(c))free.push(c);
     det=new Array(n).fill(true);
     for(const f of free){det[f]=false;R.piv.forEach((pc,row)=>{if(Math.abs(R.A[row][f])>1e-7)det[pc]=false})}
@@ -322,7 +329,81 @@ function analyzeSketch(sk){
 }
 function sketchRank(sk,extra){
   const S=sysBuild(sk,extra);if(!S.n)return 0;const r0=S.res(S.X0);if(!r0.length)return 0;
-  return rrefInfo(numJac(S.res,S.X0,r0),S.n).rank;
+  return rrefInfo(numJacC(S.res,S.X0),S.n).rank;
+}
+
+/* Otomatik tam tanımlama (SolidWorks "Çizimi Tam Tanımla"): geometriyi oynatmadan,
+   mevcut değerlerle ilişki ve ölçü ekleyerek serbestlik derecesini sıfıra indirir.
+   Aday kısıtlar öncelik sırasıyla denenir; yalnızca rankı artıranlar (bağımsız olanlar) eklenir. */
+function autoDefine(sk){
+  const S=sysBuild(sk);const n=S.n;if(!n)return [];
+  const X=S.X0;
+  // analyzeSketch ile aynı ölçüt: merkezi farklı Jacobian + rrefInfo rankı
+  const grad=f=>{const Xp=X.slice(),row=new Array(n);for(let j=0;j<n;j++){const h=1e-5*(1+Math.abs(X[j]));Xp[j]=X[j]+h;const a=f(Xp);Xp[j]=X[j]-h;const b=f(Xp);Xp[j]=X[j];row[j]=(a-b)/(2*h)}return row};
+  const J=S.fs.map(grad);let rank=J.length?rrefInfo(J,n).rank:0;
+  if(rank>=n)return [];
+  const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  const used=new Set();for(const e of sk.ents)for(const k of ['a','b','c'])if(e[k])used.add(e[k]);
+  const ids=Object.keys(sk.pts).filter(id=>used.has(id)&&!S.fixed.has(id));
+  let ext=1;for(const id of ids){const p=P(id);ext=Math.max(ext,Math.abs(p[0]),Math.abs(p[1]))}
+  for(const e of sk.ents)if(e.t==='circle'){const c=P(e.c);ext=Math.max(ext,Math.abs(c[0])+e.r,Math.abs(c[1])+e.r)}
+  const tol=Math.max(1e-6,ext*1e-7),ttol=Math.max(5e-4,ext*2e-6),off=ext*0.08;
+  let cx=0,cy=0;if(ids.length){for(const id of ids){const p=P(id);cx+=p[0];cy+=p[1]}cx/=ids.length;cy/=ids.length}
+  const out=[];let k=0;const taken=new Set(sk.cons.map(c=>c.id));
+  const nid=()=>{let i;do{i='c'+(++k)}while(taken.has(i));taken.add(i);return i};
+  const tryAdd=c=>{
+    if(rank>=n)return false;
+    const S2=sysBuild(sk,[c]);const fs=S2.fs.slice(S.fs.length);if(!fs.length)return false;
+    const rows=fs.map(grad);const r2=rrefInfo(J.concat(rows),n).rank;
+    if(r2<rank+rows.length)return false;
+    J.push(...rows);rank=r2;c.id=nid();out.push(c);return true;
+  };
+  const lines=sk.ents.filter(e=>e.t==='line'),curves=sk.ents.filter(e=>e.t!=='line');
+  const R=e=>curveR(sk,e);
+  const ord=a=>a.slice().sort((x,y)=>(x.cons?1:0)-(y.cons?1:0));
+  // 1) yatay / dikey çizgiler
+  for(const e of lines){const a=P(e.a),b=P(e.b);if(Math.abs(a[1]-b[1])<tol)tryAdd({t:'h',e:e.id});else if(Math.abs(a[0]-b[0])<tol)tryAdd({t:'v',e:e.id})}
+  // 2) ortak uçlarda teğetlik
+  const lpd=(e,p)=>{const a=P(e.a),b=P(e.b),q=P(p);const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1e-12;return Math.abs(((q[0]-a[0])*dy-(q[1]-a[1])*dx)/l)};
+  const ends=e=>e.t==='circle'?[]:[e.a,e.b];
+  for(const c of curves)if(c.t==='arc'){
+    for(const l of lines)if(ends(c).some(p=>p===l.a||p===l.b)&&Math.abs(lpd(l,c.c)-R(c))<ttol)tryAdd({t:'tan',e1:l.id,e2:c.id});
+    for(const d of curves)if(d!==c&&d.t==='arc'&&c.id<d.id&&ends(c).some(p=>ends(d).includes(p))){
+      const c1=P(c.c),c2=P(d.c);const dd=Math.hypot(c1[0]-c2[0],c1[1]-c2[1]);
+      if(Math.abs(dd-(R(c)+R(d)))<ttol)tryAdd({t:'tan',e1:c.id,e2:d.id});else if(dd>tol&&Math.abs(dd-Math.abs(R(c)-R(d)))<ttol)tryAdd({t:'tan',e1:c.id,e2:d.id,int:true});
+    }
+  }
+  // 3) orijin eksenleri üzerindeki noktalar
+  for(const id of ids){const p=P(id);if(Math.abs(p[0])<tol)tryAdd({t:'v',p:'O',q:id});if(Math.abs(p[1])<tol)tryAdd({t:'h',p:'O',q:id})}
+  // 4) çizgi veya eğri üzerinde duran noktalar
+  for(const id of ids){const p=P(id);
+    for(const e of lines){if(e.a===id||e.b===id)continue;const a=P(e.a),b=P(e.b);const L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<tol)continue;const t=((p[0]-a[0])*(b[0]-a[0])+(p[1]-a[1])*(b[1]-a[1]))/(L*L);if(t>-1e-9&&t<1+1e-9&&lpd(e,id)<tol)tryAdd({t:'pol',p:id,e:e.id})}
+    for(const e of curves){if(e.c===id||e.a===id||e.b===id)continue;const c=P(e.c);if(Math.abs(Math.hypot(p[0]-c[0],p[1]-c[1])-R(e))<tol)tryAdd({t:'poc',p:id,e:e.id})}
+  }
+  // 5) eşit yarıçaplar
+  const cs=ord(curves);for(let i=0;i<cs.length;i++)for(let j=0;j<i;j++)if(Math.abs(R(cs[i])-R(cs[j]))<tol){tryAdd({t:'eq',e1:cs[j].id,e2:cs[i].id});break}
+  const away=(m,nv)=>((m[0]-cx)*nv[0]+(m[1]-cy)*nv[1])<0?[-nv[0],-nv[1]]:nv;
+  // 6) çap / yarıçap
+  for(const e of cs){const C=P(e.c),r=R(e);let a=Math.PI/4;if(e.t==='arc'){const A=arcInfo(sk,e);a=A.a0+A.sw/2}
+    tryAdd({t:e.t==='circle'?'ddia':'drad',e:e.id,val:Math.round((e.t==='circle'?2*r:r)*1e4)/1e4,lp:[C[0]+(r+off)*Math.cos(a),C[1]+(r+off)*Math.sin(a)]})}
+  // 7) çizgi uzunlukları
+  for(const e of ord(lines)){const a=P(e.a),b=P(e.b);const L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<tol)continue;const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];const nv=away(m,[-(b[1]-a[1])/L,(b[0]-a[0])/L]);
+    tryAdd({t:'d',p:e.a,q:e.b,val:Math.round(L*1e4)/1e4,lp:[m[0]+nv[0]*off*0.6,m[1]+nv[1]*off*0.6]})}
+  // 8) ortak köşedeki iki çizgi arasındaki açı
+  for(const id of ids){const ls=lines.filter(e=>!e.cons&&(e.a===id||e.b===id));if(ls.length!==2)continue;
+    const dir=e=>{const o=P(id),q=P(e.a===id?e.b:e.a);const l=Math.hypot(q[0]-o[0],q[1]-o[1])||1;return [(q[0]-o[0])/l,(q[1]-o[1])/l]};
+    const u=dir(ls[0]),v=dir(ls[1]);const cr=u[0]*v[1]-u[1]*v[0],dt=u[0]*v[0]+u[1]*v[1];if(Math.abs(cr)<1e-6)continue;
+    const raw=e=>{const a=P(e.a),b=P(e.b);return [b[0]-a[0],b[1]-a[1]]};const r1=raw(ls[0]),r2=raw(ls[1]);
+    const o=P(id);const bis=[u[0]+v[0],u[1]+v[1]],bl=Math.hypot(...bis)||1;
+    tryAdd({t:'dang',e1:ls[0].id,e2:ls[1].id,r1:(r1[0]*u[0]+r1[1]*u[1])<0,r2:(r2[0]*v[0]+r2[1]*v[1])<0,val:Math.round(Math.atan2(Math.abs(cr),dt)*180/Math.PI*1e4)/1e4,lp:[o[0]+bis[0]/bl*off,o[1]+bis[1]/bl*off]})}
+  // 9) orijine göre konumlar (önce merkezler)
+  const centers=new Set(curves.map(e=>e.c));const pos=ids.slice().sort((a,b)=>(centers.has(b)?1:0)-(centers.has(a)?1:0));
+  for(const id of pos){const p=P(id);const sx=p[0]>=0?1:-1,sy=p[1]>=0?1:-1;
+    if(Math.abs(p[0])>=tol)tryAdd({t:'dh',p:'O',q:id,val:Math.round(Math.abs(p[0])*1e4)/1e4,lp:[p[0]/2,p[1]+sy*off*0.5]});
+    if(Math.abs(p[1])>=tol)tryAdd({t:'dv',p:'O',q:id,val:Math.round(Math.abs(p[1])*1e4)/1e4,lp:[p[0]+sx*off*0.5,p[1]/2]});
+  }
+  sk.cons.push(...out);
+  return out;
 }
 
 /* ============ Özellik gövdeleri ============ */

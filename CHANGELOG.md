@@ -1,5 +1,12 @@
 # Değişiklik günlüğü
 
+## Yayımlanmamış
+- Çizim: **Tam Tanımla** komutu; eksik ölçü ve ilişkiler mevcut geometriden otomatik eklenir.
+- Ölçüsüz çizimler çizime girerken ve çıkarken otomatik tam tanımlanır (panelden kapatılabilir).
+- Çizim panelinde düzenlenebilir **Ölçüler** listesi.
+- Serbestlik derecesi hesabı merkezi farklı Jacobian kullanır (daha kararlı).
+- Örnek: Ø813 dört kanatlı disk, teknik resim ölçüleriyle tam tanımlı.
+
 ## 0.3.0 — Aşama 3
 - Delik Sihirbazı (ISO metrik M3–M20; basit, geçiş, diş, faturalı, havşa; kör/tümünden geç).
 - Dairesel kenarlarda radyus ve pah.

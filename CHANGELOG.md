@@ -1,6 +1,10 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Çizim: eksen (merkez) çizgileri ve yapı (kesikli) çizgileri yalnızca çizim düzenlenirken görünür; çizimden çıkınca 3B görünümde gösterilmez.
+- Ağaç: Ekstrüzyon/Döndürme silinince altındaki çizim silinmez, ağaçta ayrı satır olarak kalır; çizim ayrıca silinir. (Bir özelliğin kullandığı çizim silinirse özellik çizimsiz kalmasın diye onunla birlikte silinir.)
+- 3B görünüm: fare tekerleği ekran merkezine değil imlecin altındaki noktaya doğru yakınlaştırır/uzaklaştırır (parça, çizim ve montaj).
+- Arayüz: sol sütunda üstte tasarım ağacı, bir araç açıkken altında özellik paneli (PropertyManager); teknik resim paneli de solda.
 - Çizim: **Budama** kesişen öğeyi kesim noktasında böler ve noktaları paylaştırır; budanan şekiller (örneğin iki dairenin veya iki dikdörtgenin birleşimi) kapalı kontur olarak kalır.
 - Çizim: ızgara artık görünür; yakalama yalnızca ızgara çizgilerine yakınken olur, küçük daireler sessizce yok sayılmaz.
 - Çizim: **Varlıkları Ofsetle** tüm öğeleri tek bir ofset ölçüsüne bağlar (yeni `doff`/`offd`); ölçü değişince tüm kenarlar birlikte kayar.

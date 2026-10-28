@@ -317,3 +317,73 @@ test('yakalama: kesişim, dik çıkarım, ızgara; profil sorunları işaretleni
   expect(Object.values(e.err)[0]).toContain('T-birleşimi');
   expect(errors).toEqual([]);
 });
+
+test('fare tekerleği imlecin altındaki noktaya doğru yakınlaştırır', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.waitForTimeout(300);
+  const pt = await page.evaluate(() => {
+    const b = __tz.model.box;
+    const cs = [];
+    for (const x of [b.min[0], b.max[0]]) for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) cs.push([x, y, z]);
+    cs.sort((p, q) => __tz.scrW(q)[0] - __tz.scrW(p)[0]);
+    const c = [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2];
+    return { p: cs[0], s: __tz.scrW(cs[0]), c, sc: __tz.scrW(c) };
+  });
+  // imleç ağacın değil tuvalin üzerinde olmalı
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y).tagName, pt.s)).toBe('CANVAS');
+  await page.mouse.move(pt.s[0], pt.s[1]);
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -100);
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(([p, c]) => ({ s: __tz.scrW(p), sc: __tz.scrW(c) }), [pt.p, pt.c]);
+  expect(Math.hypot(r.s[0] - pt.s[0], r.s[1] - pt.s[1])).toBeLessThan(2);   // imleç noktası yerinde
+  expect(Math.hypot(r.sc[0] - pt.sc[0], r.sc[1] - pt.sc[1])).toBeGreaterThan(30); // merkez kaydı: gerçekten yakınlaştı
+  expect(errors).toEqual([]);
+});
+
+test('özellik silinince çizimi ağaçta kalır; çizim silinince bağlı özellik de gider', async ({ page }) => {
+  const errors = await openApp(page);
+  const ex = await page.evaluate(() => __tz.state.features.find(f => f.type === 'extrude' && f.sketch).id);
+  const skId = await page.evaluate(id => __tz.state.features.find(f => f.id === id).sketch, ex);
+  await page.click(`.ti[data-id="${ex}"]`);
+  await page.click(`.ti[data-id="${ex}"] [data-a="del"]`);
+  const r = await page.evaluate(([ex, s]) => ({ ids: __tz.state.features.map(f => f.id), err: __tz.model.errors }), [ex, skId]);
+  expect(r.ids).not.toContain(ex);
+  expect(r.ids).toContain(skId);
+  // çizim artık ağaçta kendi satırında görünür ve ayrıca silinebilir
+  await expect(page.locator(`.ti[data-id="${skId}"]:not(.child)`)).toHaveCount(1);
+  await page.click(`.ti[data-id="${skId}"]`);
+  await page.click(`.ti[data-id="${skId}"] [data-a="del"]`);
+  expect(await page.evaluate(s => __tz.state.features.some(f => f.id === s), skId)).toBe(false);
+  // tüketilmiş bir çizimi silmek bağlı özelliği de siler (özellik çizimsiz kalmasın)
+  const ids2 = await page.evaluate(() => { const f = __tz.state.features.find(f => f.type === 'extrude' && f.sketch); return [f.id, f.sketch]; });
+  await page.click(`.ti[data-id="${ids2[1]}"]`);
+  await page.click(`.ti[data-id="${ids2[1]}"] [data-a="del"]`);
+  const left = await page.evaluate(() => __tz.state.features.map(f => f.id));
+  expect(left).not.toContain(ids2[0]);
+  expect(left).not.toContain(ids2[1]);
+  expect(errors).toEqual([]);
+});
+
+test('çizimden çıkınca eksen ve yapı çizgileri görünmez', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => document.querySelector('[data-m="new"]').click());
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.evaluate(() => {
+    const T = __tz;
+    T.setTool('crect'); T.toolClick(0, 0); T.toolClick(31, 19);
+    T.setTool('centerline'); T.toolClick(-20, -10); T.toolClick(-20, 30);
+    T.exitSketch(true);
+  });
+  const r = await page.evaluate(() => {
+    const xs = [];
+    for (const o of __tz.sketchesGroup.children) { const a = o.geometry.attributes.position.array; for (let i = 0; i < a.length; i += 3) xs.push(a[i]); }
+    const f = __tz.state.features.find(f => f.type === 'sketch');
+    return { n: xs.length, onAxis: xs.filter(x => Math.abs(x + 20) < 1e-3).length, hasCons: f.ents.some(e => e.cons) };
+  });
+  expect(r.hasCons).toBe(true);   // eksen çizgisi çizimde duruyor
+  expect(r.n).toBeGreaterThan(0); // dikdörtgen görünüyor
+  expect(r.onAxis).toBe(0);       // eksen çizgisi çizim dışında çizilmiyor
+  expect(errors).toEqual([]);
+});

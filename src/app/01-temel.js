@@ -330,6 +330,30 @@ function setControlsForSketch(on){
   if(on){controls.mouseButtons={LEFT:-1,MIDDLE:T.MOUSE.ROTATE,RIGHT:T.MOUSE.PAN};controls.touches={ONE:-1,TWO:T.TOUCH.DOLLY_PAN}}
   else{controls.mouseButtons={LEFT:T.MOUSE.ROTATE,MIDDLE:T.MOUSE.DOLLY,RIGHT:T.MOUSE.PAN};controls.touches={ONE:T.TOUCH.ROTATE,TWO:T.TOUCH.DOLLY_PAN}}
 }
+/* fare tekerleği: ekran merkezine değil imlecin altındaki noktaya doğru yakınlaş (SolidWorks gibi) */
+const zoomPlane=new T.Plane();
+function zoomPoint(e){
+  ray.setFromCamera(ndc(e),camera);
+  const ms=activeTab==='asm'?[...asmView.groups.values()].filter(v=>v.g.visible&&v.m.visible).map(v=>v.m):(solidMesh.visible&&!sk?[solidMesh]:[]);
+  const h=ms.length?ray.intersectObjects(ms)[0]:null;if(h)return h.point;
+  const n=new T.Vector3(),dT=camera.position.distanceTo(controls.target);
+  if(sk){zoomPlane.setFromNormalAndCoplanarPoint(n.setFromMatrixColumn(skGroup.matrix,2),new T.Vector3().setFromMatrixPosition(skGroup.matrix));const p=ray.ray.intersectPlane(zoomPlane,new T.Vector3());if(p&&camera.position.distanceTo(p)<dT*8)return p}
+  camera.getWorldDirection(n);zoomPlane.setFromNormalAndCoplanarPoint(n,controls.target);
+  return ray.ray.intersectPlane(zoomPlane,new T.Vector3())||controls.target.clone();
+}
+function wheelZoom(e){
+  const dy=e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1);const f=Math.pow(1.0015,Math.max(-300,Math.min(300,dy)));
+  const p=zoomPoint(e),ext=modelExtent();
+  if(f<1&&camera.position.distanceTo(p)*f<ext*.002)return;
+  if(f>1&&camera.position.distanceTo(controls.target)*f>ext*60)return;
+  camAnim=null;
+  // kamera ve hedef, imleç noktası etrafında ölçeklenir: o nokta ekranda yerinde kalır
+  camera.position.sub(p).multiplyScalar(f).add(p);controls.target.sub(p).multiplyScalar(f).add(p);
+  const d=camera.position.distanceTo(p);
+  if(d/20<camera.near||camera.far<d*4){camera.near=Math.max(.01,Math.min(camera.near,d/20));camera.far=Math.max(camera.far,d*4+ext*4);camera.updateProjectionMatrix()}
+}
+// OrbitControls'un kendi tekerlek yakınlaştırmasından önce yakala (orta tuş ve iki parmak yakınlaştırması aynen kalır)
+vpEl.addEventListener('wheel',e=>{if(e.target!==renderer.domElement)return;e.preventDefault();e.stopPropagation();wheelZoom(e)},{capture:true,passive:false});
 
 /* ================= SEÇİM ve TIKLAMA (çizim dışı) ================= */
 const ray=new T.Raycaster();

@@ -670,7 +670,8 @@ function renderSketchDisplays(){
     if(f.type!=='sketch'||f.suppressed||(sk&&sk.feat===f))continue;
     const show=!cons[f.id]||(sel&&sel.kind==='feature'&&(sel.id===f.id||sel.id===cons[f.id]))||(pm&&pm.draft&&pm.draft.sketch===f.id);
     if(!show)continue;const F=model.frames[f.id];if(!F)continue;
-    const arr=[];for(const e of f.ents){const t=tessEnt(f,e,64);for(let i=0;i<t.length-1;i++){arr.push(...fpt(F,t[i][0],t[i][1]),...fpt(F,t[i+1][0],t[i+1][1]))}}
+    // eksen ve yapı (kesikli) çizgileri yalnızca çizim düzenlenirken görünür
+    const arr=[];for(const e of f.ents){if(e.cons)continue;const t=tessEnt(f,e,64);for(let i=0;i<t.length-1;i++){arr.push(...fpt(F,t[i][0],t[i][1]),...fpt(F,t[i+1][0],t[i+1][1]))}}
     if(!arr.length)continue;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(arr,3));
     const o=new T.LineSegments(g,new T.LineBasicMaterial({color:(sel&&sel.kind==='feature'&&sel.id===f.id)?0xF08A1A:0x3D6FC2,depthTest:false,transparent:true,opacity:.9}));o.renderOrder=6;sketchesGroup.add(o);
   }

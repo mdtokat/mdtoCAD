@@ -136,7 +136,7 @@ function cleanupOrphans(f){
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
 function setTool(t){
-  if(!sk)return;endChainIfAny();sk.tool=t;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();closeSkInput();
+  if(!sk)return;endChainIfAny();sk.tool=t;sk.filArc=null;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();closeSkInput();
   renderRibbon();renderSketchPM();sk.dirty=true;updSbar();
 }
 function endChainIfAny(){
@@ -271,7 +271,19 @@ function skPointerUp(e,d){
   if(!sk.tool){const h=skHit(ev.q,ev.tol);if(h)toggleSel(h);else{sk.sel=[];skChanged()}return}
   toolClick(ev.q,ev.px,ev.tol);
 }
-function skDblClick(e){if(sk.tool==='line'||sk.tool==='centerline'||sk.tool==='tarc'){endChainIfAny();sk.dirty=true}}
+function skDblClick(e){
+  if(sk.tool==='line'||sk.tool==='centerline'||sk.tool==='tarc'){endChainIfAny();sk.dirty=true;return}
+  // Seç aracında çift tıklama: uç uca bağlı öğe zincirinin tamamını seçer (ofset, aynalama, çoğaltma için)
+  if(!sk.tool){const {q,tol}=skEv(e);if(!q)return;const h=skHit(q,tol);if(!h||h.k!=='ent')return;
+    for(const id of skChain(sk.feat,h.id))if(!sk.sel.some(x=>x.k==='ent'&&x.id===id))sk.sel.push({k:'ent',id});skChanged()}
+}
+/* öğeyle uç noktaları üzerinden bağlı (aynı türde: profil veya yapı) öğeler */
+function skChain(f,id){
+  const E=entMap(f),st=E[id];if(!st)return [];const out=new Set([id]),todo=[st];
+  while(todo.length){const e=todo.pop();if(e.t==='circle')continue;
+    for(const o of f.ents)if(!out.has(o.id)&&o.t!=='circle'&&!!o.cons===!!st.cons&&[o.a,o.b].some(p=>p===e.a||p===e.b)){out.add(o.id);todo.push(o)}}
+  return [...out];
+}
 function toggleSel(h){const i=sk.sel.findIndex(s=>s.k===h.k&&s.id===h.id);if(i>=0)sk.sel.splice(i,1);else sk.sel.push(h);skChanged()}
 const PLANEAX=()=>{const on=sk.feat.on;if(on.kind==='std')return {front:['X','Y'],top:['X','−Z'],right:['−Z','Y']}[on.key];return ['x','y']};
 
@@ -437,7 +449,10 @@ function sketchFillet(pid){
   if(pid!=='O'&&!f.ents.some(e=>e.a===pid||e.b===pid||e.c===pid))delete f.pts[pid];
   for(const e of es){if(e.t==='line')addCon({t:'tan',e1:e.id,e2:arc.id});else{const c=P2(e.c);const dd=Math.hypot(C[0]-c[0],C[1]-c[1]);addCon({t:'tan',e1:e.id,e2:arc.id,int:Math.abs(dd-Math.abs(curveR(f,e)-r))<Math.abs(dd-(curveR(f,e)+r))})}}
   const ul=Math.hypot(...toP)||1,lo=r+(sk.px?sk.px*30:r*0.6);
-  addCon({t:'drad',e:arc.id,val:r,lp:[C[0]+toP[0]/ul*lo,C[1]+toP[1]/ul*lo]});
+  // aynı araçla aynı yarıçapta eklenen sonraki radyuslar ilkine eşit bağlanır (tek ölçü hepsini sürer)
+  const first=sk.filArc&&f.ents.find(e=>e.id===sk.filArc);
+  if(first&&Math.abs(curveR(f,first)-r)<1e-9)addCon({t:'eq',e1:first.id,e2:arc.id});
+  else{addCon({t:'drad',e:arc.id,val:r,lp:[C[0]+toP[0]/ul*lo,C[1]+toP[1]/ul*lo]});sk.filArc=arc.id}
   if(finishOp([])&&removed)toast(`Köşedeki ${removed} ilişki/ölçü kaldırıldı.`);
 }
 
@@ -530,8 +545,10 @@ function setDimVal(cid,v){
 /* çizim öğelerinin yerel sınır kutusu (orijin dahil) */
 function skBox(f){let x0=0,y0=0,x1=0,y1=0;for(const e of f.ents)for(const p of tessEnt(f,e,36)){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]}return {x0,y0,x1,y1}}
 /* görünümü bakış yönünü değiştirmeden çizime sığdırır */
-function fitSketch(){
-  if(!sk)return;const b=skBox(sk.feat);const r=Math.max(1,Math.hypot(b.x1-b.x0,b.y1-b.y0)/2)*1.25;
+function fitSketch(withModel){
+  if(!sk)return;const b=skBox(sk.feat);
+  // istenirse modelin köşeleri de çizim düzlemine izdüşürülüp hesaba katılır
+  if(withModel&&model.box){const B=model.box;for(const i of [0,1])for(const j of [0,1])for(const k of [0,1]){const w=[[B.min[0],B.max[0]][i]-sk.F.o[0],[B.min[1],B.max[1]][j]-sk.F.o[1],[B.min[2],B.max[2]][k]-sk.F.o[2]];const x=vd(w,sk.F.u),y=vd(w,sk.F.v);b.x0=Math.min(b.x0,x);b.x1=Math.max(b.x1,x);b.y0=Math.min(b.y0,y);b.y1=Math.max(b.y1,y)}}const r=Math.max(1,Math.hypot(b.x1-b.x0,b.y1-b.y0)/2)*1.25;
   const c=v3(fpt(sk.F,(b.x0+b.x1)/2,(b.y0+b.y1)/2));
   const fv=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fv/2)*camera.aspect);const dist=r/Math.tan(Math.min(fv,hf)/2);
   const d=camera.position.clone().sub(controls.target).normalize();const toPos=c.clone().addScaledVector(d,dist);
@@ -598,6 +615,14 @@ function dimGeo(f,c,px){
   }}catch(err){}
   return {segs,text};
 }
+/* simgesi yalnızca seçimde gösterilen ilişkiler: çoğaltma/ofset bağları, yapı dairesi üstündeki noktalar (çokgen köşeleri)
+   ve aynı öğeye bağlı eşitlik zincirleri (çokgen kenarları, çoğaltılmış kopyalar) */
+function quietRel(f,c){
+  if(QUIETREL.has(c.t))return true;
+  if(c.t==='poc'){const e=f.ents.find(x=>x.id===c.e);return !!(e&&e.cons)}
+  if(c.t==='eq')return f.cons.filter(x=>x.t==='eq'&&(x.e1===c.e1||x.e2===c.e1)).length>2;
+  return false;
+}
 function relAnchors(f,c,px){
   const E=entMap(f);const P=id=>{const p=skP(f,id);return [p.x,p.y]};const out=[];const off=px*13;
   const entMid=id=>{const e=E[id];if(!e)return null;if(e.t==='line'){const a=P(e.a),b=P(e.b);const d=[b[0]-a[0],b[1]-a[1]],l=Math.hypot(...d)||1;return [(a[0]+b[0])/2-d[1]/l*off,(a[1]+b[1])/2+d[0]/l*off]}const C=P(e.c),r=curveR(f,e);let ang=Math.PI/4;if(e.t==='arc'){const A=arcInfo(f,e);ang=A.a0+A.sw/2}return [C[0]+(r+off)*Math.cos(ang),C[1]+(r+off)*Math.sin(ang)]};
@@ -639,7 +664,7 @@ function renderSketch(){
     }else if(sk.opts.rels||sk.sel.length){
       const s=sk.sel.some(x=>x.k==='con'&&x.id===c.id);
       const involved=sk.sel.some(x=>(x.k==='ent'&&(c.e===x.id||c.e1===x.id||c.e2===x.id))||(x.k==='pt'&&(c.p===x.id||c.q===x.id)));
-      if((!sk.opts.rels||QUIETREL.has(c.t))&&!involved&&!s)continue;
+      if((!sk.opts.rels||quietRel(f,c))&&!involved&&!s)continue;
       for(const a of relAnchors(f,c,px))labels.push({x:a[0],y:a[1],cls:'rlab'+(s?' sel':''),cid:c.id,html:esc((REL[c.t]||['',''])[1])});
     }
   }
@@ -772,7 +797,7 @@ function renderSketchPM(){
     if(Cn.length===1){const c=f.cons.find(x=>x.id===Cn[0]);if(c&&DIMT.has(c.t))ops+=`<button data-skop="editdim">Değeri düzenle</button>`}
     ops+=`<button data-skop="del" class="danger">Sil</button></div>`;b+=grp('İşlemler',ops);
   }else if(!sk.tool){
-    b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Fare: orta tuş döndür, sağ tuş kaydır, tekerlek yakınlaştır. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p>`);
+    b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Fare: orta tuş döndür, sağ tuş kaydır, tekerlek yakınlaştır, F ekrana sığdır. Bir öğeye çift tıklamak bağlı zinciri seçer. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p>`);
   }
   const dims=f.cons.filter(c=>DIMT.has(c.t));
   const dnm=dims.map(dimName),dup=n=>dnm.filter(x=>x===n).length>1;

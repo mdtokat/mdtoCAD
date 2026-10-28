@@ -1,6 +1,21 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Düzeltme (çözücü): tam tanımlanmamış çizimde ölçü değiştirmek şekli ters çevirebiliyordu (ör. yamukta paralel aralık ölçüsü üst kenarın uçlarını yer değiştirip kenarları çaprazlıyordu). Çözücü önce geometriyi en az hareketle oynatan bir ön aşama kullanır.
+- Düzeltme (bölgeler): üst üste düşen özdeş öğeler (ör. aynalanmış dairenin üstüne düşen çoğaltma kopyası) deliği dolduruyordu; artık tek öğe sayılır.
+- Düzeltme: özellik ağacında çift tıklama özelliği/çizimi düzenlemeye açmıyordu (ilk tıklama ağacı yeniden çizdiği için).
+- Düzeltme: paneldeki bir alanı (ör. çokgen kenar sayısı) düzenledikten sonra görünüme tıklamak odağı almıyordu; yazılan rakamlar alana gidiyordu.
+- Düzeltme (montaj resmi): aynı çaplı mil ve delik gibi farklı bileşenlerin çakışan yüzeyleri her üçgen kenarında çizgi üretiyordu; kenarlar artık bileşen başına bulunur.
+- Düzeltme: “Ekrana sığdır” çizim düzenlenirken çizimi hesaba katmıyordu.
+- Teknik resim: otomatik ölçüler delik konumlarını da verir (simetrik çiftlerde merkezden merkeze, diğerlerinde görünüş kenarından).
+- Çizim: Seç aracında bir öğeye çift tıklamak uç uca bağlı zincirin tamamını seçer (ofset, aynalama, çoğaltma için).
+- Çizim: aynı araçla aynı yarıçapta eklenen çizim radyusları ilkine eşit bağlanır; tek ölçü hepsini sürer.
+- Çizim: çokgen köşelerinin ve eşitlik zincirlerinin ilişki simgeleri yalnızca ilgili öğe seçiliyken gösterilir (kalabalık azalır).
+- Görünüm: **F** tuşu ekrana sığdırır (çizimde çizime ve modele).
+- Özellikler: çizime dik bakarken Ekstrüzyon/Döndürme açılınca görünüm önizlemenin derinliği görünsün diye izometriğe döner ve önizlemeye sığar; çoğaltma/aynalama sonrası model ekrandan taşarsa görünüm sığdırılır.
+- Özellikler: paneldeki bir sayı alanında Enter değeri alır ve özelliği onaylar.
+- Referans düzlem onaylanınca seçili kalır; hemen Çizim'e basmak çizimi o düzlemde başlatır.
+- Arayüz: şerit dar ekranlarda (1280–1600 px) önce sıkışır, yine sığmazsa yalnızca simgeler kalır; önceden araçların bir kısmı ekran dışında kalıyordu.
 - Çizim: **Bölgeler.** Profil düzlemsel bölge çözümüyle bulunur: birbirini kesen veya üst üste binen kapalı şekiller (ör. Ø27 göbek + kaburga, köşe göbekleri + kollar) budamadan birleşir; iç içe ve birbirine değmeyen konturlar delik olur; bir bölgeyi ikiye bölen çizgiler ve boşta uçlar artık hata vermez. Kesişme ve T-birleşimi işaretleri yalnızca profil gerçekten çıkarılamıyorsa gösterilir.
 - Ekstrüzyon / Döndürme: **bölge seçimi** — panel açıkken çizimin bölgelerine tıklanarak yalnızca seçilen bölgeler kullanılır (yeni `regions` alanı). Bölgeler mavi çerçeveyle, seçilenler turuncu gösterilir.
 - Ekstrüzyon: **İnce özellik** — açık çizgi/yay zinciri tek yön, ters yön veya orta düzlemde verilen kalınlıkta şeride dönüştürülür; kapalı kontur halka olur. Yalnızca açık zincir içeren çizimde ekstrüzyon ince özellik olarak açılır (yeni `thin`, `thick`, `thinSide`).

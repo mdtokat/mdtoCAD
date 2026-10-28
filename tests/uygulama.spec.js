@@ -670,3 +670,104 @@ for (const [dosya, ad, kutu] of [['bukulmus-braket', 'Bükülmüş', [124, 171.5
     expect(errors).toEqual([]);
   });
 }
+
+test('çözücü en az hareketle çözer; üst üste düşen özdeş kopyalar deliği doldurmaz', async ({ page }) => {
+  await openApp(page);
+  const r = await page.evaluate(() => {
+    // tam tanımlanmamış yamuk: paralel aralık ölçüsü üst kenarı yalnızca yukarı taşımalı, uçları yer değiştirmemeli
+    const sk = { pts: { p1: { x: 60, y: 0 }, p2: { x: 25, y: 15 }, p3: { x: 5, y: 15 } }, ents: [{ id: 'e1', t: 'line', a: 'O', b: 'p1' }, { id: 'e2', t: 'line', a: 'p1', b: 'p2' }, { id: 'e3', t: 'line', a: 'p2', b: 'p3' }, { id: 'e4', t: 'line', a: 'p3', b: 'O' }],
+      cons: [{ id: 'c1', t: 'h', e: 'e1' }, { id: 'c2', t: 'h', e: 'e3' }, { id: 'c3', t: 'd', p: 'O', q: 'p1', val: 60 }, { id: 'c4', t: 'dll', e1: 'e3', e2: 'e1', val: 20 }] };
+    const ok = __tz.solveSketch(sk);
+    // Ø100 içinde iki özdeş Ø10 daire (aynalanmış kopyanın üstüne düşen çoğaltma kopyası) + bir Ø10
+    const d = { pts: { c0: { x: 0, y: 0 }, c1: { x: -30, y: 0 }, c2: { x: 30, y: 0 } }, ents: [{ id: 'a', t: 'circle', c: 'c0', r: 50 }, { id: 'b', t: 'circle', c: 'c1', r: 5 }, { id: 'c', t: 'circle', c: 'c1', r: 5 }, { id: 'd', t: 'circle', c: 'c2', r: 5 }], cons: [] };
+    return { ok, p2: sk.pts.p2, p3: sk.pts.p3, holes: __tz.sketchProfiles(d)[0].holes.length };
+  });
+  expect(r.ok).toBe(true);
+  expect(r.p2.y).toBeCloseTo(20, 5);
+  expect(r.p3.y).toBeCloseTo(20, 5);
+  expect(r.p2.x).toBeGreaterThan(r.p3.x + 15); // kenarlar çaprazlanmaz
+  expect(r.holes).toBe(2);
+});
+
+test('çizim kolaylıkları: F çizime sığdırır, eşit radyuslar, çift tıklamayla zincir, panelden sonra görünüme yazma', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(400, 250); T.setTool(null); });
+  await page.keyboard.press('f');
+  await page.waitForTimeout(700);
+  const fit = await page.evaluate(() => { const r = document.querySelector('#viewport canvas').getBoundingClientRect(); return [[0, 0], [400, 250]].every(([x, y]) => { const [X, Y] = __tz.scr(x, y); return X > r.left && X < r.right && Y > r.top && Y < r.bottom; }); });
+  expect(fit).toBe(true);
+  // bir kenara çift tıklama dört kenarı da seçer
+  const [X, Y] = await page.evaluate(() => __tz.scr(200, 0));
+  await page.mouse.dblclick(X, Y);
+  expect(await page.evaluate(() => __tz.sk.sel.filter(h => h.k === 'ent').length)).toBe(4);
+  // aynı yarıçapla iki köşeye radyus: biri ölçülü, diğeri ona eşit
+  const f = await page.evaluate(() => { const T = __tz; T.setTool('sfillet'); T.sk.opts.filletR = 20; T.toolClick(0, 0); T.toolClick(400, 250); return T.sk.feat.cons.filter(c => c.t === 'drad' || c.t === 'eq').map(c => c.t); });
+  expect(f).toEqual(['drad', 'eq']);
+  // çokgen kenar sayısını panelden yazıp görünüme tıklayınca rakamlar çizerken ölçü kutusuna gider
+  await page.evaluate(() => __tz.setTool('polygon'));
+  await page.fill('#pm input[data-k="polyN"]', '5');
+  const [cx, cy] = await page.evaluate(() => __tz.scr(200, 125));
+  await page.mouse.click(cx, cy);
+  await page.mouse.move(cx + 40, cy);
+  await page.keyboard.type('60');
+  await expect(page.locator('.pop.skin')).toBeVisible();
+  await page.keyboard.press('Enter');
+  const p = await page.evaluate(() => { const f = __tz.sk.feat; return { n: f.ents.filter(e => e.t === 'line' && !e.cons).length, d: f.cons.filter(c => c.t === 'ddia').map(c => c.val) }; });
+  expect(p).toEqual({ n: 4 + 5, d: [60] });
+  expect(errors).toEqual([]);
+});
+
+test('özellik akışı: önizleme izometrik, ağaçta çift tıklama, panel alanında Enter, yeni düzlemde çizim', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  await page.evaluate(() => { const T = __tz; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(40, 30); T.setTool(null); });
+  await page.click('[data-cm="features"]');
+  await page.click('[data-cmd="extrude"]');
+  await page.waitForTimeout(800);
+  // çizime dik bakış bırakıldı: normal yönündeki iki nokta ekranda farklı yerlere düşer
+  const tilt = await page.evaluate(() => { const a = __tz.scrW([0, 0, 0]), b = __tz.scrW([0, 0, 30]); return Math.hypot(a[0] - b[0], a[1] - b[1]); });
+  expect(tilt).toBeGreaterThan(10);
+  await page.fill('#pm input[data-k="depth"]', '25');
+  await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => ({ pm: !!__tz.pm, d: __tz.state.features[1].depth }))).toEqual({ pm: false, d: 25 });
+  const row = page.locator('.ti[data-id]').first();
+  const bb = await row.boundingBox();
+  await page.mouse.dblclick(bb.x + 70, bb.y + bb.height / 2);
+  expect(await page.evaluate(() => __tz.pm && [__tz.pm.type, __tz.pm.isNew])).toEqual(['extrude', false]);
+  await page.keyboard.press('Escape');
+  // referans düzlem onaylanınca seçili kalır; Çizim doğrudan onun üstünde başlar
+  await page.click('.ti[data-plane="top"]');
+  await page.click('[data-cmd="plane"]');
+  await page.fill('#pm input[data-k="offset"]', '40');
+  await page.keyboard.press('Enter');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  expect(await page.evaluate(() => __tz.sk.feat.on.kind)).toBe('plane');
+  expect(errors).toEqual([]);
+});
+
+test('teknik resim: delik konum ölçüleri; montaj resminde çakışan mil ve delik yüzeyleri çizgi üretmez', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.click('[data-tab="drawing"]');
+  await page.waitForFunction(() => !!__tz.getCtx() && Object.keys(__tz.getCtx().views).length >= 3);
+  await page.waitForTimeout(400);
+  const txt = await page.evaluate(() => [...document.querySelectorAll('#sheet text')].map(t => t.textContent));
+  expect(txt).toContain('96'); // 4× Ø9 delik merkezleri arası (simetrik)
+  expect(txt).toContain('56');
+  await page.click('[data-tab="asm"]');
+  await page.click('[data-cmd="adraw"]');
+  await page.waitForFunction(() => !!__tz.getCtx() && __tz.getCtx().views.front && __tz.dwSrc().kind === 'asm');
+  const n = await page.evaluate(() => { const d = __tz.getCtx().views.front.d; return d.hid.filter(q => Math.abs(q[0]) < 12.9 && Math.abs(q[2]) < 12.9 && Math.abs(q[0] - q[2]) < 0.01).length; });
+  expect(n).toBeLessThan(12); // önceden mil yüzeyinin her üçgen kenarı gizli çizgi olarak çiziliyordu (~100)
+  expect(errors).toEqual([]);
+});
+
+test('şerit dar ekranda sığar', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openApp(page);
+  await page.evaluate(() => __tz.startSketch({ kind: 'std', key: 'front' }));
+  await page.waitForTimeout(200);
+  const r = await page.evaluate(() => { const el = document.querySelector('#ribbon'); return el.scrollWidth - el.clientWidth; });
+  expect(r).toBeLessThanOrEqual(1);
+});

@@ -253,10 +253,14 @@ function entIntersect(sk,e,o){
    Malzeme kuralı (8. adım): birbirini kesen konturlar (daire + dikdörtgen gibi) birleşir, iç içe ve birbirine değmeyen
    konturlar delik olur, bir bölgeyi ikiye ayıran çizgiler ve boşta uçlar profili bozmaz. */
 function skArrangement(sk,inner){
-  const ents=sk.ents.filter(e=>!e.cons);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  let ents=sk.ents.filter(e=>!e.cons);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
   let ext=1;for(const id in sk.pts){const p=sk.pts[id];ext=Math.max(ext,Math.abs(p.x),Math.abs(p.y))}
   for(const e of ents)if(e.t==='circle'){const c=P(e.c);ext=Math.max(ext,Math.abs(c[0])+e.r,Math.abs(c[1])+e.r)}
   const tol=Math.max(1e-6,ext*1e-6);
+  // üst üste çakışan özdeş öğeler (ör. aynalanmış kopyanın üstüne düşen çoğaltma kopyası) tek öğe sayılır; yoksa delik dolardı
+  {const same=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<tol;const key=e=>e.t==='line'?[P(e.a),P(e.b)]:e.t==='circle'?[P(e.c),[e.r,0]]:[P(e.c),P(e.a),P(e.b)];
+    const dup=(e,o)=>{if(e.t!==o.t)return false;const k=key(e),m=key(o);if(e.t==='line')return (same(k[0],m[0])&&same(k[1],m[1]))||(same(k[0],m[1])&&same(k[1],m[0]));return k.every((p,i)=>same(p,m[i]))};
+    const kept=[];for(const e of ents)if(!kept.some(o=>dup(e,o)))kept.push(e);ents=kept}
   // 1) öğe başına bölme noktaları: kesişimler ve öğenin ortasına dokunan uç noktaları (T-birleşimi, üst üste binen çizgiler)
   const splits=new Map(ents.map(e=>[e,[]]));
   const par=(e,p)=>{if(e.t==='line'){const a=P(e.a),b=P(e.b);const dx=b[0]-a[0],dy=b[1]-a[1];return ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1)}
@@ -511,14 +515,19 @@ function lm(fun,X,iters){
 function solveSketch(sk,targets){
   const S=sysBuild(sk);
   if(!S.n)return S.fs.every(f=>Math.abs(f([]))<1e-6);
-  let X=S.X0.slice();
+  let X=S.X0.slice();const X0=S.X0;
+  const soft=[],tgt=new Set();
   if(targets&&targets.length){
-    const soft=[];
     for(const t of targets){
-      if(t.p!==undefined&&S.pIdx[t.p]!==undefined){const i=S.pIdx[t.p];soft.push(X=>(X[i]-t.x)*0.5,X=>(X[i+1]-t.y)*0.5)}
-      if(t.e!==undefined&&S.rIdx[t.e]!==undefined){const i=S.rIdx[t.e];soft.push(X=>(X[i]-t.r)*0.5)}
+      if(t.p!==undefined&&S.pIdx[t.p]!==undefined){const i=S.pIdx[t.p];tgt.add(i).add(i+1);soft.push(X=>(X[i]-t.x)*0.5,X=>(X[i+1]-t.y)*0.5)}
+      if(t.e!==undefined&&S.rIdx[t.e]!==undefined){const i=S.rIdx[t.e];tgt.add(i);soft.push(X=>(X[i]-t.r)*0.5)}
     }
-    X=lm(X=>S.res(X).concat(soft.map(f=>f(X))),X,40).x;
+  }
+  // en az hareket: önce her değişkeni bulunduğu yerde tutan zayıf terimlerle çözülür. Tam tanımlanmamış çizimde
+  // etkisi küçük koordinatlar (ör. eğik çizginin uçları) aksi hâlde büyük adımlarla kayıp şekli ters çevirebilir.
+  if(soft.length||S.res(X).some(v=>Math.abs(v)>1e-9)){
+    for(let i=0;i<X.length;i++)if(!tgt.has(i))soft.push(X=>(X[i]-X0[i])*0.01);
+    X=lm(X=>S.res(X).concat(soft.map(f=>f(X))),X,soft.length>X.length?40:60).x;
   }
   const r=lm(S.res,X,120);
   const mx=r.r?r.r.reduce((m,v)=>Math.max(m,Math.abs(v)),0):0;

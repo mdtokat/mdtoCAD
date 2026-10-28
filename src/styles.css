@@ -70,6 +70,12 @@ button:disabled{cursor:default}
 .rb:disabled{opacity:.35;background:none}
 .rb.cut svg{color:var(--warn)}
 .rsep{width:1px;background:var(--line);margin:5px 5px;flex:none}
+/* dar ekranda şerit sığmazsa önce sıkışır, yine sığmazsa yalnızca simgeler kalır (ad ipucunda) */
+.ribbon.compact{gap:0;padding:4px 4px}
+.ribbon.compact .rb{min-width:42px;max-width:64px;padding:4px 1px 3px;font-size:10.5px;letter-spacing:-.2px}
+.ribbon.compact .rsep{margin:5px 2px}
+.ribbon.tight .rb{min-width:34px;padding:6px 4px}
+.ribbon.tight .rb span{display:none}
 .rctl{flex:none;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 6px;font-size:12px;color:var(--muted);white-space:nowrap}
 .rctl select{height:28px;border:1px solid var(--line);background:var(--field);border-radius:5px;padding:0 6px;color:var(--ink);font-size:13px}
 

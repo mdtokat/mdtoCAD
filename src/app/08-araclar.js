@@ -270,10 +270,10 @@ const SKOP_T={offset:'Varlıkları Ofsetle',mirror:'Varlıkları Aynala',lpat:'D
 function setSkOp(t){if(!sk)return;setTool(null);sk.op={t,d:5,flip:false,n:3,sp:20,ang:0,tot:360};renderSketchPM();renderRibbon()}
 function skOpBody(){
   const o=sk.op;let b=`<p class="note">`;
-  if(o.t==='offset')b+=`Ofsetlenecek çizgi, yay veya daireleri Seç aracıyla seç. Bağlı zincirler köşelerde birleştirilir.`;
+  if(o.t==='offset')b+=`Ofsetlenecek çizgi, yay veya daireleri Seç aracıyla seç; bir öğeye çift tıklamak bağlı zincirin tamamını seçer. Bağlı zincirler köşelerde birleştirilir.`;
   if(o.t==='mirror')b+=`Aynalanacak öğeleri ve ayna ekseni olarak bir merkez çizgisini seç. Kopyalar orijinallere simetri ilişkisiyle bağlanır.`;
-  if(o.t==='lpat')b+=`Çoğaltılacak öğeleri seç. Açı, yatay eksenden saat yönünün tersine ölçülür.`;
-  if(o.t==='cpat')b+=`Çoğaltılacak öğeleri seç. Merkez olarak bir nokta da seçebilirsin; seçmezsen orijin kullanılır.`;
+  if(o.t==='lpat')b+=`Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Açı, yatay eksenden saat yönünün tersine ölçülür.`;
+  if(o.t==='cpat')b+=`Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Merkez olarak bir nokta da seçebilirsin; seçmezsen orijin kullanılır.`;
   b+=`</p>`;
   if(o.t==='offset')b+=fNum('Ofset mesafesi','d','mm',o)+`<label class="chk"><input type="checkbox" data-opflip ${o.flip?'checked':''}> Ters yön</label>`;
   if(o.t==='lpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Aralık','sp','mm',o)}</div>`+fNum('Yön açısı','ang','°',o);

@@ -291,9 +291,9 @@ function updatePlaneVis(){
 
 /* ---------- kamera ---------- */
 let camAnim=null;
-function fitCamera(dir,animate=true,up){
+function fitCamera(dir,animate=true,up,box){
   let c=new T.Vector3(),r=60;
-  const bx=curBox();if(bx){const b=bx;c.set((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2);r=Math.max(5,Math.hypot(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2])/2)}
+  const bx=box||curBox();if(bx){const b=bx;c.set((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2);r=Math.max(5,Math.hypot(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2])/2)}
   const fov=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fov/2)*camera.aspect);const dist=r/Math.sin(Math.min(fov,hf)/2)*1.08;
   let d=dir?new T.Vector3(...dir).normalize():camera.position.clone().sub(controls.target).normalize();
   if(Math.abs(d.y)>0.9995)d=new T.Vector3(0,d.y,d.y>0?0.001:-0.001).normalize();
@@ -409,7 +409,10 @@ function updateSelVisual(){
   updatePlaneVis();
 }
 let pdown=null,hoverT=0;
-renderer.domElement.addEventListener('pointerdown',e=>{if(activeTab==='asm'){asmDown(e);return}pdown={x:e.clientX,y:e.clientY,b:e.button,t:performance.now()};if(sk)skPointerDown(e)});
+renderer.domElement.addEventListener('pointerdown',e=>{
+  // OrbitControls varsayılanı engellediği için odak paneldeki alanda kalırdı; görünüme tıklayınca alan bırakılır (değeri uygulanır)
+  const ae=document.activeElement;if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&!ae.closest('.pop'))ae.blur();
+  if(activeTab==='asm'){asmDown(e);return}pdown={x:e.clientX,y:e.clientY,b:e.button,t:performance.now()};if(sk)skPointerDown(e)});
 renderer.domElement.addEventListener('pointermove',e=>{if(activeTab==='asm'){asmMove(e);return}if(sk){skPointerMove(e);return}
   if(e.pointerType==='mouse'&&!pdown){clearTimeout(hoverT);hoverT=setTimeout(()=>hover3D(e),16)}});
 renderer.domElement.addEventListener('pointerup',e=>{

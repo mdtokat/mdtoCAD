@@ -40,6 +40,10 @@ function editSketch(id){
 function beginSession(f,F,isNew){
   sk={feat:f,F,M:frameMatrix(F),isNew,orig:JSON.stringify(f),tool:null,st:{},sel:[],hover:null,cursor:null,drag:null,hist:[],redo:[],an:null,ok:true,dirty:true,
       opts:{grid:true,rels:true,polyN:6,filletR:5}};
+  // çizimi kullanan özellik (ekstrüzyon, kesme, döndürme) düzenleme boyunca gizlenir
+  const user=!isNew&&consumedMap()[f.id];
+  if(user){try{sk.base=rebuildModel(state.features.map(x=>x.id===user?{...x,suppressed:true}:x)).polys;showSolid(sk.base)}catch(e){}}
+  solidTone();
   skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setControlsForSketch(true);vpEl.classList.add('sketching');
   cmTab='sketch';renderRibbon();$('#confirm').classList.add('on');$('#sbar').classList.add('on');
   analyze();renderTree();renderPM();updateStatus();updateMass();renderSketchDisplays();updatePlaneVis();normalTo(F);
@@ -56,7 +60,7 @@ function exitSketch(accept){
       if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' Bu çizimden katı özellik oluşturulamaz; çizimi düzenleyip kırmızı noktaları düzelt.'+(msg?' '+msg:'');
       if(msg)toast(msg)}}
-  sk=null;closeDimPop();
+  sk=null;closeDimPop();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
   cmTab='features';afterChange();
@@ -117,7 +121,8 @@ function cleanupOrphans(f){
   const used=new Set(['O']);for(const e of f.ents){for(const k of ['a','b','c'])if(e[k])used.add(e[k])}
   for(const c of f.cons){if(c.t==='mid'||c.t==='fix'||DIMT.has(c.t)||c.t==='h'||c.t==='v'){if(c.p&&used.has(c.p))continue}}
   const consUsed=new Set();for(const c of f.cons)for(const k of ['p','q'])if(c[k])consUsed.add(c[k]);
-  for(const id of Object.keys(f.pts)){if(!used.has(id)){const keep=f.cons.some(c=>c.t==='mid'&&c.p===id);if(!keep)delete f.pts[id]}}
+  // öğeye ait olmayan nokta: orta nokta ilişkisi varsa veya iki öğeyi bağlıyorsa (ör. daire çevresi çizgi üstünde) kalır
+  for(const id of Object.keys(f.pts)){if(!used.has(id)){const keep=f.cons.some(c=>c.t==='mid'&&c.p===id)||f.cons.filter(c=>(c.t==='pol'||c.t==='poc')&&c.p===id).length>=2;if(!keep)delete f.pts[id]}}
   f.cons=f.cons.filter(c=>!CPK.some(k=>c[k]&&c[k]!=='O'&&!f.pts[c[k]]));
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
@@ -201,8 +206,13 @@ function unsnapNear(s,q,c,px){if(s.pid||s.rels||s.rel)return s;if(Math.hypot(s.x
 function resolvePt(s,added){
   const f=sk.feat;if(s.pid)return s.pid;
   const id=newId(f,'p');f.pts[id]={x:s.x,y:s.y};
-  for(const r of (s.rels||(s.rel?[s.rel]:[]))){const c={id:newId(f,'c'),t:r.t,p:id,e:r.e};f.cons.push(c);if(added)added.push(c.id)}
+  snapTie(s,id,added);
   return id;
+}
+/* yakalanan öğelerle çakışıklık: nokta bir öğenin üstüne (veya iki öğenin kesişimine) tıklandıysa ona bağlanır */
+function snapTie(s,id,added){
+  const f=sk.feat;if(s.pid)return;
+  for(const r of (s.rels||(s.rel?[s.rel]:[]))){const c={id:newId(f,'c'),t:r.t,p:id,e:r.e};f.cons.push(c);if(added)added.push(c.id)}
 }
 function addEnt(e){e.id=newId(sk.feat,'e');sk.feat.ents.push(e);return e}
 function addCon(c,added){c.id=newId(sk.feat,'c');sk.feat.cons.push(c);if(added)added.push(c.id);return c}
@@ -300,7 +310,10 @@ function toolClick(q,px,tol){
   if(t==='circle'){
     if(!st.c){skPush();const s=skSnap(q,tol,null,null);st.c=resolvePt(s);st.newPts=s.pid?[]:[st.c];sk.dirty=true;return}
     const c=P2(st.c);const s=unsnapNear(skSnap(q,tol,null,new Set([st.c])),q,c,px);const r=Math.hypot(s.x-c[0],s.y-c[1]);if(r<px*2)return;
-    const en=addEnt({t:'circle',c:st.c,r:Math.round(r*1000)/1000});const added=[];if(s.pid&&s.pid!=='O')addCon({t:'poc',p:s.pid,e:en.id},added);
+    const en=addEnt({t:'circle',c:st.c,r:Math.round(r*1000)/1000});const added=[];
+    if(s.pid){const c={t:'poc',p:s.pid,e:en.id};if(s.pid!=='O'||sketchRank(f,[c])>sketchRank(f))addCon(c,added)}
+    // çevre bir öğenin üstüne tıklandıysa o noktada bağlantı noktası oluşur (öğe üstünde ve çevre üstünde)
+    else if(s.rel||s.rels){const id=resolvePt(s,added);addCon({t:'poc',p:id,e:en.id},added)}
     sk.st={};finishOp(added);return;
   }
   if(t==='arc'){
@@ -308,10 +321,18 @@ function toolClick(q,px,tol){
     if(!st.a){const c=P2(st.c);const s=skSnap(q,tol,null,new Set([st.c]));if(Math.hypot(s.x-c[0],s.y-c[1])<px*2)return;st.a=resolvePt(s);if(!s.pid)st.newPts.push(st.a);st.acc=0;st.last=Math.atan2(s.y-c[1],s.x-c[0]);sk.dirty=true;return}
     const c=P2(st.c),a=P2(st.a);const r=Math.hypot(a[0]-c[0],a[1]-c[1]);const ang=Math.atan2(q[1]-c[1],q[0]-c[0]);
     let s=skSnap(q,tol,null,new Set([st.c,st.a]));let bId;
-    if(s.pid&&Math.abs(Math.hypot(s.x-c[0],s.y-c[1])-r)<tol)bId=s.pid;else{bId=newId(f,'p');f.pts[bId]={x:c[0]+r*Math.cos(ang),y:c[1]+r*Math.sin(ang)}}
+    // bitiş bir öğenin üstüne tıklandıysa yay çemberinin o öğeyle kesişimine konur ve öğeye bağlanır (diğer öğeler yerinden oynamaz)
+    let tie=null;
+    if(!s.pid&&s.rel&&(s.rel.t==='pol'||s.rel.t==='poc')){const en=f.ents.find(e=>e.id===s.rel.e);
+      const X=en?intersectEnts(f,{t:'circle',c:st.c,r},en).filter(p=>Math.hypot(p[0]-q[0],p[1]-q[1])<tol*2).sort((u,w)=>Math.hypot(u[0]-q[0],u[1]-q[1])-Math.hypot(w[0]-q[0],w[1]-q[1]))[0]:null;
+      if(X)tie={x:X[0],y:X[1],s}}
+    else if(!s.pid&&(s.rel||s.rels)&&Math.abs(Math.hypot(s.x-c[0],s.y-c[1])-r)<tol)tie={x:s.x,y:s.y,s};
+    if(s.pid&&Math.abs(Math.hypot(s.x-c[0],s.y-c[1])-r)<tol)bId=s.pid;
+    else{bId=newId(f,'p');f.pts[bId]=tie?{x:tie.x,y:tie.y}:{x:c[0]+r*Math.cos(ang),y:c[1]+r*Math.sin(ang)}}
     if(bId===st.a)return;
+    const added=[];if(tie)snapTie(tie.s,bId,added);
     const ccw=(st.acc||0)>=0;addEnt(ccw?{t:'arc',c:st.c,a:st.a,b:bId}:{t:'arc',c:st.c,a:bId,b:st.a});
-    sk.st={};finishOp([]);return;
+    sk.st={};finishOp(added);return;
   }
   if(t==='arc3'){
     if(!st.a){skPush();const s=skSnap(q,tol,null,null);st.a=resolvePt(s);st.newPts=s.pid?[]:[st.a];sk.dirty=true;return}
@@ -351,10 +372,11 @@ function toolClick(q,px,tol){
     const c=P2(st.c);const s=unsnapNear(skSnap(q,tol,null,new Set([st.c])),q,c,px);const r=Math.hypot(s.x-c[0],s.y-c[1]);if(r<px*3)return;
     const n=Math.max(3,Math.min(32,Math.round(sk.opts.polyN)||6));const a0=Math.atan2(s.y-c[1],s.x-c[0]);
     const circ=addEnt({t:'circle',c:st.c,r,cons:true});const vsx=[];
-    for(let i=0;i<n;i++){const id=newId(f,'p');f.pts[id]={x:c[0]+r*Math.cos(a0+i*2*Math.PI/n),y:c[1]+r*Math.sin(a0+i*2*Math.PI/n)};vsx.push(id)}
+    for(let i=0;i<n;i++){if(i===0&&s.pid){vsx.push(s.pid);continue}const id=newId(f,'p');f.pts[id]={x:c[0]+r*Math.cos(a0+i*2*Math.PI/n),y:c[1]+r*Math.sin(a0+i*2*Math.PI/n)};vsx.push(id)}
     const ls=[];for(let i=0;i<n;i++)ls.push(addEnt({t:'line',a:vsx[i],b:vsx[(i+1)%n]}));
     for(const id of vsx)addCon({t:'poc',p:id,e:circ.id});for(let i=1;i<n;i++)addCon({t:'eq',e1:ls[0].id,e2:ls[i].id});
-    sk.st={};finishOp([]);return;
+    const added=[];snapTie(s,vsx[0],added);
+    sk.st={};finishOp(added);return;
   }
   if(t==='sfillet'){
     const h=skHit(q,tol);if(!h||h.k!=='pt'){toast('İki çizginin birleştiği köşe noktasına tıkla.');return}
@@ -482,7 +504,7 @@ function closeDimPop(){if(dimPopEl){dimPopEl.remove();dimPopEl=null}}
 function openDimPop(cid){
   closeDimPop();if(!sk)return;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
   const s=skToScreen(c.lp[0],c.lp[1]);const el=document.createElement('div');el.className='pop';
-  el.innerHTML=`<input inputmode="decimal" value="${String(Math.round(c.val*1e4)/1e4).replace('.',',')}" aria-label="Ölçü değeri"><button class="ok" aria-label="Uygula">${IC.ok}</button><button aria-label="Kapat">${IC.x}</button>`;
+  el.innerHTML=`<input inputmode="decimal" value="${String(Math.round(c.val*1e4)/1e4).replace('.',',')}" aria-label="Ölçü değeri" title="Dört işlem kullanılabilir, ör. 800/2 veya 5+(20+2)*3"><button class="ok" aria-label="Uygula">${IC.ok}</button><button aria-label="Kapat">${IC.x}</button>`;
   const r=vpEl.getBoundingClientRect();el.style.left=Math.max(4,Math.min(r.width-180,s[0]+10))+'px';el.style.top=Math.max(4,Math.min(r.height-50,s[1]+10))+'px';
   vpEl.appendChild(el);dimPopEl=el;const inp=el.querySelector('input');inp.focus();inp.select();
   const apply=()=>{const v=num(inp.value);if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){inp.style.borderColor='var(--warn)';return}setDimVal(c.id,v);closeDimPop()};
@@ -492,7 +514,21 @@ function openDimPop(cid){
 function setDimVal(cid,v){
   const f=sk.feat;const c=f.cons.find(x=>x.id===cid);if(!c)return;skPush();const old=c.val;c.val=v;
   if(!solveSketch(f)){c.val=old;solveSketch(f);sk.hist.pop();toast('Çizim bu değerle çözülemiyor.')}
+  // yeni çizimde ilk (tek) ölçü girilince görünüm çizimin gerçek boyutuna göre ayarlanır
+  else if(sk.isNew&&f.cons.filter(x=>DIMT.has(x.t)).length===1)fitSketch();
   skChanged();
+}
+/* çizim öğelerinin yerel sınır kutusu (orijin dahil) */
+function skBox(f){let x0=0,y0=0,x1=0,y1=0;for(const e of f.ents)for(const p of tessEnt(f,e,36)){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]}return {x0,y0,x1,y1}}
+/* görünümü bakış yönünü değiştirmeden çizime sığdırır */
+function fitSketch(){
+  if(!sk)return;const b=skBox(sk.feat);const r=Math.max(1,Math.hypot(b.x1-b.x0,b.y1-b.y0)/2)*1.25;
+  const c=v3(fpt(sk.F,(b.x0+b.x1)/2,(b.y0+b.y1)/2));
+  const fv=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fv/2)*camera.aspect);const dist=r/Math.tan(Math.min(fv,hf)/2);
+  const d=camera.position.clone().sub(controls.target).normalize();const toPos=c.clone().addScaledVector(d,dist);
+  camera.near=Math.max(.01,dist/200);camera.far=Math.max(camera.far,dist*60);camera.updateProjectionMatrix();
+  if(reduceMotion){camera.position.copy(toPos);controls.target.copy(c);controls.update();camAnim=null;sk.dirty=true;return}
+  camAnim={p0:camera.position.clone(),t0:controls.target.clone(),p1:toPos,t1:c,s:performance.now(),dur:420};
 }
 
 /* ---------- etiketler (ölçü değerleri ve ilişki simgeleri) ---------- */

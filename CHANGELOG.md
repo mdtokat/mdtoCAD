@@ -1,6 +1,11 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Çizim: bir öğenin üstüne tıklanınca çakışıklık artık daire çevresinde (çevre o noktadan geçer, bağlantı noktası kalır), merkez nokta yayın bitişinde (bitiş kesişime oturur, diğer öğeler kaymaz) ve çokgenin ilk köşesinde de otomatik eklenir.
+- Sayı girişleri (ölçüler ve tüm sayısal alanlar) dört işlemi ve parantezi kabul eder: `800/2` → 400, `5+(20+2)*3` → 71.
+- Çizim: yeni çizimde ilk ölçü girilince görünüm çizimin gerçek boyutuna göre yakınlaşır/uzaklaşır; tekerlek yakınlaştırma sınırları çizimin boyutunu da hesaba katar.
+- Çizim: bir çizim düzenlenirken onu kullanan Ekstrüzyon/Kesme/Döndürme gizlenir; çizimden çıkınca yeniden görünür.
+- Çizim: koyu temada çizim düzenlenirken gövde koyulaşır; açık renkli çizim çizgileri ve ölçüler yüzeyin üstünde okunur kalır.
 - Çizim: eksen (merkez) çizgileri ve yapı (kesikli) çizgileri yalnızca çizim düzenlenirken görünür; çizimden çıkınca 3B görünümde gösterilmez.
 - Ağaç: Ekstrüzyon/Döndürme silinince altındaki çizim silinmez, ağaçta ayrı satır olarak kalır; çizim ayrıca silinir. (Bir özelliğin kullandığı çizim silinirse özellik çizimsiz kalmasın diye onunla birlikte silinir.)
 - 3B görünüm: fare tekerleği ekran merkezine değil imlecin altındaki noktaya doğru yakınlaştırır/uzaklaştırır (parça, çizim ve montaj).

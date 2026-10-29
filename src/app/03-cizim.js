@@ -440,6 +440,8 @@ function toolClick(q,px,tol){
     const a2=addEnt({t:'arc',c:st.c2,a:p3,b:p2}),a1=addEnt({t:'arc',c:st.c1,a:p1,b:p4});
     const added=[];if(st.hv)addCon({t:st.hv,e:cl.id},added);
     addCon({t:'tan',e1:l1.id,e2:a1.id});addCon({t:'tan',e1:l1.id,e2:a2.id});addCon({t:'tan',e1:l2.id,e2:a1.id});addCon({t:'tan',e1:l2.id,e2:a2.id});addCon({t:'eq',e1:a1.id,e2:a2.id});
+    // boy yazılarak konan ikinci merkez: merkezler arası sürücü ölçü
+    if(st.Ldim){const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];addDrivingDim({t:'d',p:st.c1,q:st.c2,val:st.Ldim,lp:[m[0]+nr[0]*(r+px*22),m[1]+nr[1]*(r+px*22)]})}
     sk.st={};finishOp(added);return;
   }
   if(t==='polygon'){

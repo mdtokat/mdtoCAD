@@ -139,7 +139,10 @@ function normPart(p){
 }
 /* montajın resim ayarları (drawing) ve patlatma adımları (explode) da korunur */
 function normAsm(a){const o={...a,id:a.id||uid('A'),name:a.name||'Montaj1',comps:(Array.isArray(a.comps)?a.comps:[]).filter(c=>isObj(c)&&c.id).map(c=>Array.isArray(c.T)&&c.T.length===16&&c.T.every(isFinite)?c:{...c,T:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]}),mates:(Array.isArray(a.mates)?a.mates:[]).filter(m=>isObj(m)&&isObj(m.a)&&isObj(m.b))};
-  if(o.drawing!==undefined){if(isObj(o.drawing))normDrawing(o.drawing);else delete o.drawing}if(o.explode!==undefined&&!(isObj(o.explode)&&Array.isArray(o.explode.steps)))delete o.explode;return o}
+  if(o.drawing!==undefined){if(isObj(o.drawing))normDrawing(o.drawing);else delete o.drawing}if(o.explode!==undefined&&!(isObj(o.explode)&&Array.isArray(o.explode.steps)))delete o.explode;
+  // bileşen çoğaltmaları: bozuk olanlar atılır; çoğaltması kalmayan türetilmiş bileşenler de
+  o.pats=(Array.isArray(o.pats)?o.pats:[]).filter(p=>isObj(p)&&p.id&&Array.isArray(p.seeds)&&isObj(p.ref)&&isObj(p.ref.ref));if(!o.pats.length)delete o.pats;
+  const pid=new Set((o.pats||[]).map(p=>p.id));o.comps=o.comps.filter(c=>!c.pat||pid.has(c.pat));return o}
 function normProject(o){o.version=3;const pid=new Set();o.parts=(Array.isArray(o.parts)?o.parts:[]).filter(isObj).map(normPart);for(const p of o.parts){if(pid.has(p.id))p.id=uid('P');pid.add(p.id)}
   o.asms=(Array.isArray(o.asms)?o.asms:[]).filter(isObj).map(normAsm);if(!isObj(o.cur))o.cur={};if(!o.parts.length)o.parts.push(newPart('Parça1'));if(!o.parts.some(p=>p.id===o.cur.part))o.cur.part=o.parts[0].id;if(o.asms.length&&!o.asms.some(a=>a.id===o.cur.asm))o.cur.asm=o.asms[0].id;return o}
 function emptyProject(){const p=newPart('Parça1');return normProject({parts:[p],asms:[],cur:{part:p.id}})}
@@ -193,7 +196,8 @@ let toastT=0;
 function toast(msg,action){
   const t=$('#toast');t.innerHTML=`<span>${esc(msg)}</span>`+(action?`<button>${esc(action.label)}</button>`:'');
   if(action)t.querySelector('button').onclick=()=>{action.fn();t.classList.remove('on')};
-  t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),action?6000:3600);
+  // düğmesiz bildirim altındaki görünüme yapılan tıklamaları engellemez
+  t.classList.toggle('act',!!action);t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),action?6000:3600);
 }
 /* onay penceresi: btns=[{label,fn,primary}]; Esc veya fn'siz düğme kapatır */
 function ask(title,html,btns){
@@ -512,8 +516,8 @@ renderer.domElement.addEventListener('dblclick',e=>{
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 function hover3D(e){
   if(meas)return;
-  if(pm&&(pm.type==='fillet'||pm.type==='chamfer')){const ed=pickEdge(e);hovMesh.geometry.dispose();hovMesh.geometry=new T.BufferGeometry();renderer.domElement.style.cursor=ed?'pointer':'';return}
-  const f=(pickMode==='plane'||!pm||pm.type==='hole')?pickFace(e):null;
+  if(pm&&(pm.type==='fillet'||pm.type==='chamfer'||pm.type==='lpattern')){const ed=pickEdge(e);hovMesh.geometry.dispose();hovMesh.geometry=new T.BufferGeometry();renderer.domElement.style.cursor=ed?'pointer':'';return}
+  const f=(pickMode==='plane'||!pm||['hole','plane','mirror','cpattern'].includes(pm.type))?pickFace(e):null;
   hovMesh.geometry.dispose();
   let fs=null;if(f){fs=new Set(facePolys(f))}
   hovMesh.geometry=f?polysToBuffers(shown.polys,p=>fs.has(p)).g:new T.BufferGeometry();
@@ -535,7 +539,14 @@ function click3D(e){
     else if(pl)pm.draft.plane=pl.key;else return;
     renderPM();renderTree();updatePlaneVis();schedulePreview();return;
   }
-  if(pm&&pm.type==='plane'){const pl=pickPlane(e);if(pl){if(pm.type==='mirror')pm.draft.plane=pl.key;else pm.draft.base=pl.key;renderPM();updatePlaneVis();schedulePreview()}return}
+  if(pm&&pm.type==='plane'){
+    // taban: düzlem veya modelin düz yüzeyi (hangisi öndeyse; SolidWorks'te yüzeyden ofset düzlem)
+    const pl=pickPlane(e),f=pickFace(e);const fd=f?camera.position.distanceTo(v3(f.pt)):Infinity;
+    if(f&&(!pl||fd<pl.dist)){if(!isPlanarFace(f)){toast('Referans düzlemi için düz bir yüzey veya düzlem seç.');return}pm.draft.base=pm.baseFace=faceRef(f)}
+    else if(pl)pm.draft.base=pl.key;else return;
+    renderPM();renderTree();updatePlaneVis();schedulePreview();return;
+  }
+  if(pm&&(pm.type==='cpattern'||pm.type==='lpattern')){patternPick(e);return}
   if(pm)return;
   if(pickMode==='plane'){
     const f=pickFace(e);if(f&&isPlanarFace(f)){startSketch(faceRef(f));return}
@@ -547,6 +558,27 @@ function click3D(e){
   const f=pickFace(e);if(f){setSel(f);return}
   const pl=pickPlane(e);if(pl){setSel(pl);return}
   setSel(null);
+}
+/* çoğaltma ekseni/yönü modelden: dairesel çoğaltmada silindirik yüz (delik, göbek), dairesel kenar veya düz kenar;
+   doğrusal çoğaltmada düz kenar (Yön 1 veya seçili Yön 2) */
+function cylAt(pt,n){
+  let best=null;
+  for(const an of model.ann||[]){const w=v3(pt).sub(an.C),t=w.dot(an.A);const d=w.sub(an.A.clone().multiplyScalar(t)).length();
+    if(Math.abs(d-an.r)>Math.max(0.05,an.r*0.03)||t<an.t0-0.2||t>an.t1+0.2||(n&&Math.abs(vd(n,[an.A.x,an.A.y,an.A.z]))>0.25))continue;
+    const sp=an.t1-an.t0;if(!best||sp<best.sp)best={sp,an}}
+  return best&&best.an;
+}
+const axisOf=an=>({p:[an.C.x,an.C.y,an.C.z].map(x=>Math.round(x*1e6)/1e6),d:[an.A.x,an.A.y,an.A.z],r:an.r,feat:String(an.gid).split(':')[0]});
+function patternPick(e){
+  const d=pm.draft;
+  if(d.type==='cpattern'){
+    const f=pickFace(e),ed=pickEdge(e,8);let an=f&&!isPlanarFace(f)?cylAt(f.pt,f.n):null;
+    if(!an&&ed){const c=findCircleAnn(model.ann||[],ed);if(c)an=c.an;else{d.axis={p:ed.a.slice(),d:vn(vs(ed.b,ed.a))};renderPM();schedulePreview();return}}
+    if(!an){toast('Eksen için silindirik bir yüze (delik, göbek) veya düz bir kenara tıkla.');return}
+    d.axis=axisOf(an);renderPM();schedulePreview();return;
+  }
+  const ed=pickEdge(e,8);if(!ed)return;if(findCircleAnn(model.ann||[],ed)){toast('Yön için düz bir kenar seç.');return}
+  const k=pm.dirSlot===2?'dir2':'dir1';d[k]={d:vn(vs(ed.b,ed.a))};if(k==='dir2'&&!d.n2)d.n2=2;renderPM();schedulePreview();
 }
 function planeRef(key){return STD[key]?{kind:'std',key}:{kind:'plane',id:key}}
 function setSel(s){sel=s;updateSelVisual();renderTree()}

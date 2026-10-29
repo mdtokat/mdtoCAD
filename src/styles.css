@@ -113,6 +113,7 @@ button:disabled{cursor:default}
 .ti.active .nm{font-weight:600}
 .ti .acts{display:none;gap:1px}
 .ti.sel .acts{display:flex}
+@media (hover:hover){.ti:hover .acts{display:flex}}
 .ti .acts button{width:26px;height:26px;border:0;background:none;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .ti .acts button:hover{background:var(--panel);color:var(--ink)}
 .ti .acts svg{width:15px;height:15px}
@@ -189,6 +190,7 @@ button:disabled{cursor:default}
 .chk input{width:16px;height:16px;accent-color:var(--accent)}
 .pm-err{display:none;margin-top:10px;padding:8px 10px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px}
 .pm-err.on{display:block}
+.pm-ok{margin:0 0 10px;padding:7px 10px;border-radius:6px;background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok);font-size:12.5px}
 .note{font-size:12px;color:var(--muted);margin:2px 0 8px}
 .lst{display:grid;gap:3px;margin-bottom:8px}
 .lst div{display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 6px;border-radius:5px;background:var(--panel-2)}
@@ -210,6 +212,7 @@ button:disabled{cursor:default}
 .relbtns b{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;border-radius:3px;background:var(--rel);color:#fff;font-size:10px}
 .sbtn{border:1px solid var(--line);background:var(--field);border-radius:5px;padding:5px 10px;font-size:12.5px}
 .sbtn:hover{border-color:var(--accent)}
+.sbtn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .sbtn.danger:hover{border-color:var(--warn);color:var(--warn)}
 .stat{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--panel-2);font-size:13px;font-weight:500}
 .stat i{width:10px;height:10px;border-radius:50%;flex:none}
@@ -230,7 +233,8 @@ button:disabled{cursor:default}
 .dimrow button:hover{color:var(--warn)}
 
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--ink);color:var(--panel);padding:9px 12px 9px 14px;border-radius:8px;font-size:13px;display:flex;gap:12px;align-items:center;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:calc(100% - 24px)}
-.toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast.on.act{pointer-events:auto}
 .toast button{border:0;background:none;color:var(--accent);font-weight:600;filter:brightness(1.4);white-space:nowrap;flex:none}
 .hidden{display:none!important}
 

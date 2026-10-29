@@ -14,18 +14,19 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Yakalama: noktalar, orta noktalar, öğe kesişimleri, görünür ızgara; çizerken yatay/dikey, önceki çizgiye dik ve yaya teğet yönler. Boşta uçlar, kesişmeler ve T-birleşimleri çizimde kırmızıyla işaretlenir.
 - İlişkiler: yatay, dikey, paralel, dik, eşit, doğrusal, teğet, çakışık, orta nokta, eşmerkezli, simetrik (iki nokta veya iki daire + eksen), sabitle. Kısıt çözücü serbestlik derecesini hesaplar; tanımsız öğeler mavi, tam tanımlılar siyah görünür.
 - **Bölgeler:** birbirini kesen veya üst üste binen şekiller (daire + dikdörtgen, köşe göbekleri + kollar) budamaya gerek kalmadan birleşir; iç içe ve birbirine değmeyen konturlar delik olur, bir bölgeyi bölen çizgiler ve boşta uçlar profili bozmaz. Ekstrüzyon/Döndürme panelinde ekranda bölgeye tıklayarak yalnızca istenen bölgeler kullanılabilir.
-- **Çizerken ölçü yazma:** çizgi, dikdörtgen, daire ve çokgende ilk noktadan sonra rakam yazınca giriş kutusu açılır (uzunluk; genişlik × yükseklik; çap). Değer hem şekli çizer hem sürücü ölçü olarak eklenir.
+- **Çizerken ölçü yazma:** çizgi, dikdörtgen, daire, çokgen ve düz kanalda ilk noktadan sonra rakam yazınca giriş kutusu açılır (uzunluk ve isteğe bağlı açı — Sekme ile; genişlik × yükseklik; çap; kanalda boy × genişlik). Değer hem şekli çizer hem sürücü ölçü olarak eklenir.
 - Seçim: bir öğeye çift tıklamak bağlı zincirin tamamını seçer. Kısayollar: **L** çizgi, **R** dikdörtgen, **C** daire, **A** yay, **D** akıllı ölçü, **T** budama, **F** ekrana sığdır, **Esc** aracı/seçimi bırakır, **Ctrl+Z / Ctrl+Y** geri al/yinele, **Enter** paneldeki özelliği onaylar.
 - Ölçüye dayalı çizim: çizimi düzenlemeye girince tüm ölçüler görünür; ölçüye çift tıklayarak veya paneldeki **Ölçüler** listesinden değer girilir, geometri yeni ölçüye göre güncellenir.
 - **Tam Tanımla:** eksik ölçü ve ilişkiler geometriyi oynatmadan otomatik eklenir. Ölçüsüz çizimler (kendi çizdiklerin veya dışarıdan yüklenen dosyalar) çizime girerken ve çıkarken kendiliğinden tam tanımlanır; panelden kapatılabilir.
-- Özellikler: Ekstrüzyon Katman/Taban, Ekstrüzyon Kesme (kör, tümünden geç, orta düzlem, gövdeye kadar, ters yön, yön 2, çizim düzleminden başlangıç ofseti, **İnce özellik**: açık çizgi/yay zinciri kalınlık verilerek bükülmüş sac veya U profil olarak ekstrüde edilir), Döndürme Katman/Taban ve Kesme, Delik Sihirbazı (ISO metrik M3–M20: basit, geçiş, diş, faturalı, havşa; standart dışı faturalı/havşa için özel ölçü), Radyus ve Pah (düz ve dairesel kenarlar), Doğrusal/Dairesel Çoğaltma, Aynala, Referans Düzlem.
+- Özellikler: Ekstrüzyon Katman/Taban, Ekstrüzyon Kesme (kör, tümünden geç, orta düzlem, gövdeye kadar, ters yön, yön 2, çizim düzleminden başlangıç ofseti, **İnce özellik**: açık çizgi/yay zinciri kalınlık verilerek bükülmüş sac veya U profil olarak ekstrüde edilir), Döndürme Katman/Taban ve Kesme, Delik Sihirbazı (ISO metrik M3–M20: basit, geçiş, diş, faturalı, havşa; standart dışı faturalı/havşa için özel ölçü), Radyus ve Pah (düz ve dairesel kenarlar), Doğrusal/Dairesel Çoğaltma (yön modeldeki düz kenardan, eksen delik/göbek gibi bir silindire veya kenara tıklanarak; seçilen silindir taşınınca eksen de taşınır), Aynala, Referans Düzlem (düzlemden veya modelin düz yüzeyinden ofset).
 - FeatureManager ağacı, özellik düzenlerken geri sarma, bastırma, parça başına geri al/yinele. Bağlı öğesi olan özellik silinirken onay sorulur (bağlı öğelerle birlikte veya yalnızca kendisi); bastırma bağlı öğeleri de bastırır. Radyus/pah kenarları ölçü değişince yeni konumlarında bulunur.
 - Malzeme, hacim, yüzey alanı, kütle; Ölç aracı (uzunluk, mesafe, açı, çap, alan).
 
 **Montaj**
 - Çok parçalı proje; bileşen ekleme, sabitleme, gizleme.
-- Eşleştirmeler: çakışık, eşmerkezli, paralel, dik, mesafe, açı. Bileşen taşıma/döndürme eşleştirmelere uyar. Parça değişince eşleştirmeler aynı özelliğin yeni yüzeyine/eksenine taşınır ve montaj yeniden çözülür.
-- Girişim algılama, patlatılmış görünüm (otomatik ve adım adım), montaj kütlesi.
+- Eşleştirmeler: çakışık, eşmerkezli (**dönmeyi kilitle**), paralel, dik, mesafe (iki düzlem; **eksenler arası**, ör. dişli çiftinin eksen aralığı; **eksen–düzlem**), açı. Çakışık ve mesafede hizalama ters çevrilir (yüz yüze duran parçada bileşen yarım tur döner). SolidWorks gibi **Eşleştir paneli açık kalır**: Enter eşleştirmeyi ekler ve sonrakinin seçimlerini bekler; ✓ veya Esc kapatır. Arkada kalan bileşenin yüzeyi **Alt + tıklama** ile seçilir. Bileşen taşıma/döndürme eşleştirmelere uyar. Parça değişince eşleştirmeler aynı özelliğin yeni yüzeyine/eksenine taşınır ve montaj yeniden çözülür.
+- **Dairesel / Doğrusal Bileşen Çoğaltma:** eşleştirilmiş bir cıvata ve somun, göbeğin eksenine (veya bir yüzeyin normaline) göre çoğaltılır; kopyalar kaynakla birlikte hareket eder, parça listesinde adet olarak sayılır.
+- Girişim algılama (aynı çaplı mil–delik gibi çakışan yüzeyler temas sayılır), patlatılmış görünüm (otomatik — eşleştiği parça da kayıyorsa onun kadar daha uzağa — ve adım adım), montaj kütlesi.
 - STL dışa aktarma (.zip içinde), STL içe aktarma.
 
 **Teknik resim** (SolidWorks çizim ortamıyla karşılaştırma: [docs/TEKNIK-RESIM.md](docs/TEKNIK-RESIM.md))
@@ -33,8 +34,8 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Görünüşler sürüklenerek taşınır; ön görünüş izdüşüm görünüşlerini de taşır, üst/yan görünüş hizasını korur. Görünüş, ölçü ve açıklamalar tıklanarak seçilir, **Delete** ile silinir/gizlenir.
 - Otomatik genel ölçüler, delik konumları, döndürmeyle oluşan kademelerin çapları (mil) ve SolidWorks gibi satır satır delik etiketleri (↧ derinlik, ⌴ fatura, ⌵ havşa); etiketler birbirinin üstüne binmeyecek yere konur, sürüklenebilir.
 - Akıllı ölçü: iki nokta, kenar uzunluğu, paralel kenar aralığı, noktadan kenara, çap/yarıçap ve açı (tolerans: ±, sapma, geçme).
-- Kesit A-A ön, üst veya yan görünüşte; tam veya yarım kesit (taramalı). Detay görünüşü (tarama ve eksen çizgileriyle), yüzey işareti, **geometrik tolerans** (ISO 1101, 14 sembol) ve **referans (datum) işareti**, notlar, diş gösterimi.
-- Montaj resmi: balonlar ve parça listesi.
+- Kesit A-A ön, üst veya yan görünüşte; tam veya yarım kesit (taramalı). Montaj kesitinde bitişik parçalar farklı taranır; cıvata, somun, mil gibi parçalar kesilmeden bırakılabilir. Detay görünüşü (tarama ve eksen çizgileriyle), yüzey işareti, **geometrik tolerans** (ISO 1101, 14 sembol) ve **referans (datum) işareti**, notlar, diş gösterimi.
+- Montaj resmi: balonlar (ölçü yazılarına binmeyecek yere konur; sürüklenir, Delete ile gizlenir) ve parça listesi; liste görünüşlere değmiyorsa ölçek küçültülmez.
 - Teknik resmin kendi geri al/yinele geçmişi vardır; model değişince geometriye artık oturmayan elle ölçüler kırmızı işaretlenir.
 - A4–A0, yatay/dikey; antetli, “parça adı ve ölçek” veya “yalnızca parça” düzenleri.
 - PDF (vektörel 2B, ölçekli 3B görüntü), **DXF** (katmanlı, AutoCAD R12), SVG ve PNG çıktısı.
@@ -109,6 +110,12 @@ Aşağıdaki dört makine parçası `ornekler/makine-parcalari-ciz.mjs` ile ayn�
 - `flansli-boru.tocad.json` — DN50 boru (Ø60,3 × 3,9 × 300), iki ucunda Ø165 × 18 flanş ve PCD 125 üzerinde 4 × Ø18 delik (EN 1092-1 PN16; flanş orta düzlemde aynalanır), birleşimlerde R3. Aynı projede ikinci parça: R76 yarıçaplı 90° dirsek (halka profil 90° döndürülür).
 - `pompa-carki.tocad.json` — kapalı pompa çarkı: Ø200 arka disk, Ø60 göbek, 6 geriye eğik kanat (tek yay çizimde çoğaltılır, 5 mm İnce özellik), Ø200 / Ø90 göz ön örtü, Ø25 mil deliği ve 8 mm kama kanalı.
 - `kademeli-mil.tocad.json` — Ø25 / Ø35 / Ø40 / Ø50 / Ø40 / Ø30 kademeli mil (305 mm, döndürme): 10 × 5 kama kanalı, DIN 471 segman kanalı, uçlarda 1 × 45° pah, omuzlarda R1, Ø6 pim deliği, uçta M10 diş deliği. Teknik resimde kademe çapları otomatik ölçülür.
+
+Aşağıdaki üç montaj `ornekler/montajlar-ciz.mjs` ile aynı şekilde, uygulamanın araçlarıyla kurulur (`npm run ornekler` hepsini yeniden üretir):
+
+- `flansli-kaplin.tocad.json` — iki dökme demir göbek (Ø120 flanş, PCD 90 üzerinde 4 × Ø11, Ø25 delik ve kama kanalı), 4 × M10 × 50 cıvata ve somun, iki Ø25 mil. B göbeği aynı parçadan çoğaltılıp yüz yüze (yarım tur döndürülerek) eşleştirilir; bir cıvata ile somun eşleştirilip göbek ekseni etrafında **dairesel bileşen çoğaltmayla** 4'e çıkarılır (23 yerine 11 eşleştirme). Tüm bileşenler tam konumlu, girişim yok.
+- `mentese.tocad.json` — aynı parçadan iki paslanmaz kanat (B kanadı yarım tur döner, gözler uç uca), dönmesi kilitli Ø4 pim, kanatlar arası **açı** eşleştirmesi (90°).
+- `disli-cifti.tocad.json` — 140 × 80 taban, iki Ø25 mil, `duz-disli`den içe aktarılan iki dişli: delikler **eksenler arası 48 mm** (m · z), ikinci dişli dişleri kavrasın diye kama kanalları arasında 7,5° (yarım diş) açıyla. Girişim yok.
 
 ## Proje yapısı
 

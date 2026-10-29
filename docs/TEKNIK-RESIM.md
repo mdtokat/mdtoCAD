@@ -18,6 +18,7 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Görünüşü sürükleyerek taşıma, izdüşüm hizası | ✅ yeni | Ön görünüş izdüşümleri de taşır; üst yalnızca dikey, yan yalnızca yatay |
 | Görünüşü silme | ✅ yeni | Delete ile gizlenir, panelden geri gelir (ön görünüş hariç) |
 | Kesit görünüşü | ✅ | Ön, üst (yeni) veya yan görünüş; tam veya **yarım kesit** (yeni); “KESİT A-A” |
+| Montaj kesitinde bileşen tarama ve kesitten hariç tutma | ✅ yeni | Bitişik parçalar farklı açı/aralıkla taranır; cıvata, somun, mil gibi parçalar panelden “kesilmeyecek” seçilir |
 | Hizalı / kademeli kesit, kısmi kesit (Broken-out) | ❌ | Yol haritasında |
 | Detay görünüşü | ✅ | Tarama ve eksen çizgileri de (yeni); “DETAY B ÖLÇEK 2:1” |
 | Yardımcı, kırık, kırpılmış görünüş | ❌ | Yol haritasında |
@@ -34,7 +35,7 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Referans (datum) işareti | ✅ yeni | A, B, C… sırayla |
 | Not | ✅ | Sürüklenebilir (yeni) |
 | Eksen çizgisi, merkez işareti, kozmetik diş | ✅ | Otomatik |
-| Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar elle taşınamaz |
+| Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar ölçülere binmez, sürüklenir ve gizlenir (yeni) |
 | Kaynak sembolü, delik tablosu, revizyon tablosu | ❌ | Yol haritasında |
 | Antet, kağıt boyutu, ölçek | ✅ | A4–A0, yatay/dikey |
 | Çok sayfalı resim | ❌ | Yol haritasında |

@@ -48,7 +48,7 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 | `04-teknik-resim.js` | Görünüş verisi (`viewData`: derinlik arabelleğiyle gizli çizgi), sayfa düzeni (`buildSheet`), antet, ölçüler, sayfa yakınlaştırma, SVG/PNG, `saveFile` |
 | `05-pdf.js` | Bağımlılıksız PDF yazıcı (`buildPdf`), SVG→PDF dönüştürücü (`svgToPdfOps`), ölçekli 3B görüntü (`build3DPage`), PDF penceresi |
 | `06-montaj.js` | Proje parçaları, örnek proje, montaj görünümü, eşleştirme çözücü, montaj ağacı/şerit/panel, taşıma/döndürme, STL/ZIP |
-| `07-montaj-araclari.js` | Çizim belgesi soyutlaması (`dwDoc`, `dwS`, `dwSrc`: parça veya montaj), patlatılmış görünüm, girişim algılama, parça listesi ve balonlar |
+| `07-montaj-araclari.js` | Çizim belgesi soyutlaması (`dwDoc`, `dwS`, `dwSrc`: parça veya montaj), patlatılmış görünüm, bileşen çoğaltma (`applyPats`, `openPatPM`), girişim algılama (`cylContact`: aynı çaplı silindir teması), parça listesi ve balonlar |
 | `08-araclar.js` | Delik Sihirbazı paneli, dairesel kenar seçimi, Ölç aracı, çizim işlemleri (budama, ofset, aynalama, çoğaltma) |
 | `09-teknik-resim-ekleri.js` | Kesit (CSG ile yarım uzay çıkarma + tarama), detay görünüşü, tolerans editörü, yüzey işareti, notlar, diş gösterimi |
 | `10-bolgeler.js` | Ekstrüzyon/Döndürme panelinde bölgelerin gösterimi ve tıklanarak seçilmesi |
@@ -66,6 +66,8 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 ### Montaj eşleştirme çözücüsü
 
 Her sabit olmayan bileşen için 6 değişken (öteleme + dönme vektörü, bileşen merkezi etrafında). Eşleştirme artıkları dünya koordinatlarında hesaplanır (`mateRes`), çekirdekteki `lm` ile çözülür. Taşıma sırasında istenen konum başlangıç alınıp eşleştirmelere en yakın çözüme izdüşürülür. Serbestlik analizi çizimdekiyle aynı yöntemi (Jacobian rütbesi) kullanır.
+
+Çözüm bulunamazsa (`solveMates`) sağlanamayan eşleştirmelerdeki bileşenler yarım tur çevrilmiş başlangıçlardan yeniden denenir (`flipStarts`): yüz yüze çakışıkta yüzler başlangıçta aynı yöne bakıyorsa artık tam ters konumdadır, eğim sıfırdır ve çözücü kendiliğinden dönemez. Bileşen çoğaltmasının kopyaları (`c.pat`) çözücüde serbest değildir; `solveAsm` her çözümden sonra `applyPats` ile kopyaları kaynaklarının yeni konumundan yerleştirir.
 
 ### Teknik resim hattı
 

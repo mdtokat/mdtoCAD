@@ -3,7 +3,10 @@
 let skInEl=null;
 function skInputFields(){
   if(!sk||!sk.tool)return null;const t=sk.tool,st=sk.st;
-  if((t==='line'||t==='centerline')&&st.start)return [['L','Uzunluk','mm']];
+  // açı isteğe bağlı (SolidWorks'teki ekranda sayısal giriş gibi): +X yönünden saat yönünün tersine; boşsa yön imleçten
+  if((t==='line'||t==='centerline')&&st.start)return [['L','Uzunluk','mm'],['A','Açı','°',true]];
+  // kanal: ilk merkezden sonra merkezler arası boy ve genişlik (genişlik boşsa yana tıklanır)
+  if(t==='slot'&&st.c1&&!st.c2)return [['L','Boy','mm'],['W','Genişlik','mm']];
   if((t==='rect'||t==='crect')&&st.A)return [['W','Genişlik','mm'],['H','Yükseklik','mm']];
   if(t==='circle'&&st.c)return [['D','Çap','mm']];
   if(t==='polygon'&&st.c)return [['D','Çevre çapı','mm']];
@@ -18,22 +21,29 @@ function openSkInput(first){
   el.style.left=Math.max(4,Math.min(r.width-80-fl.length*110,s[0]+16))+'px';el.style.top=Math.max(4,Math.min(r.height-60,s[1]+16))+'px';
   vpEl.appendChild(el);skInEl=el;
   const ins=[...el.querySelectorAll('input')];const inp=ins[0];inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);
-  const apply=()=>{const v={};for(const i of ins){const x=num(i.value);if(i.value.trim()===''&&i!==ins[0]){v[i.dataset.skin]=null;continue}if(!(isFinite(x)&&x>0)){i.style.borderColor='var(--warn)';i.focus();return}v[i.dataset.skin]=x}
+  const apply=()=>{const v={};for(const i of ins){const x=num(i.value);if(i.value.trim()===''&&i!==ins[0]){v[i.dataset.skin]=null;continue}if(!(isFinite(x)&&(x>0||(i.dataset.skin==='A'&&x>-360)))){i.style.borderColor='var(--warn)';i.focus();return}v[i.dataset.skin]=x}
     closeSkInput();applySkInput(v)};
   el.querySelector('.ok').onclick=apply;el.querySelectorAll('button')[1].onclick=closeSkInput;
   el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();
       // ilk alandan Enter: ikinci alan boşsa ona geç
-      const i=ins.indexOf(document.activeElement);if(i>=0&&i<ins.length-1&&ins[i+1].value.trim()===''){ins[i+1].focus();return}apply()}
+      // (açı gibi isteğe bağlı alana Enter ile geçilmez; Sekme ile geçilir)
+      const i=ins.indexOf(document.activeElement);if(i>=0&&i<ins.length-1&&ins[i+1].value.trim()===''&&!fl[i+1][3]){ins[i+1].focus();return}apply()}
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeSkInput()}});
   return true;
 }
 /* ölçüyü yalnızca çizimi aşırı tanımlamıyorsa ekler */
 function addDrivingDim(c){const f=sk.feat;if(!(sketchRank(f,[c])>sketchRank(f)))return false;c.id=newId(f,'c');c.val=Math.round(c.val*1e4)/1e4;f.cons.push(c);return true}
 function applySkInput(v){
-  if(!sk||!sk.tool)return;const f=sk.feat,st=sk.st,t=sk.tool,px=sk.px||0.3,tol=px*0.5,q=sk.cursor||[0,0];
+  if(!sk||!sk.tool)return;
+  // yazılan değer ızgaraya yuvarlanmasın (ör. 30° açılı çizginin ucu)
+  const g=sk.opts.grid;sk.opts.grid=false;try{applySkInput0(v)}finally{if(sk)sk.opts.grid=g}
+}
+function applySkInput0(v){
+  const f=sk.feat,st=sk.st,t=sk.tool,px=sk.px||0.3,tol=px*0.5,q=sk.cursor||[0,0];
   const n0=f.ents.length;
   if(t==='line'||t==='centerline'){
     const a=st.start,A=P2(a);const s=skSnap(q,px*9,A,null,a);let d=[s.x-A[0],s.y-A[1]];const l=Math.hypot(d[0],d[1]);d=l>1e-9?[d[0]/l,d[1]/l]:[1,0];
+    if(v.A!=null){const r=v.A*Math.PI/180;d=[Math.cos(r),Math.sin(r)].map(x=>Math.abs(x)<1e-12?0:x)}
     toolClick([A[0]+d[0]*v.L,A[1]+d[1]*v.L],px,tol);
     const e=f.ents.length>n0?f.ents[f.ents.length-1]:null;
     if(e&&e.t==='line'){const P=P2(e.a),Q=P2(e.b);const m=[(P[0]+Q[0])/2,(P[1]+Q[1])/2];addDrivingDim({t:'d',p:e.a,q:e.b,val:v.L,lp:[m[0]-d[1]*px*22,m[1]+d[0]*px*22]})}
@@ -47,6 +57,15 @@ function applySkInput(v){
       const cy=(P2(vt.a)[1]+P2(vt.b)[1])/2,cx=(ha[0]+hb[0])/2;
       addDrivingDim({t:'d',p:hz.a,q:hz.b,val:W,lp:[cx,ha[1]+(ha[1]>=cy?off:-off)]});
       addDrivingDim({t:'d',p:vt.a,q:vt.b,val:H,lp:[va[0]+(va[0]>=cx?off:-off),(va[1]+vb[1])/2]})}
+  }else if(t==='slot'){
+    // ikinci merkez boy kadar ötede (yön imleçten, yatay/dikey yakalanır); genişlik verildiyse kanal tamamlanır
+    const C1=P2(st.c1);const s=skSnap(q,px*9,C1,new Set([st.c1]));let d=[s.x-C1[0],s.y-C1[1]];const l=Math.hypot(d[0],d[1]);d=l>1e-9?[d[0]/l,d[1]/l]:[1,0];
+    toolClick([C1[0]+d[0]*v.L,C1[1]+d[1]*v.L],px,tol);if(!st.c2)return;st.Ldim=v.L;
+    if(v.W!=null){const C2=P2(st.c2),nr=[-d[1],d[0]];toolClick([C2[0]+nr[0]*v.W/2,C2[1]+nr[1]*v.W/2],px,tol);
+      const ls=f.ents.slice(n0).filter(e=>e.t==='line'&&!e.cons);
+      // genişlik ölçüsü kanalın ilk ucunun dışında, orta çizgi üstünde
+      if(ls.length===2){const k=v.W/2+px*26;addDrivingDim({t:'dll',e1:ls[0].id,e2:ls[1].id,val:v.W,lp:[C1[0]-d[0]*k,C1[1]-d[1]*k]})}}
+    sk.dirty=true;
   }else if(t==='circle'||t==='polygon'){
     const C=P2(st.c);let d=[q[0]-C[0],q[1]-C[1]];const l=Math.hypot(d[0],d[1]);d=l>1e-9?[d[0]/l,d[1]/l]:[1,0];
     toolClick([C[0]+d[0]*v.D/2,C[1]+d[1]*v.D/2],px,tol);
@@ -55,7 +74,8 @@ function applySkInput(v){
   }
   if(f.ents.length>n0){solveSketch(f);skChanged();if(sk.isNew&&f.cons.filter(x=>DIMT.has(x.t)).length<=2)fitSketch()}
 }
-TOOLHELP.line+=' İlk noktadan sonra rakam yazarsan uzunluk girilir ve ölçü olarak eklenir.';
+TOOLHELP.line+=' İlk noktadan sonra rakam yazarsan uzunluk (ve istersen açı) girilir; uzunluk ölçü olarak eklenir.';
+TOOLHELP.slot+=' İlk merkezden sonra rakam yazarsan boy (merkezler arası) ve genişlik girilir.';
 TOOLHELP.rect+=' İlk köşeden sonra rakam yazarsan genişlik ve yükseklik girilir.';
 TOOLHELP.crect+=' Merkezden sonra rakam yazarsan genişlik ve yükseklik girilir.';
 TOOLHELP.circle+=' Merkezden sonra rakam yazarsan çap girilir.';

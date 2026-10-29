@@ -1,0 +1,684 @@
+{
+ "app": "tocad",
+ "parts": [
+  {
+   "id": "Pmvtsvpwjtrzj",
+   "partName": "Menteşe kanadı",
+   "material": "inox",
+   "features": [
+    {
+     "id": "smvtsvpwoccqh",
+     "type": "sketch",
+     "name": "Çizim1",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {
+      "p1": {
+       "x": 60,
+       "y": 20
+      },
+      "p2": {
+       "x": 60,
+       "y": 0
+      },
+      "p3": {
+       "x": 0,
+       "y": 20
+      }
+     },
+     "ents": [
+      {
+       "t": "line",
+       "a": "O",
+       "b": "p2",
+       "id": "e1"
+      },
+      {
+       "t": "line",
+       "a": "p2",
+       "b": "p1",
+       "id": "e2"
+      },
+      {
+       "t": "line",
+       "a": "p1",
+       "b": "p3",
+       "id": "e3"
+      },
+      {
+       "t": "line",
+       "a": "p3",
+       "b": "O",
+       "id": "e4"
+      }
+     ],
+     "cons": [
+      {
+       "t": "h",
+       "e": "e1",
+       "id": "c1"
+      },
+      {
+       "t": "v",
+       "e": "e2",
+       "id": "c2"
+      },
+      {
+       "t": "h",
+       "e": "e3",
+       "id": "c3"
+      },
+      {
+       "t": "v",
+       "e": "e4",
+       "id": "c4"
+      },
+      {
+       "t": "d",
+       "p": "O",
+       "q": "p2",
+       "val": 60,
+       "lp": [
+        30,
+        -2.88
+       ],
+       "id": "c5"
+      },
+      {
+       "t": "d",
+       "p": "p2",
+       "q": "p1",
+       "val": 20,
+       "lp": [
+        62.88,
+        10
+       ],
+       "id": "c6"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "add",
+     "sketch": "smvtsvpwoccqh",
+     "end": "blind",
+     "depth": 3,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtsvqcz9j0e",
+     "name": "Kanat"
+    },
+    {
+     "id": "smvtsvqd5dn2g",
+     "type": "sketch",
+     "name": "Çizim2",
+     "on": {
+      "kind": "std",
+      "key": "top"
+     },
+     "pts": {},
+     "ents": [
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 5,
+       "id": "e1"
+      }
+     ],
+     "cons": [
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 10,
+       "lp": [
+        5.556216103700036,
+        5.556216103700035
+       ],
+       "id": "c1"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "add",
+     "sketch": "smvtsvqd5dn2g",
+     "end": "blind",
+     "depth": 20,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtsvqt7if2k",
+     "name": "Göz Ø10"
+    },
+    {
+     "id": "smvtsvqtrukqv",
+     "type": "sketch",
+     "name": "Çizim3",
+     "on": {
+      "kind": "std",
+      "key": "top"
+     },
+     "pts": {},
+     "ents": [
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 2,
+       "id": "e1"
+      }
+     ],
+     "cons": [
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 4,
+       "lp": [
+        3.6032859433110187,
+        3.6032859433110183
+       ],
+       "id": "c1"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "cut",
+     "sketch": "smvtsvqtrukqv",
+     "end": "through",
+     "depth": 10,
+     "flip": false,
+     "dir2": true,
+     "end2": "through",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtsvr9y7dxp",
+     "name": "Pim deliği Ø4"
+    },
+    {
+     "id": "smvtsvracxnxg",
+     "type": "sketch",
+     "name": "Çizim4",
+     "on": {
+      "kind": "face",
+      "feat": "fmvtsvqcz9j0e",
+      "which": "far",
+      "sgn": 1
+     },
+     "pts": {
+      "p1": {
+       "x": 40,
+       "y": 10
+      }
+     },
+     "ents": [
+      {
+       "t": "circle",
+       "c": "p1",
+       "r": 2.25,
+       "id": "e1"
+      }
+     ],
+     "cons": [
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 4.5,
+       "lp": [
+        43.780062644073176,
+        13.78006264407317
+       ],
+       "id": "c1"
+      },
+      {
+       "t": "dh",
+       "p": "O",
+       "q": "p1",
+       "val": 40,
+       "lp": [
+        20,
+        14.107489514720909
+       ],
+       "id": "c2"
+      },
+      {
+       "t": "dv",
+       "p": "O",
+       "q": "p1",
+       "val": 10,
+       "lp": [
+        44.10748951472091,
+        5
+       ],
+       "id": "c3"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "cut",
+     "sketch": "smvtsvracxnxg",
+     "end": "through",
+     "depth": 10,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtsvrrperlm",
+     "name": "Vida deliği Ø4,5"
+    }
+   ],
+   "drawing": {
+    "paper": "A3",
+    "orient": "landscape",
+    "method": "E",
+    "scale": "auto",
+    "hidden": true,
+    "centers": true,
+    "autodims": true,
+    "iso": true,
+    "dno": "TZ-0001",
+    "drawn": "",
+    "checked": "",
+    "company": "",
+    "dims": []
+   }
+  },
+  {
+   "id": "Pmvtsvrsdhgcc",
+   "partName": "Pim Ø4",
+   "material": "steel",
+   "features": [
+    {
+     "id": "smvtsvrsirjsk",
+     "type": "sketch",
+     "name": "Çizim1",
+     "on": {
+      "kind": "std",
+      "key": "top"
+     },
+     "pts": {},
+     "ents": [
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 2,
+       "id": "e1"
+      }
+     ],
+     "cons": [
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 4,
+       "lp": [
+        4.782018732440354,
+        4.782018732440353
+       ],
+       "id": "c1"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "add",
+     "sketch": "smvtsvrsirjsk",
+     "end": "mid",
+     "depth": 42,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtsvs8ojinr",
+     "name": "Pim Ø4 × 42"
+    }
+   ],
+   "drawing": {
+    "paper": "A3",
+    "orient": "landscape",
+    "method": "E",
+    "scale": "auto",
+    "hidden": true,
+    "centers": true,
+    "autodims": true,
+    "iso": true,
+    "dno": "TZ-0001",
+    "drawn": "",
+    "checked": "",
+    "company": "",
+    "dims": []
+   }
+  }
+ ],
+ "asms": [
+  {
+   "id": "Amvtsvsdezv6j",
+   "name": "Menteşe",
+   "comps": [
+    {
+     "id": "cmvtsvsdzb5nn",
+     "part": "Pmvtsvpwjtrzj",
+     "T": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+     ],
+     "fixed": true
+    },
+    {
+     "id": "cmvtsvse2xber",
+     "part": "Pmvtsvpwjtrzj",
+     "T": [
+      -3.4281226390888884e-14,
+      1.23506869503076e-14,
+      1,
+      0,
+      -5.369161899622352e-15,
+      -1,
+      1.2350686950307418e-14,
+      0,
+      0.9999999999999999,
+      -5.369161899634651e-15,
+      3.4281226285009766e-14,
+      0,
+      9.947214441053529e-13,
+      -3.3905858049703775e-13,
+      -1.2434497875802157e-13,
+      1
+     ],
+     "fixed": false
+    },
+    {
+     "id": "cmvtsvse4uauz",
+     "part": "Pmvtsvrsdhgcc",
+     "T": [
+      0.9999999999978596,
+      -9.576471290164484e-15,
+      0.000002068999999995571,
+      0,
+      9.576471290187111e-15,
+      1,
+      -1.029089962905788e-21,
+      0,
+      -0.000002068999999995571,
+      2.084298003334426e-20,
+      0.9999999999978596,
+      0,
+      -2.6938602793113354e-23,
+      3.552713678800501e-15,
+      1.554890238397922e-23,
+      1
+     ],
+     "fixed": false
+    }
+   ],
+   "mates": [
+    {
+     "id": "mmvtsvsfuw8tm",
+     "type": "concentric",
+     "a": {
+      "comp": "cmvtsvsdzb5nn",
+      "ref": {
+       "t": "axis",
+       "p": [
+        0,
+        0,
+        0
+       ],
+       "d": [
+        0,
+        1,
+        0
+       ],
+       "r": 5,
+       "t0": 0,
+       "t1": 20.000000000000007
+      }
+     },
+     "b": {
+      "comp": "cmvtsvse2xber",
+      "ref": {
+       "t": "axis",
+       "p": [
+        0,
+        0,
+        0
+       ],
+       "d": [
+        0,
+        1,
+        0
+       ],
+       "r": 5,
+       "t0": 0,
+       "t1": 20.000000000000007
+      }
+     },
+     "flip": false,
+     "val": 10,
+     "name": "Eşmerkezli1"
+    },
+    {
+     "id": "mmvtsvsg7ljcl",
+     "type": "coincident",
+     "a": {
+      "comp": "cmvtsvsdzb5nn",
+      "ref": {
+       "t": "plane",
+       "n": [
+        0,
+        -1,
+        0
+       ],
+       "p": [
+        0,
+        0,
+        0
+       ]
+      }
+     },
+     "b": {
+      "comp": "cmvtsvse2xber",
+      "ref": {
+       "t": "plane",
+       "n": [
+        0,
+        -1,
+        0
+       ],
+       "p": [
+        0,
+        0,
+        0
+       ]
+      }
+     },
+     "flip": false,
+     "val": 10,
+     "lock": false,
+     "name": "Çakışık1"
+    },
+    {
+     "id": "mmvtsvsgjdxg0",
+     "type": "angle",
+     "a": {
+      "comp": "cmvtsvsdzb5nn",
+      "ref": {
+       "t": "plane",
+       "n": [
+        0,
+        0,
+        1
+       ],
+       "p": [
+        0,
+        0,
+        3
+       ]
+      }
+     },
+     "b": {
+      "comp": "cmvtsvse2xber",
+      "ref": {
+       "t": "plane",
+       "n": [
+        0,
+        0,
+        1
+       ],
+       "p": [
+        0,
+        0,
+        3
+       ]
+      }
+     },
+     "flip": false,
+     "val": 90,
+     "lock": false,
+     "name": "Açı1"
+    },
+    {
+     "id": "mmvtsvsgvx6m8",
+     "type": "concentric",
+     "a": {
+      "comp": "cmvtsvse4uauz",
+      "ref": {
+       "t": "axis",
+       "p": [
+        0,
+        0,
+        0
+       ],
+       "d": [
+        0,
+        1,
+        0
+       ],
+       "r": 2,
+       "t0": -21,
+       "t1": 21
+      }
+     },
+     "b": {
+      "comp": "cmvtsvsdzb5nn",
+      "ref": {
+       "t": "axis",
+       "p": [
+        0,
+        0,
+        0
+       ],
+       "d": [
+        0,
+        1,
+        0
+       ],
+       "r": 2,
+       "t0": 0,
+       "t1": 20.000000000000007
+      }
+     },
+     "flip": false,
+     "val": 10,
+     "lock": true,
+     "lk": {
+      "a": [
+       0.000002069,
+       0,
+       1
+      ],
+      "b": [
+       0,
+       0,
+       1
+      ]
+     },
+     "name": "Eşmerkezli2"
+    },
+    {
+     "id": "mmvtsvsknhrvv",
+     "type": "distance",
+     "a": {
+      "comp": "cmvtsvse4uauz",
+      "ref": {
+       "t": "plane",
+       "n": [
+        0,
+        1,
+        0
+       ],
+       "p": [
+        0,
+        21,
+        0
+       ]
+      }
+     },
+     "b": {
+      "comp": "cmvtsvsdzb5nn",
+      "ref": {
+       "t": "plane",
+       "n": [
+        0,
+        1,
+        0
+       ],
+       "p": [
+        0,
+        20,
+        0
+       ]
+      }
+     },
+     "flip": true,
+     "val": 1,
+     "align": true,
+     "lock": false,
+     "name": "Mesafe1"
+    }
+   ]
+  }
+ ],
+ "cur": {
+  "part": "Pmvtsvpwjtrzj",
+  "asm": "Amvtsvsdezv6j"
+ },
+ "version": 3
+}

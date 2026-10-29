@@ -108,13 +108,14 @@ const pcache=new Map();
 const asmHists=new Map();
 function curAsm(){return project.asms.find(a=>a.id===project.cur.asm)||null}
 function asmHistFor(){const a=curAsm();if(!a)return null;if(!asmHists.has(a.id))asmHists.set(a.id,{undo:[],redo:[]});return asmHists.get(a.id)}
-const asmSnap=a=>JSON.stringify({comps:a.comps,mates:a.mates,explode:a.explode||null});
+const asmSnap=a=>JSON.stringify({comps:a.comps,mates:a.mates,explode:a.explode||null,pats:a.pats||null});
+function asmRestore(a,s){const o=JSON.parse(s);a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;a.pats=o.pats||undefined}
 function pushAsmHist(){const a=curAsm(),h=asmHistFor();if(!h)return;h.undo.push(asmSnap(a));if(h.undo.length>80)h.undo.shift();h.redo=[];updUndo()}
 // açık eşleştirme paneli kapanırken açılışta eklediği adımı geri çeker; geri alınacak başka adım kalmayabilir
 function asmUndo(){const a=curAsm(),h=asmHistFor();if(!h||!h.undo.length)return;asmUI.drag=null;closeAsmPM(true,true);if(!h.undo.length){asmChanged(false);renderAsmRibbon();return}
-  h.redo.push(asmSnap(a));const o=JSON.parse(h.undo.pop());a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;asmChanged();renderAsmRibbon()}
+  h.redo.push(asmSnap(a));asmRestore(a,h.undo.pop());asmChanged();renderAsmRibbon()}
 function asmRedo(){const a=curAsm(),h=asmHistFor();if(!h||!h.redo.length)return;asmUI.drag=null;closeAsmPM(true,true);if(!h.redo.length){asmChanged(false);renderAsmRibbon();return}
-  h.undo.push(asmSnap(a));const o=JSON.parse(h.redo.pop());a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;asmChanged();renderAsmRibbon()}
+  h.undo.push(asmSnap(a));asmRestore(a,h.redo.pop());asmChanged();renderAsmRibbon()}
 function partData(p){
   const key=partKey(p);let c=pcache.get(p.id);if(c&&c.key===key)return c;
   const r=(p===state&&model.key===key)?model:partRebuild(p);
@@ -153,7 +154,7 @@ function cylFilter(r){return q=>{const A=new T.Vector3(...r.d),C=new T.Vector3(.
 function asmHighlight(){
   for(const v of asmView.groups.values()){
     for(const ch of [...v.g.children])if(ch.userData.hl){v.g.remove(ch);if(ch.geometry)ch.geometry.dispose()}
-    const exSel=asmUI.pm&&asmUI.pm.type==='explode'&&asmUI.pm.draft.comps.includes(v.g.userData.comp);
+    const exSel=asmUI.pm&&((asmUI.pm.type==='explode'&&asmUI.pm.draft.comps.includes(v.g.userData.comp))||(asmUI.pm.type==='pat'&&asmUI.pm.draft.seeds.includes(v.g.userData.comp)));
     v.mat.emissive.setHex(exSel?0x6a3a00:(asmUI.sel===v.g.userData.comp&&!(asmUI.pm&&asmUI.pm.type==='mate')?0x4a3000:0x000000));
   }
   const P=asmUI.pm;if(!P||P.type!=='mate')return;
@@ -169,15 +170,19 @@ function asmHighlight(){
 }
 /* ---------- seçim ---------- */
 function asmPick(e){
-  ray.setFromCamera(ndc(e),camera);const ms=[...asmView.groups.values()].filter(v=>v.g.visible&&v.m.visible).map(v=>v.m);
-  const h=ray.intersectObjects(ms)[0];if(!h)return null;
+  // görünüm yeni kurulduysa (ör. çoğaltma önizlemesi) grupların dünya matrisi ilk çizime kadar eski kalır
+  asmRoot.updateMatrixWorld();camera.updateMatrixWorld();ray.setFromCamera(ndc(e),camera);const ms=[...asmView.groups.values()].filter(v=>v.g.visible&&v.m.visible).map(v=>v.m);
+  // Alt + tıklama (SolidWorks'teki “Diğerini seç” gibi): öndeki bileşenin arkasında kalan ilk bileşenin yüzeyi
+  const hs=ray.intersectObjects(ms);const h=e.altKey&&hs.length?hs.find(x=>x.object.userData.comp!==hs[0].object.userData.comp):hs[0];if(!h)return null;
   const cid=h.object.userData.comp,v=asmView.groups.get(cid);const poly=v.d.polys[v.d.tp[h.faceIndex]];if(!poly)return {comp:cid,point:h.point};
   const lp=h.point.clone().applyMatrix4(new T.Matrix4().copy(v.g.matrix).invert());const n=poly.plane.n;
+  // birden çok açıklama uyarsa (döndürmenin tüm boyu kaplayan dış zarfı ve asıl silindir) en kısa boylu olan: seçilen yüzeyin kendisi
+  let best=null;
   for(const an of v.d.ann){
     const w=lp.clone().sub(an.C),t=w.dot(an.A);const perp=w.sub(an.A.clone().multiplyScalar(t)).length();
-    if(Math.abs(perp-an.r)<Math.max(0.1,an.r*0.04)&&t>=an.t0-0.2&&t<=an.t1+0.2&&Math.abs(n.x*an.A.x+n.y*an.A.y+n.z*an.A.z)<0.25)
-      return {comp:cid,point:h.point,ref:{t:'axis',p:[an.C.x,an.C.y,an.C.z],d:[an.A.x,an.A.y,an.A.z],r:an.r,t0:an.t0,t1:an.t1}};
+    if(Math.abs(perp-an.r)<Math.max(0.1,an.r*0.04)&&t>=an.t0-0.2&&t<=an.t1+0.2&&Math.abs(n.x*an.A.x+n.y*an.A.y+n.z*an.A.z)<0.25&&(!best||an.t1-an.t0<best.t1-best.t0))best=an;
   }
+  if(best){const an=best;return {comp:cid,point:h.point,ref:{t:'axis',p:[an.C.x,an.C.y,an.C.z],d:[an.A.x,an.A.y,an.A.z],r:an.r,t0:an.t0,t1:an.t1}}}
   return {comp:cid,point:h.point,ref:{t:'plane',n:[n.x,n.y,n.z],p:[n.x*poly.plane.w,n.y*poly.plane.w,n.z*poly.plane.w]}};
 }
 /* ---------- eşleştirme çözücü ---------- */
@@ -186,17 +191,25 @@ function wref(r,M){const p=new T.Vector3(...r.p).applyMatrix4(M);const v=new T.V
 function mateRes(m,P){
   const A=wref(m.a.ref,P[m.a.comp]),B=wref(m.b.ref,P[m.b.comp]);
   const crs=(u,v)=>{const c=u.clone().cross(v);return [c.x*ML,c.y*ML,c.z*ML]};
-  const conc=(X,Y)=>{const w=Y.p.clone().sub(X.p);w.sub(X.d.clone().multiplyScalar(w.dot(X.d)));return [...crs(X.d,Y.d),w.x,w.y,w.z]};
+  const perpOff=(X,Y)=>{const w=Y.p.clone().sub(X.p);return w.sub(X.d.clone().multiplyScalar(w.dot(X.d)))};
+  const conc=(X,Y)=>{const w=perpOff(X,Y);return [...crs(X.d,Y.d),w.x,w.y,w.z]};
+  // dönmesi kilitli eşmerkezli: iki bileşende eksene dik birer yön (kilitlendiği andaki) birbirine paralel kalır
+  const lock=()=>{if(!m.lock||!m.lk)return [];const ua=new T.Vector3(...m.lk.a).transformDirection(P[m.a.comp]),ub=new T.Vector3(...m.lk.b).transformDirection(P[m.b.comp]);return crs(ua,ub)};
   const pa=A.t==='plane',pb=B.t==='plane';const Pl=pa?A:B,Ax=pa?B:A;
   switch(m.type){
     case 'coincident':
       if(pa&&pb){const s=m.flip?-1:1;return [(A.n.x+s*B.n.x)*ML,(A.n.y+s*B.n.y)*ML,(A.n.z+s*B.n.z)*ML,B.p.clone().sub(A.p).dot(A.n)]}
       if(!pa&&!pb)return conc(A,B);
       return [Pl.n.dot(Ax.d)*ML,Ax.p.clone().sub(Pl.p).dot(Pl.n)];
-    case 'concentric':return conc(A,B);
+    case 'concentric':return [...conc(A,B),...lock()];
     case 'parallel':return pa&&pb?crs(A.n,B.n):(!pa&&!pb?crs(A.d,B.d):[Pl.n.dot(Ax.d)*ML]);
     case 'perpendicular':return pa&&pb?[A.n.dot(B.n)*ML]:(!pa&&!pb?[A.d.dot(B.d)*ML]:crs(Pl.n,Ax.d));
-    case 'distance':return [...crs(A.n,B.n),B.p.clone().sub(A.p).dot(A.n)-(m.flip?-1:1)*num(m.val)];
+    case 'distance':
+      // iki eksen: eksenler arası (merkez) mesafe, ör. dişli çiftinin eksen aralığı; eksen–düzlem: eksenin düzleme uzaklığı
+      if(!pa&&!pb)return [...crs(A.d,B.d),perpOff(A,B).length()-num(m.val)];
+      if(pa!==pb)return [Pl.n.dot(Ax.d)*ML,Ax.p.clone().sub(Pl.p).dot(Pl.n)-(m.flip?-1:1)*num(m.val)];
+      // hizalama (align): yüzeyler aynı yöne mi bakıyor; eski dosyalarda yoksa yalnızca paralellik istenir
+      return [...(m.align===undefined?crs(A.n,B.n):[0,1,2].map(k=>(A.n.getComponent(k)+(m.align?-1:1)*B.n.getComponent(k))*ML)),B.p.clone().sub(A.p).dot(A.n)-(m.flip?-1:1)*num(m.val)];
     case 'angle':return [(A.n.dot(B.n)-Math.cos(num(m.val)*Math.PI/180))*ML];
   }
   return [];
@@ -205,7 +218,7 @@ function compCenter(c){const v=asmView.groups.get(c.id);const b=v&&v.d.box;const
 function asmSystem(a,extra){
   const live=new Set(a.comps.map(c=>c.id));
   const ms=a.mates.filter(m=>!m.suppressed).concat(extra||[]).filter(m=>live.has(m.a.comp)&&live.has(m.b.comp));
-  const free=a.comps.filter(c=>!c.fixed);const idx={};free.forEach((c,i)=>idx[c.id]=i*6);
+  const free=a.comps.filter(c=>!c.fixed&&!c.pat);const idx={};free.forEach((c,i)=>idx[c.id]=i*6);
   const M0={},C0={};for(const c of a.comps){M0[c.id]=new T.Matrix4().fromArray(c.T);C0[c.id]=compCenter(c)}
   const poses=X=>{const P={};for(const c of a.comps){const i=idx[c.id];if(i===undefined){P[c.id]=M0[c.id];continue}
     const rv=new T.Vector3(X[i+3],X[i+4],X[i+5]);const ang=rv.length();const R=ang>1e-12?new T.Matrix4().makeRotationAxis(rv.divideScalar(ang),ang):new T.Matrix4();const c0=C0[c.id];
@@ -214,19 +227,43 @@ function asmSystem(a,extra){
   return {n:free.length*6,poses,res,idx,ms};
 }
 function solveAsm(a,opt){
+  const ok=solveMates(a,opt);applyPats(a);return ok;
+}
+function solveMates(a,opt){
   opt=opt||{};const S=asmSystem(a,opt.extra);if(!S.ms.length)return true;
   if(!S.n)return S.res([]).every(v=>Math.abs(v)<1e-3);
-  const r=lm(x=>S.res(x),new Array(S.n).fill(0),200);
-  const mx=(r.r||[]).reduce((m,v)=>Math.max(m,Math.abs(v)),0);const ok=mx<1e-3;
+  const maxAbs=r=>(r.r||[]).reduce((m,v)=>Math.max(m,Math.abs(v)),0);
+  let r=lm(x=>S.res(x),new Array(S.n).fill(0),200);let ok=maxAbs(r)<1e-3;
+  // yüz yüze (ters hizalı) çakışık: bileşenin 180° dönmesi gerekir; yüzler aynı yöne bakarken başlangıç noktası tekildir
+  // (eğim sıfır), çözücü oradan çıkamaz. Sağlanamayan eşleştirmelerin bileşenleri yarım tur çevrilmiş başlangıçlardan denenir.
+  if(!ok&&!opt.quick)for(const X0 of flipStarts(S,r.x)){const q=lm(x=>S.res(x),X0,200);if(maxAbs(q)<1e-3){r=q;ok=true;break}}
   if(ok||opt.force){const P=S.poses(r.x);for(const c of a.comps)c.T=P[c.id].toArray()}
   return ok;
+}
+/* yarım tur başlangıçları: sağlanamayan eşleştirmedeki serbest bileşen, eşleştirme yüzeyinin normaline (eksenine) dik
+   iki eksen ve dünya eksenleri etrafında 180° çevrilir; diğer bileşenler yerinde başlar */
+function flipStarts(S,X){
+  const P=S.poses(X),out=[],seen=new Set();
+  for(const m of S.ms){
+    if(mateRes(m,P).every(v=>Math.abs(v)<1e-3))continue;
+    for(const sd of [m.a,m.b]){const i=S.idx[sd.comp];if(i===undefined)continue;
+      const w=wref(sd.ref,P[sd.comp]),n=(w.n||w.d).clone().normalize();
+      const u1=new T.Vector3(1,0,0).cross(n);if(u1.length()<0.3)u1.set(0,1,0).cross(n);u1.normalize();const u2=n.clone().cross(u1);
+      for(const u of [u1,u2,new T.Vector3(1,0,0),new T.Vector3(0,1,0),new T.Vector3(0,0,1)]){
+        const k=sd.comp+':'+u.toArray().map(v=>v.toFixed(3)).join();if(seen.has(k))continue;seen.add(k);
+        const X0=new Array(S.n).fill(0);X0[i+3]=u.x*Math.PI;X0[i+4]=u.y*Math.PI;X0[i+5]=u.z*Math.PI;out.push(X0)}}
+    if(out.length>=15)break;
+  }
+  return out.slice(0,15);
 }
 function asmDof(a){
   const S=asmSystem(a);const out={};
   let det=new Array(S.n).fill(false);
   if(S.n&&S.ms.length){const X0=new Array(S.n).fill(0);const r0=S.res(X0);const J=numJac(x=>S.res(x),X0,r0);const R=rrefInfo(J,S.n);const isP=new Set(R.piv);det=new Array(S.n).fill(true);
     for(let c=0;c<S.n;c++)if(!isP.has(c)){det[c]=false;R.piv.forEach((pc,row)=>{if(Math.abs(R.A[row][c])>1e-6)det[pc]=false})}}
-  for(const c of a.comps){if(c.fixed){out[c.id]='f';continue}const i=S.idx[c.id];out[c.id]=[0,1,2,3,4,5].every(k=>det[i+k])?'ok':'-'}
+  for(const c of a.comps){if(c.fixed){out[c.id]='f';continue}if(c.pat)continue;const i=S.idx[c.id];out[c.id]=[0,1,2,3,4,5].every(k=>det[i+k])?'ok':'-'}
+  // çoğaltılmış bileşen kaynağı kadar tanımlıdır
+  for(const c of a.comps)if(c.pat)out[c.id]=out[c.seed]==='-'?'-':'ok';
   return out;
 }
 function mateRefOk(s){
@@ -291,7 +328,9 @@ function addComp(partId){
   asmChanged();if(a.comps.length<=2)fitCamera(null);
   toast(`${compName(a,c)} eklendi${c.fixed?' ve sabitlendi':''}.`);
 }
-function delComp(id){const a=curAsm();const c=compById(id);if(!c)return;pushAsmHist();const nm=compName(a,c);a.comps=a.comps.filter(x=>x!==c);a.mates=a.mates.filter(m=>m.a.comp!==id&&m.b.comp!==id);if(a.explode&&a.explode.steps){for(const st of a.explode.steps)st.comps=st.comps.filter(x=>x!==id);a.explode.steps=a.explode.steps.filter(st=>st.comps.length)}if(asmUI.sel===id)asmUI.sel=null;asmChanged();toast(`${nm} ve eşleştirmeleri silindi.`,{label:'Geri al',fn:asmUndo})}
+function delComp(id){const a=curAsm();const c=compById(id);if(!c)return;
+  if(c.pat){toast('Bu bileşen bir bileşen çoğaltmasıyla oluşturuldu. Çoğaltmayı düzenle veya sil.');return}
+  pushAsmHist();if(a.pats){for(const p of a.pats)p.seeds=p.seeds.filter(x=>x!==id);a.pats=a.pats.filter(p=>p.seeds.length);if(!a.pats.length)delete a.pats}const nm=compName(a,c);a.comps=a.comps.filter(x=>x!==c);a.mates=a.mates.filter(m=>m.a.comp!==id&&m.b.comp!==id);if(a.explode&&a.explode.steps){for(const st of a.explode.steps)st.comps=st.comps.filter(x=>x!==id);a.explode.steps=a.explode.steps.filter(st=>st.comps.length)}if(asmUI.sel===id)asmUI.sel=null;asmChanged();toast(`${nm} ve eşleştirmeleri silindi.`,{label:'Geri al',fn:asmUndo})}
 
 /* ---------- ağaç ---------- */
 function renderAsmTree(){
@@ -303,9 +342,13 @@ function renderAsmTree(){
   if(!a.comps.length)h+=`<div class="tree-empty">Şeritten “Bileşen Ekle” ile proje parçalarını ekle.</div>`;
   for(const c of a.comps){
     const st=asmView.dof[c.id];const pre=st==='f'?'(f) ':(st==='-'?'<em>(-)</em> ':'');
+    if(c.pat){h+=`<div class="ti child ${asmUI.sel===c.id?'sel':''} ${c.hidden?'sup':''}" data-comp="${c.id}" title="Bileşen çoğaltmasıyla oluşturuldu"><span class="ic">${IC.part}</span><span class="nm">${pre}${esc(compName(a,c))}</span><span class="acts"><button data-ca="open" title="Parçayı düzenle">${IC.edit}</button><button data-ca="hide" title="${c.hidden?'Göster':'Gizle'}">${IC.eye}</button></span></div>`;continue}
     h+=`<div class="ti ${asmUI.sel===c.id?'sel':''} ${c.hidden?'sup':''}" data-comp="${c.id}" title="${c.fixed?'Sabit':st==='-'?'Tam konumlanmamış':'Tam konumlanmış'}"><span class="ic">${IC.part}</span><span class="nm">${pre}${esc(compName(a,c))}</span><span class="acts">`+
       `<button data-ca="open" title="Parçayı düzenle">${IC.edit}</button><button data-ca="fix" title="${c.fixed?'Serbest bırak':'Sabitle'}">${c.fixed?IC.unfix:IC.fix}</button><button data-ca="hide" title="${c.hidden?'Göster':'Gizle'}">${IC.eye}</button><button data-ca="del" title="Montajdan çıkar">${IC.trash}</button></span></div>`;
   }
+  if(a.pats&&a.pats.length){h+=`<div class="tree-sec">Bileşen çoğaltmaları (${a.pats.length})</div>`;
+    for(const p of a.pats){const sel=asmUI.pm&&asmUI.pm.type==='pat'&&asmUI.pm.editId===p.id;
+      h+=`<div class="ti child ${sel?'sel':''} ${p.err?'err':''}" data-apat="${p.id}" title="${esc(p.err||'')}"><span class="ic">${IC[p.type==='circ'?'cpattern':'lpattern']}</span><span class="nm">${esc(p.name)} <span style="color:var(--muted)">(${p.seeds.length} bileşen × ${p.n})</span></span><span class="acts"><button data-pa2="edit" title="Düzenle">${IC.edit}</button><button data-pa2="del" title="Sil">${IC.trash}</button></span></div>`}}
   h+=`<div class="tree-sec">Eşleştirmeler (${a.mates.length})</div>`;
   if(!a.mates.length)h+=`<div class="tree-empty">Şeritten “Eşleştir” ile iki bileşenin yüzeylerini veya eksenlerini seç.</div>`;
   for(const m of a.mates){
@@ -319,7 +362,8 @@ function renderAsmTree(){
 }
 function asmTreeClick(e){
   const aa=e.target.closest('[data-aa]');
-  if(aa){if(aa.dataset.aa==='new')newAsm();else{const a=curAsm();if(!a)return;const i=project.asms.indexOf(a);project.asms.splice(i,1);project.cur.asm=project.asms[0]?project.asms[0].id:null;asmUI.sel=null;closeAsmPM(true,true);asmChanged();toast(`“${a.name}” silindi.`,{label:'Geri al',fn:()=>{project.asms.splice(i,0,a);project.cur.asm=a.id;asmChanged()}})}return}
+  // açık panel, montaj değişmeden önce kendi montajında kapatılır (yoksa önizleme/geçmiş diğer montaja uygulanırdı)
+  if(aa){closeAsmPM(true,true);if(aa.dataset.aa==='new')newAsm();else{const a=curAsm();if(!a)return;const i=project.asms.indexOf(a);project.asms.splice(i,1);project.cur.asm=project.asms[0]?project.asms[0].id:null;asmUI.sel=null;asmChanged();toast(`“${a.name}” silindi.`,{label:'Geri al',fn:()=>{project.asms.splice(i,0,a);project.cur.asm=a.id;asmChanged()}})}return}
   const ap=e.target.closest('[data-addp]');if(ap){if(!curAsm()){newAsm()}addComp(ap.dataset.addp);return}
   const ct=e.target.closest('[data-comp]');
   if(ct){const id=ct.dataset.comp;const b=e.target.closest('[data-ca]');const c=compById(id);if(!c)return;
@@ -327,7 +371,12 @@ function asmTreeClick(e){
     const k=b.dataset.ca;
     if(k==='open'){switchPart(c.part);setTab('model');return}
     if(k==='del'){delComp(id);return}
+    if(k==='fix'&&c.pat)return;
     pushAsmHist();if(k==='fix')c.fixed=!c.fixed;if(k==='hide')c.hidden=!c.hidden;asmChanged();return}
+  const ap2=e.target.closest('[data-apat]');
+  if(ap2){const a=curAsm();const p=(a.pats||[]).find(x=>x.id===ap2.dataset.apat);if(!p)return;const b=e.target.closest('[data-pa2]');
+    if(b&&b.dataset.pa2==='del'){closeAsmPM(true,true);pushAsmHist();a.pats=a.pats.filter(x=>x!==p);if(!a.pats.length)delete a.pats;applyPats(a);asmChanged();toast(`“${p.name}” ve kopyaları silindi.`,{label:'Geri al',fn:asmUndo});return}
+    openPatPM(p.type,p);return}
   const mt=e.target.closest('[data-mate]');
   if(mt){const a=curAsm();const m=a.mates.find(x=>x.id===mt.dataset.mate);if(!m)return;const b=e.target.closest('[data-ma]');const k=b?b.dataset.ma:'edit';
     if(k==='edit'){openMatePM(m);return}
@@ -335,7 +384,7 @@ function asmTreeClick(e){
 }
 function asmTreeDbl(e){const ct=e.target.closest('[data-comp]');if(ct&&!e.target.closest('[data-ca]')){const c=compById(ct.dataset.comp);if(c){switchPart(c.part);setTab('model')}}}
 function asmTreeChange(e){
-  if(e.target.id==='asmSel'){project.cur.asm=e.target.value;asmUI.sel=null;closeAsmPM(true,true);asmChanged();fitCamera(VIEWDIRS.iso,false);return}
+  if(e.target.id==='asmSel'){closeAsmPM(true,true);project.cur.asm=e.target.value;asmUI.sel=null;asmChanged();fitCamera(VIEWDIRS.iso,false);return}
   if(e.target.id==='asmNameIn'){const a=curAsm();if(a){a.name=e.target.value.trim()||'Montaj';saveState();renderAsmTree()}}
 }
 
@@ -344,13 +393,14 @@ function renderAsmRibbon(){
   const t=asmUI.tool;
   $('#ribbon').innerHTML=rb('ainsert','asmInsert','Bileşen Ekle')+rb('amate','mate','Eşleştir',asmUI.pm&&asmUI.pm.type==='mate'?'on':'')+'<div class="rsep"></div>'+
     rb('amove','move','Bileşeni Taşı',t==='move'?'on':'')+rb('arotate','rotate','Bileşeni Döndür',t==='rotate'?'on':'')+'<div class="rsep"></div>'+
+    rb('acpat','cpattern','Dairesel Bileşen Çoğaltma',asmUI.pm&&asmUI.pm.type==='pat'&&asmUI.pm.draft.type==='circ'?'on':'')+rb('alpat','lpattern','Doğrusal Bileşen Çoğaltma',asmUI.pm&&asmUI.pm.type==='pat'&&asmUI.pm.draft.type==='lin'?'on':'')+'<div class="rsep"></div>'+
     rb('ameasure','measure','Ölç',meas?'on':'')+'<div class="rsep"></div>'+rb('aexplode','explode','Patlatılmış Görünüm',asmUI.pm&&asmUI.pm.type==='explode'?'on':'')+rb('atoggle','explode',asmUI.exf>0.5?'Topla':'Patlat',asmUI.exf>0.5?'on':'')+rb('ainterf','interf','Girişim Algıla',asmUI.pm&&asmUI.pm.type==='interf'?'on':'')+'<div class="rsep"></div>'+
     rb('adraw','asmDraw','Montaj Resmi')+rb('astl','stl','Montajı STL olarak al');
   fitRibbon($('#ribbon'));
 }
 function asmCmd(c){
   if(c==='ainsert'){if(!curAsm())newAsm();else openInsertPM();return}
-  if(c==='amate'){collapseIfExploded();openMatePM(null);return}
+  if(c==='amate'){const P=asmUI.pm;if(P&&P.type==='mate'&&P.isNew&&!P.draft.a&&!P.draft.b){closeAsmPM();return}collapseIfExploded();openMatePM(null);return}
   if(c==='amove'||c==='arotate'){const t=c==='amove'?'move':'rotate';closeAsmPM(true);collapseIfExploded();asmUI.tool=asmUI.tool===t?null:t;setControlsForSketch(!!asmUI.tool);renderAsmRibbon();
     prompt_(asmUI.tool?(t==='move'?'Taşımak için bileşeni sürükle. Eşleştirmeler hareketi sınırlar. Bitirmek için Esc.':'Döndürmek için bileşeni sürükle. Bitirmek için Esc.'):null);return}
   if(c==='astl'){exportAsmSTL();return}
@@ -358,6 +408,7 @@ function asmCmd(c){
   if(c==='ameasure'){if(meas)closeMeasure();else openMeasure();return}
   if(c==='atoggle'){const a=curAsm();if(!a||!a.comps.length)return;setExplode(asmUI.exf<0.5);return}
   if(c==='ainterf'){openInterfPM();return}
+  if(c==='acpat'||c==='alpat'){collapseIfExploded();openPatPM(c==='acpat'?'circ':'lin',null);return}
   if(c==='adraw'){openAsmDrawing();return}
 }
 
@@ -368,22 +419,30 @@ function openMatePM(existing){
   closeAsmPM(true);asmUI.tool=null;setControlsForSketch(false);prompt_(null);
   asmUI.pm={type:'mate',draft:existing?clone(existing):{id:uid('m'),type:null,a:null,b:null,flip:false,val:10},isNew:!existing,editId:existing?existing.id:null,orig:a.comps.map(c=>({id:c.id,T:c.T.slice()})),err:''};
   const h0=asmHistFor();asmUI.pm.redo0=h0?h0.redo.slice():null;
-  pushAsmHist();renderAsmRibbon();renderAsmPM();asmHighlight();renderAsmTree();
+  pushAsmHist();if(h0){asmUI.pm.hn=h0.undo.length;asmUI.pm.hs=h0.undo[h0.undo.length-1]}renderAsmRibbon();renderAsmPM();asmHighlight();renderAsmTree();
   if(existing)previewMate();
 }
 function restoreOrig(){const P=asmUI.pm,a=curAsm();if(!P||!P.orig||!a)return;for(const o of P.orig){const c=a.comps.find(x=>x.id===o.id);if(c)c.T=o.T.slice()}}
 function closeAsmPM(silent,dropHist){
   const P=asmUI.pm;if(!P)return;
-  if(P.type==='mate'){restoreOrig();const h=asmHistFor();if(h&&h.undo.length&&!P.committed){h.undo.pop();if(P.redo0)h.redo=P.redo0}updateAsmPoses()}
+  // açılışta eklenen geri alma adımı geri çekilir; panel açıkken başka adım eklendiyse (ör. bileşen gizleme) yalnızca o adım çıkarılır
+  if(P.type==='mate'){restoreOrig();const h=asmHistFor();if(h&&h.undo.length&&!P.committed){
+    if(h.undo.length===P.hn||P.hn===undefined){h.undo.pop();if(P.redo0)h.redo=P.redo0}else{const i=h.undo.lastIndexOf(P.hs);if(i>=0)h.undo.splice(i,1)}}updateAsmPoses()}
   if(P.type==='interf')setGhost(false);
+  if(P.type==='pat'&&!P.committed){const a=curAsm(),h=asmHistFor();if(a){asmRestore(a,P.snap);if(h&&h.undo[h.undo.length-1]===P.snap){h.undo.pop();if(P.redo0)h.redo=P.redo0}buildAsmView();asmView.dof=asmDof(a);if(!silent)renderAsmTree()}}
   asmUI.pm=null;asmHighlight();if(!silent){renderAsmPM();renderAsmTree();renderAsmRibbon()}
 }
-function mateTypesFor(a,b){const pa=a.ref.t==='plane',pb=b.ref.t==='plane';if(pa&&pb)return ['coincident','parallel','perpendicular','distance','angle'];if(!pa&&!pb)return ['concentric','parallel','perpendicular'];return ['coincident','parallel','perpendicular']}
+function mateTypesFor(a,b){const pa=a.ref.t==='plane',pb=b.ref.t==='plane';if(pa&&pb)return ['coincident','parallel','perpendicular','distance','angle'];if(!pa&&!pb)return ['concentric','parallel','perpendicular','distance'];return ['coincident','parallel','perpendicular','distance']}
 function curWorld(s){const c=compById(s.comp);return wref(s.ref,new T.Matrix4().fromArray(c.T))}
 function setMateType(t){
   const P=asmUI.pm,d=P.draft;d.type=t;const A=curWorld(d.a),B=curWorld(d.b);
   if(t==='coincident'&&A.t==='plane'&&B.t==='plane')d.flip=A.n.dot(B.n)>0.3;
-  if(t==='distance'){const dist=B.p.clone().sub(A.p).dot(A.n);d.flip=dist<0;d.val=Math.abs(dist)>1e-3?Math.round(Math.abs(dist)*100)/100:10}
+  if(t==='distance'){const pa=A.t==='plane',pb=B.t==='plane',Pl=pa?A:B,Ax=pa?B:A;
+    // iki eksen: şimdiki eksen aralığı; eksen–düzlem: eksenin düzleme uzaklığı; iki düzlem: aralık
+    const dist=!pa&&!pb?(()=>{const w=B.p.clone().sub(A.p);return w.sub(A.d.clone().multiplyScalar(w.dot(A.d))).length()})():pa!==pb?Ax.p.clone().sub(Pl.p).dot(Pl.n):B.p.clone().sub(A.p).dot(A.n);
+    d.flip=dist<0;d.val=Math.abs(dist)>1e-3?Math.round(Math.abs(dist)*100)/100:10;
+    if(pa&&pb)d.align=A.n.dot(B.n)>0;else delete d.align}
+  if(t!=='concentric')d.lock=false;
   if(t==='angle'){const ang=Math.acos(Math.max(-1,Math.min(1,A.n.dot(B.n))))*180/Math.PI;d.val=Math.round(ang)||90}
   previewMate();
 }
@@ -397,8 +456,10 @@ function previewMate(){
   }else P.err='';
   updateAsmPoses();asmHighlight();renderAsmPM();
 }
-function commitMate(){
+function commitMate(close){
   const P=asmUI.pm,a=curAsm(),d=P.draft;
+  // seçimsiz panelde Tamam / Enter paneli kapatır
+  if(P.isNew&&!d.a&&!d.b){closeAsmPM();return}
   if(!d.a||!d.b||!d.type){toast('İki seçim yap ve bir eşleştirme türü seç.');return}
   // yazılıp henüz önizlenmemiş değer (ör. mesafe yazılıp hemen Enter) önce çözülür
   if(asmPmInput.t)previewMate();
@@ -408,6 +469,8 @@ function commitMate(){
   if(!d.name||P.isNew){let n=1;while(a.mates.some(m=>m.name===MATE_T[d.type]+n&&m.id!==d.id))n++;d.name=MATE_T[d.type]+n}
   if(P.isNew)a.mates.push(d);else{const i=a.mates.findIndex(m=>m.id===P.editId);if(i>=0)a.mates[i]=d}
   P.committed=true;asmUI.pm=null;asmChanged(false);renderAsmRibbon();
+  // SolidWorks gibi: yeni eşleştirme eklenince panel açık kalır ve sonraki eşleştirmenin seçimlerini bekler (✓ veya Esc kapatır)
+  if(P.isNew&&!close){openMatePM(null);if(asmUI.pm)asmUI.pm.last=d.name;renderAsmPM()}
 }
 function selLabel(s){const a=curAsm(),c=compById(s.comp);return `${c?compName(a,c):'?'}: ${s.ref.t==='plane'?'düz yüzey':'silindir ekseni'+(s.ref.r?` (Ø${fmt(s.ref.r*2)})`:'')}`}
 function renderAsmPM(){
@@ -417,6 +480,7 @@ function renderAsmPM(){
   ws.classList.add('pmon');requestAnimationFrame(resize);
   let title='',b='';
   if(P.type==='explode'){title='Patlatılmış Görünüm';b=explodePMBody()}
+  else if(P.type==='pat'){title=P.draft.type==='circ'?'Dairesel Bileşen Çoğaltma':'Doğrusal Bileşen Çoğaltma';b=patPMBody()}
   else if(P.type==='interf'){title='Girişim Algılama';b=interfPMBody()}
   else if(P.type==='insert'){
     title='Bileşen Ekle';
@@ -426,33 +490,50 @@ function renderAsmPM(){
     let s=`<div class="lst">`;
     s+=d.a?`<div><span>1. ${esc(selLabel(d.a))}</span><button data-mclr="a" aria-label="Seçimi kaldır">✕</button></div>`:`<div><span style="color:var(--muted)">1. Bir bileşende yüzey veya silindir seç</span></div>`;
     s+=d.b?`<div><span>2. ${esc(selLabel(d.b))}</span><button data-mclr="b" aria-label="Seçimi kaldır">✕</button></div>`:`<div><span style="color:var(--muted)">2. Başka bir bileşende yüzey veya silindir seç</span></div>`;
-    s+=`</div><p class="note">Düz yüzeye tıklarsan düzlem, delik veya mil yüzeyine tıklarsan ekseni seçilir.</p>`;
-    b=grp('Eşleştirme seçimleri',s);
+    s+=`</div><p class="note">Düz yüzeye tıklarsan düzlem, delik veya mil yüzeyine tıklarsan ekseni seçilir. Arkada kalan bileşen için <b>Alt</b> + tıkla.</p>`;
+    if(P.last)b+=`<div class="pm-ok">✓ ${esc(P.last)} eklendi. Sonraki eşleştirme için seçim yap; bitirmek için ✓ veya Esc.</div>`;
+    b+=grp('Eşleştirme seçimleri',s);
     if(d.a&&d.b){
       const types=mateTypesFor(d.a,d.b);
       let t=`<div class="relbtns">${types.map(k=>`<button data-mtype="${k}" style="${d.type===k?'border-color:var(--accent);background:var(--accent-soft)':''}"><b>${MATE_G[k]}</b>${MATE_T[k]}</button>`).join('')}</div>`;
-      if(d.type==='distance')t+=fNum('Mesafe','val','mm',d);
+      const pa=d.a.ref.t==='plane',pb=d.b.ref.t==='plane';
+      if(d.type==='distance')t+=fNum(!pa&&!pb?'Eksenler arası mesafe':'Mesafe','val','mm',d);
       if(d.type==='angle')t+=fNum('Açı','val','°',d);
-      if(d.type==='coincident'||d.type==='distance')t+=`<button type="button" class="sbtn" data-mflip="1">⇅ Hizalamayı ters çevir</button>`;
+      if(d.type==='coincident'&&pa&&pb)t+=`<button type="button" class="sbtn" data-mflip="1">⇅ Hizalamayı ters çevir</button>`;
+      if(d.type==='distance'&&(pa||pb))t+=`<button type="button" class="sbtn" data-mflip="1">⇅ Ölçüyü ters çevir</button>`;
+      if(d.type==='distance'&&pa&&pb)t+=`<button type="button" class="sbtn" data-malign="1" style="margin-top:6px">⇄ Hizalamayı ters çevir (${d.align?'aynı yön':'karşılıklı'})</button>`;
+      if(d.type==='concentric')t+=`<label class="chk"><input type="checkbox" data-mlock ${d.lock?'checked':''}> Dönmeyi kilitle</label><p class="note">Bileşen eksen etrafında dönmez (ör. cıvata, pim); şimdiki açısı korunur.</p>`;
       b+=grp('Standart eşleştirmeler',t);
     }
     if(P.err)b+=`<div class="pm-err on">${esc(P.err)}</div>`;
   }
-  el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${title}</div><div class="pm-sub">${esc((curAsm()||{}).name||'')}</div></div><div class="pm-actions">${P.type==='mate'||P.type==='explode'?`<button class="ok" data-apm="ok" title="Tamam" aria-label="Tamam">${IC.ok}</button>`:''}<button data-apm="cancel" title="${P.type==='mate'?'İptal':'Kapat'}" aria-label="Kapat">${IC.x}</button></div></div><div class="pm-body">${b}</div>`;
+  // önizleme paneli yeniden çizer: yazılmakta olan alan odakta ve imleç yerinde kalır (yoksa ikinci rakam kaybolurdu)
+  const ae=document.activeElement,fk=ae&&el.contains(ae)&&ae.dataset&&ae.dataset.k,fs=fk&&ae.selectionStart,fe=fk&&ae.selectionEnd,fv=fk&&ae.value;
+  el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${title}</div><div class="pm-sub">${esc((curAsm()||{}).name||'')}</div></div><div class="pm-actions">${P.type==='mate'||P.type==='explode'||P.type==='pat'?`<button class="ok" data-apm="ok" title="Tamam" aria-label="Tamam">${IC.ok}</button>`:''}<button data-apm="cancel" title="${P.type==='mate'?'İptal':'Kapat'}" aria-label="Kapat">${IC.x}</button></div></div><div class="pm-body">${b}</div>`;
+  if(fk){const f=el.querySelector(`[data-k="${fk}"]`);if(f){if(f.value!==fv)f.value=fv;f.focus();try{f.setSelectionRange(fs,fe)}catch(e){}}}
 }
 function asmPmClick(e){
   if(meas&&measurePmClick(e))return;
   const P=asmUI.pm;if(!P)return;
-  const a=e.target.closest('[data-apm]');if(a){if(a.dataset.apm==='ok'&&P.type==='mate')commitMate();else closeAsmPM();return}
+  const a=e.target.closest('[data-apm]');if(a){if(a.dataset.apm==='ok'&&P.type==='mate')commitMate(true);else if(a.dataset.apm==='ok'&&P.type==='pat')commitPat();else closeAsmPM();return}
+  if(P.type==='pat'&&patPmClick(e))return;
   if(P.type==='explode'&&explodePmClick(e))return;
   if(P.type==='interf'&&interfPmClick(e))return;
   const ap=e.target.closest('[data-addp]');if(ap){addComp(ap.dataset.addp);return}
   const t=e.target.closest('[data-mtype]');if(t){setMateType(t.dataset.mtype);return}
   if(e.target.closest('[data-mflip]')){P.draft.flip=!P.draft.flip;previewMate();return}
-  const c=e.target.closest('[data-mclr]');if(c){P.draft[c.dataset.mclr]=null;P.draft.type=null;previewMate();return}
+  if(e.target.closest('[data-malign]')){P.draft.align=!P.draft.align;previewMate();return}
+  const c=e.target.closest('[data-mclr]');if(c){P.draft[c.dataset.mclr]=null;P.draft.type=null;P.draft.lock=false;delete P.draft.lk;previewMate();return}
 }
-function asmPmInput(e){const P=asmUI.pm;if(P&&P.type==='explode'){const t=e.target;if(t.dataset.k==='dist'){const v=num(t.value);if(isFinite(v))P.draft.dist=v}return}if(!P||P.type!=='mate')return;const t=e.target;if(t.dataset.num){const v=num(t.value);if(isFinite(v)&&v>=0){P.draft.val=v;clearTimeout(asmPmInput.t);asmPmInput.t=setTimeout(previewMate,250)}}}
-function asmPmChange(e){const P=asmUI.pm;if(!P)return;if(P.type==='explode')explodePmChange(e);if(P.type==='interf')interfPmChange(e)}
+function asmPmInput(e){const P=asmUI.pm;if(P&&P.type==='pat'){patPmInput(e);return}if(P&&P.type==='explode'){const t=e.target;if(t.dataset.k==='dist'){const v=num(t.value);if(isFinite(v))P.draft.dist=v}return}if(!P||P.type!=='mate')return;const t=e.target;if(t.dataset.num){const v=num(t.value);if(isFinite(v)&&v>=0){P.draft.val=v;clearTimeout(asmPmInput.t);asmPmInput.t=setTimeout(previewMate,250)}}}
+function asmPmChange(e){const P=asmUI.pm;if(!P)return;if(P.type==='explode')explodePmChange(e);if(P.type==='interf')interfPmChange(e);
+  if(P.type==='mate'&&e.target.hasAttribute('data-mlock')){const d=P.draft;d.lock=e.target.checked;if(d.lock)setLockRef(d);previewMate()}}
+/* dönme kilidi: eksene dik bir dünya yönü, iki bileşenin kendi koordinatlarına çevrilip saklanır (şimdiki göreli açı korunur) */
+function setLockRef(d){
+  const A=curWorld(d.a).d.clone().normalize();const u=new T.Vector3(1,0,0).cross(A);if(u.length()<0.3)u.set(0,1,0).cross(A);u.normalize();
+  const loc=s=>{const c=compById(s.comp);return u.clone().transformDirection(new T.Matrix4().fromArray(c.T).invert()).toArray().map(v=>Math.round(v*1e9)/1e9)};
+  d.lk={a:loc(d.a),b:loc(d.b)};
+}
 
 /* ---------- işaretçi ---------- */
 function asmDown(e){
@@ -460,6 +541,7 @@ function asmDown(e){
   if(!asmUI.tool||e.button!==0)return;
   const h=asmPick(e);if(!h)return;const c=compById(h.comp);if(!c)return;
   if(c.fixed){toast('Sabit (f) bileşen taşınamaz. Ağaçtan serbest bırakabilirsin.');return}
+  if(c.pat){toast('Çoğaltılmış bileşen kaynağıyla birlikte hareket eder; kaynak bileşeni taşı.');return}
   const h0=asmHistFor(),redo0=h0?h0.redo.slice():null;pushAsmHist();
   const dir=new T.Vector3();camera.getWorldDirection(dir);
   asmUI.drag={redo0,c,T0:new T.Matrix4().fromArray(c.T),last:c.T.slice(),p0:h.point.clone(),x:e.clientX,y:e.clientY,plane:new T.Plane().setFromNormalAndCoplanarPoint(dir,h.point),center:compCenter(c),moved:false,pend:null};
@@ -486,7 +568,8 @@ function applyDrag(d){
     M=new T.Matrix4().makeTranslation(c0.x,c0.y,c0.z).multiply(R).multiply(new T.Matrix4().makeTranslation(-c0.x,-c0.y,-c0.z)).multiply(d.T0);
   }
   d.c.T=M.toArray();
-  if(a.mates.some(m=>!m.suppressed&&(m.a.comp===d.c.id||m.b.comp===d.c.id))){if(!solveAsm(a))d.c.T=d.last.slice()}
+  if(a.mates.some(m=>!m.suppressed&&(m.a.comp===d.c.id||m.b.comp===d.c.id))){if(!solveAsm(a,{quick:true}))d.c.T=d.last.slice()}
+  else if(a.pats)applyPats(a); // çoğaltma kaynağı (veya eksenin bileşeni) sürüklenirken kopyalar da izler
   d.last=d.c.T.slice();updateAsmPoses();
 }
 function asmUp(e){
@@ -497,8 +580,13 @@ function asmUp(e){
   const P=asmUI.pm;
   if(P&&P.type==='explode'){const h=asmPick(e);if(!h)return;const l=P.draft.comps;const i=l.indexOf(h.comp);if(i>=0)l.splice(i,1);else l.push(h.comp);renderAsmPM();asmHighlight();return}
   if(P&&P.type==='interf')return;
+  if(P&&P.type==='pat'){patClick(e);return}
   if(P&&P.type==='mate'){
-    const h=asmPick(e);if(!h||!h.ref)return;const s={comp:h.comp,ref:h.ref};const d2=P.draft;
+    const h=asmPick(e);if(!h||!h.ref)return;
+    if(compById(h.comp)&&compById(h.comp).pat){toast('Çoğaltılmış bileşen eşleştirilemez; çoğaltmanın kaynak bileşenini kullan.');return}
+    const s={comp:h.comp,ref:h.ref};const d2=P.draft;
+    // seçim değişince dönme kilidinin yönleri geçersizdir (yeniden işaretlenir)
+    if(d2.lock){d2.lock=false;delete d2.lk}
     if(!d2.a){d2.a=s}
     else if(!d2.b||d2.b){if(h.comp===d2.a.comp){d2.a=s;d2.b=null;d2.type=null}else d2.b=s}
     if(d2.a&&d2.b){const types=mateTypesFor(d2.a,d2.b);if(!types.includes(d2.type)){setMateType(types[0]);return}previewMate();return}

@@ -68,7 +68,7 @@ function dimStageOverlay(p){
 
 /* ================= SEÇME, SÜRÜKLEME, SİLME ================= */
 let dwSel=null;
-const DW_ORDER=['lbl','dim','auto','gdt','datum','note','surf','detail','view'];
+const DW_ORDER=['bal','lbl','dim','auto','gdt','datum','note','surf','detail','view'];
 function dwHitAt(p,ptype){
   if(!dctx||!dctx.hits)return null;const pad=pxToSheet(ptype==='mouse'?3:8);let best=null;
   for(const h of dctx.hits){const b=h.box;if(!b)continue;if(p[0]<b[0]-pad||p[0]>b[2]+pad||p[1]<b[1]-pad||p[1]>b[3]+pad)continue;
@@ -79,8 +79,8 @@ const sameHit=(a,b)=>a&&b&&a.t===b.t&&a.i===b.i&&a.k===b.k;
 function dwSelect(h){dwSel=h?{t:h.t,i:h.i,k:h.k}:null;drawOverlay(null);dwStatus()}
 function dwStatus(){
   const t=$('#dwTip');if(dimMode||dwTool)return;if(!dwSel){t.classList.remove('on');return}
-  const N={view:'Görünüş',dim:'Ölçü',auto:'Otomatik ölçü',lbl:'Etiket',note:'Not',surf:'Yüzey işareti',detail:'Detay görünüşü',gdt:'Geometrik tolerans',datum:'Referans işareti'};
-  t.classList.add('on');t.textContent=`${N[dwSel.t]||'Öğe'} seçili: sürükleyerek taşı, Delete ile ${['auto','lbl','view'].includes(dwSel.t)?'gizle':'sil'}. Esc ile bırak.`;
+  const N={view:'Görünüş',dim:'Ölçü',auto:'Otomatik ölçü',lbl:'Etiket',note:'Not',surf:'Yüzey işareti',detail:'Detay görünüşü',gdt:'Geometrik tolerans',datum:'Referans işareti',bal:'Balon'};
+  t.classList.add('on');t.textContent=`${N[dwSel.t]||'Öğe'} seçili: sürükleyerek taşı, Delete ile ${['auto','lbl','view','bal'].includes(dwSel.t)?'gizle':'sil'}. Esc ile bırak.`;
 }
 function selOverlay(){
   if(!dwSel||!dctx)return '';const h=dctx.hits.find(x=>sameHit(x,dwSel));if(!h)return '';const b=h.box,m=pxToSheet(3);
@@ -89,7 +89,7 @@ function selOverlay(){
 let hoverHit=null;
 function dwHover(p){const h=dwHitAt(p,'mouse');if(sameHit(h,hoverHit)&&(h||!hoverHit))return;hoverHit=h;sheetEl.style.cursor=h?'move':''}
 /* sürükleme: başlangıç değerinden dx, dy (sayfa mm) kadar */
-const DW_DRAG=new Set(['view','lbl','dim','note','detail','gdt','datum']);
+const DW_DRAG=new Set(['view','lbl','dim','note','detail','gdt','datum','bal']);
 function dwDragMove(pan,dx,dy){
   const S=dwS(),h=pan.hit;
   if(!pan.orig){pan.orig=clone(S);pushDwHist();dwSel={t:h.t,i:h.i,k:h.k}}
@@ -108,6 +108,7 @@ function dwDragMove(pan,dx,dy){
   else if(h.t==='note'){S.notes[h.i].x=O.notes[h.i].x+dx;S.notes[h.i].y=O.notes[h.i].y+dy}
   else if(h.t==='detail'){const p0=O.details[h.i].pos;S.details[h.i].pos=[p0[0]+dx,p0[1]+dy]}
   else if(h.t==='gdt'||h.t==='datum'){const k=h.t+'s',o=O[k][h.i].off||[0,-12];S[k][h.i].off=[o[0]+dx,o[1]+dy]}
+  else if(h.t==='bal'){S.bal=Object.assign({},O.bal);const o=(O.bal||{})[h.k]||[0,0];S.bal[h.k]=[o[0]+dx,o[1]+dy]}
   else return;
   if(!pan.raf)pan.raf=requestAnimationFrame(()=>{pan.raf=0;const r=buildSheet(false);sheetEl.innerHTML=r.markup+'<g id="ov"></g>';dctx=r.ctx;drawOverlay(null)});
 }
@@ -118,6 +119,7 @@ function dwDeleteSel(){
   if(lists[h.t])(S[lists[h.t]]||[]).splice(h.i,1);
   else if(h.t==='view'){S.hide=(S.hide||[]).concat('V:'+h.k)}
   else if(h.t==='lbl')S.hide=(S.hide||[]).concat('L:'+h.k);
+  else if(h.t==='bal')S.hide=(S.hide||[]).concat('B:'+h.k);
   else if(h.t==='auto')S.hide=(S.hide||[]).concat(h.k);
   dwSel=null;saveState();renderDrawing();dwStatus();return true;
 }

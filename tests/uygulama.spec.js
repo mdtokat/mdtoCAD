@@ -660,6 +660,28 @@ test('çizerken ölçü yazma: çizgi uzunluğu, dikdörtgen ve çap ölçü ola
   expect(errors).toEqual([]);
 });
 
+test('çizerken ölçü yazma: çizgide açı (Sekme ile), kanalda boy ve genişlik', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page);
+  // 50 mm, 30°: Enter uzunluk alanından açıya geçmeden uygular; açıya Sekme ile geçilir
+  await page.evaluate(() => { const T = __tz; T.setTool('line'); T.toolClick(0, 0); T.sk.cursor = [10, 1]; });
+  await page.keyboard.type('50'); await page.keyboard.press('Tab'); await page.keyboard.type('30'); await page.keyboard.press('Enter');
+  let p = await page.evaluate(() => { const f = __tz.sk.feat; return f.pts[f.ents[0].b]; });
+  expect(p.x).toBeCloseTo(50 * Math.cos(Math.PI / 6), 2); expect(p.y).toBeCloseTo(25, 2);
+  await page.evaluate(() => { __tz.sk.cursor = [43.3, 40]; });
+  await page.keyboard.type('20'); await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => ({ n: __tz.sk.feat.ents.length, pop: !!document.querySelector('.pop.skin') }))).toEqual({ n: 2, pop: false });
+  // kanal: boy Enter → genişlik → Enter; merkezler arası ve genişlik sürücü ölçü olur
+  await page.evaluate(() => { const T = __tz; T.setTool('slot'); T.toolClick(100, 0); T.sk.cursor = [120, 0.1]; });
+  await page.keyboard.type('40'); await page.keyboard.press('Enter'); await page.keyboard.type('12'); await page.keyboard.press('Enter');
+  const r = await page.evaluate(() => { const f = __tz.sk.feat; return { dims: f.cons.filter(c => c.val != null).map(c => [c.t, c.val]), arcs: f.ents.filter(e => e.t === 'arc').length,
+    w: (() => { const l = f.ents.filter(e => e.t === 'line' && !e.cons).slice(-2); return Math.abs(f.pts[l[0].a].y - f.pts[l[1].a].y); })() }; });
+  expect(r.dims).toEqual([['d', 50], ['d', 20], ['d', 40], ['dll', 12]]);
+  expect(r.arcs).toBe(2);
+  expect(r.w).toBeCloseTo(12, 6);
+  expect(errors).toEqual([]);
+});
+
 for (const [dosya, ad, kutu] of [['bukulmus-braket', 'Bükülmüş', [124, 171.5, 50]], ['yatakli-stand', 'Yataklı', [106, 155, 106]], ['l-destek', 'L destek', [30, 65, 35]]]) {
   test(`örnek: ${dosya} hatasız, tam tanımlı ve teknik resmi çizilir`, async ({ page }) => {
     const errors = await openApp(page);

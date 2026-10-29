@@ -43,9 +43,9 @@ menu.addEventListener('click',e=>{
   const b=e.target.closest('[data-m]');if(!b)return;menu.classList.remove('on');const m=b.dataset.m;
   if(m==='new')setProject(emptyProject(),'Yeni proje açıldı. Bir düzlem seçip Çizim ile başla.');
   if(m==='demo')setProject(demoProject(),'Örnek proje yüklendi: 3 parça ve 1 montaj.');
-  if(m==='save')saveFile(fileSafe(state.partName)+'-proje.tezgah.json',JSON.stringify({app:'tezgah-cad',...project,version:3},cleanR));
+  if(m==='save')saveFile(fileSafe(state.partName)+'-proje.tocad.json',JSON.stringify({app:'tocad',...project,version:3},cleanR));
   if(m==='open'||m==='importpart'){fileMode=m;$('#fileInput').accept=m==='open'?'.json,application/json':'.json,.stl,application/json';$('#fileInput').click()}
-  if(m==='exportpart')saveFile(fileSafe(state.partName)+'.parca.json',JSON.stringify({app:'tezgah-cad',kind:'part',version:3,part:state},cleanR));
+  if(m==='exportpart')saveFile(fileSafe(state.partName)+'.parca.json',JSON.stringify({app:'tocad',kind:'part',version:3,part:state},cleanR));
   if(m==='stlpart')exportPartSTL();
   if(m==='stlasm'){if(!curAsm()){toast('Projede montaj yok.');return}exportAsmSTL()}
   if(m==='pdf2')openPdfDialog('2d');
@@ -73,7 +73,7 @@ $('#fileInput').addEventListener('change',e=>{
         else if(o.kind==='part')setProject({parts:[o.part],asms:[]},'Parça dosyası proje olarak açıldı.');
         else throw new Error('format');
       }else importPartsFrom(o);
-    }catch(err){console.error(err);toast(isStl?'STL dosyası okunamadı.':'Dosya okunamadı. Tezgâh CAD proje veya parça dosyası (.json) seç.')}
+    }catch(err){console.error(err);toast(isStl?'STL dosyası okunamadı.':'Dosya okunamadı. toCAD proje veya parça dosyası (.json) seç.')}
   };
   rd.readAsArrayBuffer(file);e.target.value='';
 });

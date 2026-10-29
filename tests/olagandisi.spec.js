@@ -5,7 +5,7 @@ import { openApp } from './helpers.js';
 const undo = page => page.evaluate(() => document.querySelector('#undoBtn').click());
 const openJson = (page, o) => page.evaluate(async o => {
   const inp = document.querySelector('#fileInput'); document.querySelector('[data-m="open"]').click();
-  const dt = new DataTransfer(); dt.items.add(new File([typeof o === 'string' ? o : JSON.stringify(o)], 'p.tezgah.json'));
+  const dt = new DataTransfer(); dt.items.add(new File([typeof o === 'string' ? o : JSON.stringify(o)], 'p.tocad.json'));
   inp.files = dt.files; inp.dispatchEvent(new Event('change'));
   await new Promise(r => setTimeout(r, 300));
 }, o);

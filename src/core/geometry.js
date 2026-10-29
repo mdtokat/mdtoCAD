@@ -1,4 +1,4 @@
-/* Tezgâh CAD — geometri çekirdeği: CSG, çizim profilleri, kısıt çözücü, özellik gövdeleri, kenar çıkarımı, yeniden oluşturma.
+/* toCAD — geometri çekirdeği: CSG, çizim profilleri, kısıt çözücü, özellik gövdeleri, kenar çıkarımı, yeniden oluşturma.
    Bu dosya DOM'a bağımlı değildir; yalnızca THREE (r128) kullanır. */
 'use strict';
 var T=THREE;

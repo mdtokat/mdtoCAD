@@ -37,8 +37,9 @@ button:disabled{cursor:default}
 
 .topbar{display:flex;align-items:center;gap:14px;height:46px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
 .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:17px;white-space:nowrap}
-.brand svg{width:24px;height:24px;color:var(--accent)}
-.brand small{font-weight:500;color:var(--muted);font-size:13px}
+.brand svg{width:24px;height:24px;color:var(--accent);flex:none}
+.brand svg .lf{fill:var(--accent-ink)}
+.brand .to{font-weight:500;color:var(--muted)}
 .tabs{display:flex;gap:2px;height:100%;margin-left:6px}
 .tabs button{border:0;background:none;padding:0 12px;height:100%;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
@@ -262,7 +263,6 @@ button:disabled{cursor:default}
   html,body,#app{height:auto;min-height:100%}
   #app{overflow-x:hidden;max-width:100vw}
   .tab{flex:none}
-  .brand small{display:none}
   .workspace,.workspace.pmon{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"vp" "pm" "tree"}
   .viewport{height:58vh;min-height:320px}
   .tree,.workspace.pmon .tree{border-right:0;border-bottom:0;padding-bottom:16px;border-top:1px solid var(--line)}

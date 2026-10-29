@@ -1,10 +1,10 @@
 # Proje dosyası biçimi (sürüm 3)
 
-Proje dosyası (`*.tezgah.json`) ve tarayıcıdaki otomatik kayıt (`localStorage['tezgah-cad-v3']`) aynı JSON yapısını kullanır. Birimler **mm**, açılar **derece**dir. Alt çizgiyle başlayan alanlar (`_err`, `_mp`…) çalışma anına aittir ve kaydedilmez.
+Proje dosyası (`*.tocad.json`) ve tarayıcıdaki otomatik kayıt (`localStorage['tezgah-cad-v3']`) aynı JSON yapısını kullanır. Birimler **mm**, açılar **derece**dir. Alt çizgiyle başlayan alanlar (`_err`, `_mp`…) çalışma anına aittir ve kaydedilmez. Uygulamanın eski adıyla (Tezgâh CAD) kaydedilmiş `*.tezgah.json` dosyaları (`"app": "tezgah-cad"`) aynı biçimdedir ve olduğu gibi açılır.
 
 ```jsonc
 {
-  "app": "tezgah-cad",
+  "app": "tocad",
   "version": 3,
   "parts": [ /* Parça */ ],
   "asms":  [ /* Montaj */ ],

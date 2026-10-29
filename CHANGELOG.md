@@ -1,6 +1,7 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Uygulamanın adı **toCAD** oldu; yeni logo (`docs/logo/`), sekme simgesi (favicon) ve üst çubukta yeni marka. Proje dosyaları artık `*.tocad.json` adıyla kaydedilir (`"app": "tocad"`); eski `*.tezgah.json` dosyaları açılmaya devam eder, tarayıcıdaki otomatik kayıt korunur.
 - Uygulama normal bir kullanıcı gibi fareyle kullanıldı (yeni parça → çizim → ölçü → ekstrüzyon → kesme → radyus → delik → çoğaltma → teknik resim → montaj → patlatma). Bulunan hatalar giderildi (testler: `tests/normal-kullanim.spec.js`):
 - Düzeltme (teknik resim): tümünden geçen diş (kılavuz) deliklerinin diş çizgileri ön/yan görünüşten taşıp alttaki görünüşlerin içine kadar uzanıyordu; diş artık gövde kalınlığı kadar çizilir.
 - Düzeltme (çizim): Seç aracıyla sürüklenen nokta başka bir noktanın veya orijinin üstüne bırakılınca birleşmiyordu (çakışık olmadan 0,07 mm yanında kalıyor, orijin artık seçilemiyordu). Artık birleşir; bir çizginin/yayın üstüne bırakılınca onun üzerinde kalır.

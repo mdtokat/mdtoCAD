@@ -1,6 +1,6 @@
 # Mimari
 
-Tezgâh CAD iki katmandan oluşur: DOM'a bağımlı olmayan bir **geometri çekirdeği** (`src/core/geometry.js`) ve onun üzerinde çalışan **arayüz** (`src/app/*.js`). `scripts/build.mjs` bunları tek bir HTML dosyasında birleştirir.
+toCAD iki katmandan oluşur: DOM'a bağımlı olmayan bir **geometri çekirdeği** (`src/core/geometry.js`) ve onun üzerinde çalışan **arayüz** (`src/app/*.js`). `scripts/build.mjs` bunları tek bir HTML dosyasında birleştirir.
 
 ## Derleme
 

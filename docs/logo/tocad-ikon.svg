@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="256" height="256">
+  <title>toCAD</title>
+  <rect x="1" y="1" width="22" height="22" rx="5.5" fill="#1F4E9C"/>
+  <path d="M5 9.5 9.5 5H19l-4.5 4.5z" fill="#FFFFFF" opacity=".8"/>
+  <path d="M14.5 9.5 19 5v9.5L14.5 19z" fill="#FFFFFF" opacity=".5"/>
+  <path d="M5 9.5h9.5V19H5z" fill="#FFFFFF"/>
+  <circle cx="9.75" cy="14.25" r="2.1" fill="#1F4E9C"/>
+</svg>

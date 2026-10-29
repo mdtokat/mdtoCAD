@@ -1,5 +1,5 @@
 {
-  "name": "tezgah-cad",
+  "name": "tocad",
   "version": "0.3.0",
   "description": "Tarayıcıda çalışan, SolidWorks iş akışını izleyen basit parametrik CAD: çizim, özellikler, montaj, teknik resim ve PDF.",
   "private": true,

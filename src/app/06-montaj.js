@@ -527,7 +527,7 @@ function asmMass(){
 /* ================= STL ve ZIP ================= */
 function stlBinary(items,name){
   let n=0;for(const it of items)for(const p of it.polys)n+=p.verts.length-2;
-  const buf=new ArrayBuffer(84+n*50),dv=new DataView(buf);const hdr=('Tezgah CAD '+(name||'')).slice(0,79);for(let i=0;i<hdr.length;i++)dv.setUint8(i,hdr.charCodeAt(i)&127);dv.setUint32(80,n,true);
+  const buf=new ArrayBuffer(84+n*50),dv=new DataView(buf);const hdr=('toCAD '+(name||'')).slice(0,79);for(let i=0;i<hdr.length;i++)dv.setUint8(i,hdr.charCodeAt(i)&127);dv.setUint32(80,n,true);
   let o=84;const v=new T.Vector3();
   for(const it of items){const M=it.M;for(const p of it.polys){const q=p.verts.map(w=>{v.set(w.x,w.y,w.z);if(M)v.applyMatrix4(M);return [v.x,v.y,v.z]});
     for(let i=1;i<q.length-1;i++){const A=q[0],B=q[i],C=q[i+1];const nn=vn(vc(vs(B,A),vs(C,A)));for(const x of nn){dv.setFloat32(o,x,true);o+=4}for(const P of [A,B,C])for(const x of P){dv.setFloat32(o,x,true);o+=4}dv.setUint16(o,0,true);o+=2}}}

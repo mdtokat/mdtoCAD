@@ -12,7 +12,7 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 
 ## Komut karşılaştırması
 
-| SolidWorks | Tezgâh CAD | Not |
+| SolidWorks | toCAD | Not |
 |---|---|---|
 | Standart 3 görünüş, model görünüşü (izometrik) | ✅ | Ön, üst, yan + izometrik; ISO E / ISO A |
 | Görünüşü sürükleyerek taşıma, izdüşüm hizası | ✅ yeni | Ön görünüş izdüşümleri de taşır; üst yalnızca dikey, yan yalnızca yatay |

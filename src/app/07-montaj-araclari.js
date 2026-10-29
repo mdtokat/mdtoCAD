@@ -41,7 +41,8 @@ function asmSrc(a,exploded){
   for(const c of a.comps){
     if(c.hidden)continue;const p=partById(c.part);if(!p)continue;const d=partData(p);const M=dispM(a,c,f);
     polys=polys.concat(transformPolys(d.polys,M,c.id));
-    for(const an of d.ann)ann.push({...an,C:an.C.clone().applyMatrix4(M),A:an.A.clone().transformDirection(M),gid:c.id+':'+an.gid,label:false});
+    // montaj resminde parçaların delik etiketleri ve çap ölçüleri yazılmaz
+    for(const an of d.ann)ann.push({...an,C:an.C.clone().applyMatrix4(M),A:an.A.clone().transformDirection(M),gid:c.id+':'+an.gid,label:false,cyl:false});
     if(d.props){vol+=d.props.vol;area+=d.props.area;massG+=d.props.vol/1000*(MATERIALS[p.material]||MATERIALS.steel).rho}
   }
   for(const v of srcCache.values())if(v.g)v.g.dispose();srcCache.clear();

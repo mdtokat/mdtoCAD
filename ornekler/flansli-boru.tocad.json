@@ -1,0 +1,564 @@
+{
+ "app": "tocad",
+ "parts": [
+  {
+   "id": "Pmvtlrmulq56u",
+   "partName": "Flanşlı boru DN50",
+   "material": "steel",
+   "features": [
+    {
+     "id": "smvtlrmv2cuok",
+     "type": "sketch",
+     "name": "Çizim1",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {},
+     "ents": [
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 30.15,
+       "id": "e1"
+      },
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 26.25,
+       "id": "e2"
+      }
+     ],
+     "cons": [
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 60.3,
+       "lp": [
+        9.188861471547343,
+        34.293297875526775
+       ],
+       "id": "c1"
+      },
+      {
+       "t": "ddia",
+       "e": "e2",
+       "val": 52.5,
+       "lp": [
+        26.131886908556936,
+        26.131886908556933
+       ],
+       "id": "c2"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "add",
+     "sketch": "smvtlrmv2cuok",
+     "end": "blind",
+     "depth": 300,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtlrnbsxn8m",
+     "name": "Boru Ø60,3 × 3,9"
+    },
+    {
+     "id": "smvtlrnc8x3dp",
+     "type": "sketch",
+     "name": "Çizim2",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {},
+     "ents": [
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 82.5,
+       "id": "e1"
+      },
+      {
+       "t": "circle",
+       "c": "O",
+       "r": 26.25,
+       "id": "e2"
+      }
+     ],
+     "cons": [
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 165,
+       "lp": [
+        68.43972043672908,
+        68.43972043672906
+       ],
+       "id": "c1"
+      },
+      {
+       "t": "ddia",
+       "e": "e2",
+       "val": 52.5,
+       "lp": [
+        28.664963994985783,
+        28.664963994985776
+       ],
+       "id": "c2"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "add",
+     "sketch": "smvtlrnc8x3dp",
+     "end": "blind",
+     "depth": 18,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtlrnyvslxm",
+     "name": "Flanş Ø165"
+    },
+    {
+     "id": "smvtlro1cohhl",
+     "type": "sketch",
+     "name": "Çizim3",
+     "on": {
+      "kind": "face",
+      "feat": "fmvtlrnyvslxm",
+      "which": "far",
+      "sgn": 1
+     },
+     "pts": {
+      "p1": {
+       "x": 62.5,
+       "y": 0
+      },
+      "p2": {
+       "x": 3.827021247335479e-15,
+       "y": 62.5
+      },
+      "p3": {
+       "x": -62.5,
+       "y": 7.654042494670958e-15
+      },
+      "p4": {
+       "x": -1.1481063742006436e-14,
+       "y": -62.5
+      }
+     },
+     "ents": [
+      {
+       "t": "circle",
+       "c": "p1",
+       "r": 9,
+       "id": "e1"
+      },
+      {
+       "t": "line",
+       "a": "O",
+       "b": "p1",
+       "cons": true,
+       "id": "e2"
+      },
+      {
+       "t": "line",
+       "a": "O",
+       "b": "p2",
+       "cons": true,
+       "id": "e3"
+      },
+      {
+       "id": "e4",
+       "t": "circle",
+       "c": "p2",
+       "r": 9
+      },
+      {
+       "id": "e5",
+       "t": "circle",
+       "c": "p3",
+       "r": 9
+      },
+      {
+       "id": "e6",
+       "t": "circle",
+       "c": "p4",
+       "r": 9
+      }
+     ],
+     "cons": [
+      {
+       "id": "c1",
+       "t": "eq",
+       "e1": "e2",
+       "e2": "e3"
+      },
+      {
+       "id": "c2",
+       "t": "dang",
+       "e1": "e2",
+       "e2": "e3",
+       "r1": false,
+       "r2": false,
+       "val": 90,
+       "lp": [
+        26.516504294495533,
+        26.51650429449553
+       ]
+      },
+      {
+       "id": "c3",
+       "t": "eq",
+       "e1": "e1",
+       "e2": "e4"
+      },
+      {
+       "id": "c4",
+       "t": "eq",
+       "e1": "e1",
+       "e2": "e5"
+      },
+      {
+       "id": "c5",
+       "t": "rot",
+       "p": "p1",
+       "q": "p3",
+       "r": "p1",
+       "s": "p2",
+       "o": "O",
+       "k": 2
+      },
+      {
+       "id": "c6",
+       "t": "eq",
+       "e1": "e1",
+       "e2": "e6"
+      },
+      {
+       "id": "c7",
+       "t": "rot",
+       "p": "p1",
+       "q": "p4",
+       "r": "p1",
+       "s": "p2",
+       "o": "O",
+       "k": 3
+      },
+      {
+       "t": "h",
+       "e": "e2",
+       "id": "c8"
+      },
+      {
+       "t": "ddia",
+       "e": "e1",
+       "val": 18,
+       "lp": [
+        84.99484850868924,
+        -6.027476491763728
+       ],
+       "id": "c9"
+      },
+      {
+       "t": "d",
+       "p": "O",
+       "q": "p1",
+       "val": 62.5,
+       "lp": [
+        31.25,
+        -17.720380842979253
+       ],
+       "id": "c10"
+      }
+     ]
+    },
+    {
+     "type": "extrude",
+     "op": "cut",
+     "sketch": "smvtlro1cohhl",
+     "end": "through",
+     "depth": 10,
+     "flip": false,
+     "dir2": false,
+     "end2": "blind",
+     "depth2": 10,
+     "fromOff": 0,
+     "thin": false,
+     "thinSide": "a",
+     "thick": 5,
+     "id": "fmvtlrolhggke",
+     "name": "Flanş delikleri 4 × Ø18"
+    },
+    {
+     "type": "plane",
+     "id": "p5db7v",
+     "name": "Orta düzlem",
+     "base": "front",
+     "offset": 150,
+     "flip": false
+    },
+    {
+     "type": "mirror",
+     "id": "mn5ldq",
+     "name": "Flanşı aynala",
+     "targets": [
+      "fmvtlrnyvslxm",
+      "fmvtlrolhggke"
+     ],
+     "plane": "p5db7v"
+    },
+    {
+     "type": "fillet",
+     "id": "fm25kl",
+     "name": "Birleşim radyusları R3",
+     "r": 3,
+     "edges": [
+      {
+       "a": [
+        30.004819869993504,
+        2.9552168846120184,
+        18
+       ],
+       "b": [
+        30.149999618528575,
+        -6.641354133307686e-13,
+        18
+       ],
+       "sig": {
+        "n": [
+         [
+          0.9988,
+          0.04907,
+          0
+         ],
+         [
+          0,
+          0,
+          1
+         ]
+        ],
+        "f": [
+         "fmvtlrnbsxn8m",
+         "fmvtlrnyvslxm"
+        ]
+       }
+      },
+      {
+       "a": [
+        30.004819869993486,
+        2.955216884612283,
+        282
+       ],
+       "b": [
+        30.14999961852856,
+        -4.3853809472693683e-13,
+        282
+       ],
+       "sig": {
+        "n": [
+         [
+          0.9988,
+          0.04907,
+          0
+         ],
+         [
+          0,
+          0,
+          -1
+         ]
+        ],
+        "f": [
+         "fmvtlrnbsxn8m",
+         "mn5ldq"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "drawing": {
+    "paper": "A3",
+    "orient": "landscape",
+    "method": "E",
+    "scale": "auto",
+    "hidden": true,
+    "centers": true,
+    "autodims": true,
+    "iso": true,
+    "dno": "TZ-0001",
+    "drawn": "",
+    "checked": "",
+    "company": "",
+    "dims": []
+   }
+  },
+  {
+   "id": "Pmvtlrqqw0iwv",
+   "partName": "Dirsek 90° DN50",
+   "material": "steel",
+   "features": [
+    {
+     "id": "smvtlrqr5nlnx",
+     "type": "sketch",
+     "name": "Çizim1",
+     "on": {
+      "kind": "std",
+      "key": "front"
+     },
+     "pts": {
+      "p1": {
+       "x": 0,
+       "y": -50
+      },
+      "p2": {
+       "x": 0,
+       "y": 50
+      },
+      "p3": {
+       "x": 76,
+       "y": 0
+      }
+     },
+     "ents": [
+      {
+       "t": "line",
+       "a": "p1",
+       "b": "p2",
+       "cons": true,
+       "id": "e1"
+      },
+      {
+       "t": "circle",
+       "c": "p3",
+       "r": 30.15,
+       "id": "e2"
+      },
+      {
+       "t": "circle",
+       "c": "p3",
+       "r": 26.25,
+       "id": "e3"
+      }
+     ],
+     "cons": [
+      {
+       "t": "v",
+       "e": "e1",
+       "id": "c1"
+      },
+      {
+       "t": "v",
+       "p": "O",
+       "q": "p1",
+       "id": "c2"
+      },
+      {
+       "t": "h",
+       "p": "O",
+       "q": "p3",
+       "id": "c3"
+      },
+      {
+       "t": "ddia",
+       "e": "e2",
+       "val": 60.3,
+       "lp": [
+        85.03609590543763,
+        33.72316902115832
+       ],
+       "id": "c4"
+      },
+      {
+       "t": "ddia",
+       "e": "e3",
+       "val": 52.5,
+       "lp": [
+        101.29716033203945,
+        25.297160332039446
+       ],
+       "id": "c5"
+      },
+      {
+       "t": "d",
+       "p": "p1",
+       "q": "p2",
+       "val": 100,
+       "lp": [
+        -9.85799361554843,
+        0
+       ],
+       "id": "c6"
+      },
+      {
+       "t": "dh",
+       "p": "O",
+       "q": "p3",
+       "val": 76,
+       "lp": [
+        38,
+        33.00767616932906
+       ],
+       "id": "c7"
+      },
+      {
+       "t": "dv",
+       "p": "O",
+       "q": "p1",
+       "val": 50,
+       "lp": [
+        4.246,
+        -25
+       ],
+       "id": "c8"
+      }
+     ]
+    },
+    {
+     "type": "revolve",
+     "op": "add",
+     "sketch": "smvtlrqr5nlnx",
+     "axis": "e1",
+     "angle": 90,
+     "mode": "one",
+     "flip": false,
+     "id": "fmvtlrrbvvxck",
+     "name": "Dirsek R76"
+    }
+   ],
+   "drawing": {
+    "paper": "A3",
+    "orient": "landscape",
+    "method": "E",
+    "scale": "auto",
+    "hidden": true,
+    "centers": true,
+    "autodims": true,
+    "iso": true,
+    "dno": "TZ-0001",
+    "drawn": "",
+    "checked": "",
+    "company": "",
+    "dims": []
+   }
+  }
+ ],
+ "asms": [],
+ "cur": {
+  "part": "Pmvtlrqqw0iwv"
+ },
+ "version": 3
+}

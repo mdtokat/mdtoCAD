@@ -299,7 +299,7 @@ function skArrangement(sk,inner){
     for(const id of ends(o)){const p=P(id);if(onIt(e,p)){hit=true;splits.get(e).push(p)}}
     if(hit)touch.push([e.id,o.id])}
   // 2) öğeleri parçalara bölüp çokgen kenarlarına çevir (yaylar yaklaşık 64 parçalı tam daire inceliğinde)
-  const segs=[];
+  const segs=[],ptsOf=new Map();
   const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(64*(t1-t0)/(Math.PI*2)));const out=[pa];for(const t of arcTs(t0,t1,n))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
   for(const e of ents){
     // aynı nokta birden çok öğeden gelebilir (ör. çizgi ve yay ucu dairenin üstünde birleşince): tekrarlar atılır,
@@ -312,6 +312,10 @@ function skArrangement(sk,inner){
       if(!sp.length){const pts=arcPts(c,e.r,0,Math.PI*2,[c[0]+e.r,c[1]],[c[0]+e.r,c[1]]);chains=[pts]}
       else for(let k=0;k<sp.length;k++){const a=sp[k],b=sp[(k+1)%sp.length];let t1=b.t;if(t1<=a.t+1e-12)t1+=Math.PI*2;chains.push(arcPts(c,e.r,a.t,t1,a.p,b.p))}}
     for(const ch of chains)for(let i=0;i<ch.length-1;i++)segs.push({a:ch[i],b:ch[i+1],src:e.id});
+    // öğenin bölge ağındaki noktaları: konturların içinde-dışında testi aynı çokgenle yapılır (bkz. 8. adım)
+    const pl=[];for(const ch of chains)for(const q of ch)if(!pl.length||Math.hypot(pl[pl.length-1][0]-q[0],pl[pl.length-1][1]-q[1])>tol)pl.push(q);
+    if(e.t==='circle'&&pl.length>1&&Math.hypot(pl[0][0]-pl[pl.length-1][0],pl[0][1]-pl[pl.length-1][1])<=tol)pl.pop();
+    ptsOf.set(e.id,pl);
   }
   // 3) çokgen kenarları arasında kalan (yaklaşık yay parçalarından doğan) kesişmeler
   const bb=s=>[Math.min(s.a[0],s.b[0]),Math.max(s.a[0],s.b[0]),Math.min(s.a[1],s.b[1]),Math.max(s.a[1],s.b[1])];
@@ -363,7 +367,9 @@ function skArrangement(sk,inner){
   // 8) asıl kural: çizilen kapalı konturlar (uç uca bağlı zincirler, daireler). Birbirini kesen veya birbirine değen
   //    konturlar bir grup oluşturur (birleşim); bir bölgeyi çevreleyen grup sayısı tekse bölge malzemedir.
   //    Böylece kesişen şekiller birleşir ama kolların çevrelediği boşluk dolmaz. Kontur yoksa bileşen kuralı kalır.
-  const cons=skContours(sk,ents);const of={};cons.forEach((c,i)=>{for(const id of c.ids)of[id]=i});
+  // konturlar bölge ağındaki noktalarla çizilir: yüzlerin örnek noktası kenardan çok az içeride olduğundan dairenin farklı
+  // parçalanmış bir çokgeni (64 eşit parça) yanlış sonuç veriyordu (ör. daireye iç teğet üçgende dış yüz de malzeme sayılıyordu)
+  const cons=skContours(sk,ents,ptsOf);const of={};cons.forEach((c,i)=>{for(const id of c.ids)of[id]=i});
   const gp=cons.map((_,i)=>i);const gf=x=>{while(gp[x]!==x){gp[x]=gp[gp[x]];x=gp[x]}return x};
   for(const [a,b] of touch)if(of[a]!==undefined&&of[b]!==undefined){const x=gf(of[a]),y=gf(of[b]);if(x!==y)gp[x]=y}
   const groups=new Map();cons.forEach((c,i)=>{const g=gf(i);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(c)});
@@ -374,20 +380,21 @@ function skArrangement(sk,inner){
 }
 /* Çizimdeki kapalı konturlar: uç noktalarıyla birbirine bağlanan çizgi/yay zincirleri (boşta kalan dallar ayıklanır) ve daireler.
    Dallanan (bir noktada ikiden fazla öğe birleşen) zincirlerde kontur, o öğelerin dış sınırıdır. */
-function skContours(sk,ents){
+function skContours(sk,ents,ptsOf){
+  const tess=e=>ptsOf&&ptsOf.get(e.id)?ptsOf.get(e.id).slice():tessEnt(sk,e);
   const deg={},inc={};const lines=ents.filter(e=>e.t!=='circle');
   for(const e of lines)for(const p of [e.a,e.b]){deg[p]=(deg[p]||0)+1;(inc[p]=inc[p]||[]).push(e)}
   const alive=new Set(lines);const st=Object.keys(deg).filter(p=>deg[p]===1);
   while(st.length){const p=st.pop();for(const e of inc[p]){if(!alive.has(e))continue;alive.delete(e);for(const q of [e.a,e.b]){deg[q]--;if(deg[q]===1)st.push(q)}}}
   const out=[];
-  for(const e of ents)if(e.t==='circle'){const t=tessEnt(sk,e);t.pop();out.push({ids:[e.id],polys:[t]})}
+  for(const e of ents)if(e.t==='circle'){let t;if(ptsOf&&ptsOf.get(e.id))t=ptsOf.get(e.id).slice();else{t=tessEnt(sk,e);t.pop()}out.push({ids:[e.id],polys:[t]})}
   const seen=new Set();
   for(const e of alive){if(seen.has(e))continue;const comp=[],stk=[e];seen.add(e);
     while(stk.length){const x=stk.pop();comp.push(x);for(const p of [x.a,x.b])for(const y of inc[p])if(alive.has(y)&&!seen.has(y)){seen.add(y);stk.push(y)}}
     let polys=[];
     if(comp.every(x=>deg[x.a]===2&&deg[x.b]===2)){
       const pts=[];let cur=comp[0],from=cur.a,g=0;const used=new Set();
-      while(cur&&g++<100000){used.add(cur);const seg=tessEnt(sk,cur);const ord=cur.a===from?seg:seg.slice().reverse();for(let i=0;i<ord.length-1;i++)pts.push(ord[i]);
+      while(cur&&g++<100000){used.add(cur);const seg=tess(cur);const ord=cur.a===from?seg:seg.slice().reverse();for(let i=0;i<ord.length-1;i++)pts.push(ord[i]);
         from=cur.a===from?cur.b:cur.a;cur=inc[from].find(y=>alive.has(y)&&!used.has(y))}
       polys=[pts];
     }else{try{const A=skArrangement({pts:sk.pts,ents:comp,cons:[]},true);polys=[...A.outer.values()].map(c=>c.pts)}catch(err){polys=[]}}

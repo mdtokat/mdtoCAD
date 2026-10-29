@@ -87,8 +87,11 @@ function curAsm(){return project.asms.find(a=>a.id===project.cur.asm)||null}
 function asmHistFor(){const a=curAsm();if(!a)return null;if(!asmHists.has(a.id))asmHists.set(a.id,{undo:[],redo:[]});return asmHists.get(a.id)}
 const asmSnap=a=>JSON.stringify({comps:a.comps,mates:a.mates,explode:a.explode||null});
 function pushAsmHist(){const a=curAsm(),h=asmHistFor();if(!h)return;h.undo.push(asmSnap(a));if(h.undo.length>80)h.undo.shift();h.redo=[];updUndo()}
-function asmUndo(){const a=curAsm(),h=asmHistFor();if(!h||!h.undo.length)return;closeAsmPM(true,true);h.redo.push(asmSnap(a));const o=JSON.parse(h.undo.pop());a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;asmChanged()}
-function asmRedo(){const a=curAsm(),h=asmHistFor();if(!h||!h.redo.length)return;closeAsmPM(true,true);h.undo.push(asmSnap(a));const o=JSON.parse(h.redo.pop());a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;asmChanged()}
+// açık eşleştirme paneli kapanırken açılışta eklediği adımı geri çeker; geri alınacak başka adım kalmayabilir
+function asmUndo(){const a=curAsm(),h=asmHistFor();if(!h||!h.undo.length)return;asmUI.drag=null;closeAsmPM(true,true);if(!h.undo.length){asmChanged(false);renderAsmRibbon();return}
+  h.redo.push(asmSnap(a));const o=JSON.parse(h.undo.pop());a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;asmChanged();renderAsmRibbon()}
+function asmRedo(){const a=curAsm(),h=asmHistFor();if(!h||!h.redo.length)return;asmUI.drag=null;closeAsmPM(true,true);if(!h.redo.length){asmChanged(false);renderAsmRibbon();return}
+  h.undo.push(asmSnap(a));const o=JSON.parse(h.redo.pop());a.comps=o.comps;a.mates=o.mates;a.explode=o.explode||undefined;asmChanged();renderAsmRibbon()}
 function partData(p){
   const key=partKey(p);let c=pcache.get(p.id);if(c&&c.key===key)return c;
   const r=(p===state&&model.key===key)?model:partRebuild(p);
@@ -341,13 +344,14 @@ function openMatePM(existing){
   const a=curAsm();if(!a||a.comps.length<2){toast('Eşleştirme için montajda en az iki bileşen olmalı.');return}
   closeAsmPM(true);asmUI.tool=null;setControlsForSketch(false);prompt_(null);
   asmUI.pm={type:'mate',draft:existing?clone(existing):{id:uid('m'),type:null,a:null,b:null,flip:false,val:10},isNew:!existing,editId:existing?existing.id:null,orig:a.comps.map(c=>({id:c.id,T:c.T.slice()})),err:''};
+  const h0=asmHistFor();asmUI.pm.redo0=h0?h0.redo.slice():null;
   pushAsmHist();renderAsmRibbon();renderAsmPM();asmHighlight();renderAsmTree();
   if(existing)previewMate();
 }
 function restoreOrig(){const P=asmUI.pm,a=curAsm();if(!P||!P.orig||!a)return;for(const o of P.orig){const c=a.comps.find(x=>x.id===o.id);if(c)c.T=o.T.slice()}}
 function closeAsmPM(silent,dropHist){
   const P=asmUI.pm;if(!P)return;
-  if(P.type==='mate'){restoreOrig();const h=asmHistFor();if(h&&h.undo.length&&!P.committed)h.undo.pop();updateAsmPoses()}
+  if(P.type==='mate'){restoreOrig();const h=asmHistFor();if(h&&h.undo.length&&!P.committed){h.undo.pop();if(P.redo0)h.redo=P.redo0}updateAsmPoses()}
   if(P.type==='interf')setGhost(false);
   asmUI.pm=null;asmHighlight();if(!silent){renderAsmPM();renderAsmTree();renderAsmRibbon()}
 }
@@ -429,9 +433,9 @@ function asmDown(e){
   if(!asmUI.tool||e.button!==0)return;
   const h=asmPick(e);if(!h)return;const c=compById(h.comp);if(!c)return;
   if(c.fixed){toast('Sabit (f) bileşen taşınamaz. Ağaçtan serbest bırakabilirsin.');return}
-  pushAsmHist();
+  const h0=asmHistFor(),redo0=h0?h0.redo.slice():null;pushAsmHist();
   const dir=new T.Vector3();camera.getWorldDirection(dir);
-  asmUI.drag={c,T0:new T.Matrix4().fromArray(c.T),last:c.T.slice(),p0:h.point.clone(),x:e.clientX,y:e.clientY,plane:new T.Plane().setFromNormalAndCoplanarPoint(dir,h.point),center:compCenter(c),moved:false,pend:null};
+  asmUI.drag={redo0,c,T0:new T.Matrix4().fromArray(c.T),last:c.T.slice(),p0:h.point.clone(),x:e.clientX,y:e.clientY,plane:new T.Plane().setFromNormalAndCoplanarPoint(dir,h.point),center:compCenter(c),moved:false,pend:null};
 }
 function asmMove(e){
   const d=asmUI.drag;
@@ -460,7 +464,7 @@ function applyDrag(d){
 }
 function asmUp(e){
   const dn=asmUI.down;asmUI.down=null;const d=asmUI.drag;
-  if(d){asmUI.drag=null;if(d.raf){cancelAnimationFrame(d.raf);d.raf=0}if(d.moved){applyDrag(d);asmChanged(false)}else{const h=asmHistFor();if(h)h.undo.pop();updUndo();selectCompAt(e)}return}
+  if(d){asmUI.drag=null;if(d.raf){cancelAnimationFrame(d.raf);d.raf=0}if(d.moved){applyDrag(d);asmChanged(false)}else{const h=asmHistFor();if(h){h.undo.pop();if(d.redo0)h.redo=d.redo0}updUndo();selectCompAt(e)}return}
   if(!dn||dn.b!==0||Math.hypot(e.clientX-dn.x,e.clientY-dn.y)>5)return;
   if(meas){measureClick(e);return}
   const P=asmUI.pm;

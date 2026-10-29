@@ -40,20 +40,22 @@ function fixRevolveAxes(f,orig){
 function skData(f){return JSON.stringify({pts:f.pts,ents:f.ents,cons:f.cons})}
 function skPush(){sk.hist.push(skData(sk.feat));if(sk.hist.length>100)sk.hist.shift();sk.redo=[];updUndo()}
 function skRestore(s){const o=JSON.parse(s);sk.feat.pts=o.pts;sk.feat.ents=o.ents;sk.feat.cons=o.cons}
-function sketchUndo(){if(!sk||!sk.hist.length)return;sk.redo.push(skData(sk.feat));skRestore(sk.hist.pop());sk.sel=[];sk.st={};skChanged();updUndo()}
-function sketchRedo(){if(!sk||!sk.redo.length)return;sk.hist.push(skData(sk.feat));skRestore(sk.redo.pop());sk.sel=[];skChanged();updUndo()}
+// açık ölçü kutuları ve sürükleme geri alınan duruma ait olabilir: kapatılır (yoksa silinen ölçünün kimliğini alan yeni ölçü değişirdi)
+function skHistReset(){sk.sel=[];sk.st={};sk.drag=null;closeDimPop();closeSkInput()}
+function sketchUndo(){if(!sk||!sk.hist.length)return;sk.redo.push(skData(sk.feat));skRestore(sk.hist.pop());skHistReset();skChanged();updUndo()}
+function sketchRedo(){if(!sk||!sk.redo.length)return;sk.hist.push(skData(sk.feat));skRestore(sk.redo.pop());skHistReset();skChanged();updUndo()}
 
 function startSketch(on){
   if(sk)return;if(pm)closePM(true);pickMode=null;prompt_(null);
   let F;try{F=sketchFrame({on},{frames:model.frames,caps:model.caps})}catch(e){toast(e.message);return}
-  pushHist();
+  const r0=hist.redo.slice();pushHist();
   const f={id:uid('s'),type:'sketch',name:nextName({type:'sketch'}),on,pts:{},ents:[],cons:[]};
-  state.features.push(f);beginSession(f,F,true);
+  state.features.push(f);beginSession(f,F,true);sk.redo0=r0;
 }
 function editSketch(id){
   const f=byId(id);if(!f||sk)return;if(pm)closePM(true);cancelPick();
   const F=model.frames[id];if(!F){toast('Çizim düzlemi çözülemedi'+(model.errors[id]?': '+model.errors[id]:'.'));return}
-  pushHist();beginSession(f,F,false);
+  const r0=hist.redo.slice();pushHist();beginSession(f,F,false);if(sk)sk.redo0=r0;
 }
 function beginSession(f,F,isNew){
   sk={feat:f,F,M:frameMatrix(F),isNew,orig:JSON.stringify(f),tool:null,st:{},sel:[],hover:null,cursor:null,drag:null,hist:[],redo:[],an:null,ok:true,dirty:true,
@@ -72,12 +74,15 @@ function beginSession(f,F,isNew){
 function exitSketch(accept){
   if(!sk)return true;const f=sk.feat,wasNew=sk.isNew;
   endChainIfAny();
-  if(!accept){if(wasNew)state.features=state.features.filter(x=>x!==f);else Object.assign(f,JSON.parse(sk.orig));hist.undo.pop();pending=null}
-  else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);hist.undo.pop();pending=null}
+  // değişiklik yoksa çizime girerken eklenen geri alma adımı kaldırılır, yinele listesi geri gelir
+  const drop=()=>{hist.undo.pop();if(sk.redo0)hist.redo=sk.redo0};
+  if(!accept){if(wasNew)state.features=state.features.filter(x=>x!==f);else Object.assign(f,JSON.parse(sk.orig));drop();pending=null}
+  else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);drop();pending=null}
     else{let msg=fixRevolveAxes(f,JSON.parse(sk.orig));
       if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=(msg?msg+' ':'')+`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
-      if(msg)toast(msg)}}
+      if(msg)toast(msg);
+      if(!wasNew&&snapshot()===hist.undo[hist.undo.length-1])drop()}}
   sk=null;closeDimPop();closeSkInput();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
@@ -910,7 +915,7 @@ function deleteSel(){
   for(const p of pts)delete f.pts[p];
   cleanupOrphans(f);sk.sel=[];solveSketch(f);skChanged();
   const ax=state.features.filter(x=>x.type==='revolve'&&x.sketch===f.id&&ents.has(x.axis));
-  if(ax.length)toast(`Silinen çizgi “${ax.map(x=>x.name).join('”, “')}” özelliğinin döndürme ekseniydi. Yeni bir merkez çizgisi çizersen eksen olarak o kullanılır.`,{label:'Geri al',fn:sketchUndo});
+  if(ax.length)toast(`Silinen çizgi “${ax.map(x=>x.name).join('”, “')}” özelliğinin döndürme ekseniydi. Yeni bir merkez çizgisi çizersen eksen olarak o kullanılır.`,{label:'Geri al',fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
 }
 function updSbar(){
   if(!sk)return;const dof=sk.an?sk.an.dof:null;const el=$('#sbSt');

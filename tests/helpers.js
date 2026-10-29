@@ -10,8 +10,9 @@ const THREE_JS = readFileSync(require.resolve('three/build/three.min.js'), 'utf8
 const ORBIT_JS = readFileSync(join(dirname(require.resolve('three/package.json')), 'examples/js/controls/OrbitControls.js'), 'utf8');
 export const APP_URL = pathToFileURL(join(root, 'dist', 'index.html')).href;
 
-/** Uygulamayı temiz bir durumda (örnek proje) açar ve sayfa hatalarını toplar. */
-export async function openApp(page) {
+/** Uygulamayı temiz bir durumda (örnek proje) açar ve sayfa hatalarını toplar.
+ *  keep: boş depoyla açılır; sayfa yenilenince kayıt korunur. */
+export async function openApp(page, { keep = false } = {}) {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
   await page.route('**/*', route => {
@@ -21,8 +22,11 @@ export async function openApp(page) {
     if (u.includes('fonts.googleapis') || u.includes('fonts.gstatic')) return route.abort();
     return route.continue();
   });
-  await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-  await page.goto(APP_URL);
+  // keep: her test kendi kökeninde (file:// deposu tarayıcı bağlamları arasında paylaşılır; kapanan sayfanın kaydı karışmasın)
+  const url = keep ? `http://tz-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.test/index.html` : APP_URL;
+  if (keep) await page.route(url, route => route.fulfill({ body: readFileSync(fileURLToPath(APP_URL), 'utf8'), contentType: 'text/html' }));
+  else await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+  await page.goto(url);
   await page.waitForFunction(() => window.__tz && window.__tz.model && window.__tz.model.polys.length > 0);
   return errors;
 }

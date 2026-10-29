@@ -14,6 +14,8 @@ Proje dosyası (`*.tezgah.json`) ve tarayıcıdaki otomatik kayıt (`localStorag
 
 Eski biçimler de açılır: sürüm 2 (tek parça: `{features, partName, material, drawing}`) ve parça dosyası (`{kind: "part", part: {...}}`).
 
+Açılırken veri onarılır (`normProject`, 01-temel.js): bilinmeyen türdeki veya nesne olmayan özellikler atılır, çizimin eksik `on`/`pts`/`ents`/`cons` alanları tamamlanır, yinelenen parça ve özellik kimlikleri yenilenir, liste olması gereken resim alanları (`dims`, `notes`…) boş listeye çevrilir.
+
 ## Parça
 
 ```jsonc

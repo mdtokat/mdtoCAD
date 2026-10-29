@@ -1,6 +1,19 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Uygulama olağandışı kullanımla test edildi (geri al/yinele sıraları, silme, kaydedip yeniden açıp çizime devam etme, bozuk dosya). Bulunan hatalar giderildi (testler: `tests/olagandisi.spec.js`):
+- Düzeltme (montaj resmi): eklenen notlar, yüzey işaretleri, geometrik toleranslar, referanslar ve detay görünüşleri hemen kayboluyordu; kağıt boyutu, yönlendirme, ölçek, kesit ve görünüş sürüklemeleri de kaydedilmiyordu. Montaj resminin ayar nesnesi her okunuşta yenileniyor, değişiklik eskisine yazılıyordu.
+- Düzeltme (kaydet/aç): montajın resim ayarları ve patlatma adımları proje yeniden açılınca (sayfa yenileme dahil) siliniyordu.
+- Düzeltme (kaydet): değişiklikten hemen sonra sayfa kapatılır veya yenilenirse son değişiklik kayboluyordu; açık çizimdeki çalışma da tümüyle gidiyordu. Bekleyen kayıt sayfa kapanırken yazılır, açık çizim o anki hâliyle kaydedilir (yeni ve boş çizim hariç); yeniden açınca çizime devam edilir.
+- Düzeltme (aç): bozuk veya elle düzenlenmiş bir proje dosyası (boş özellik, bilinmeyen özellik türü, alanı eksik çizim, aynı kimlikli parçalar…) “Dosya okunamadı” dese de uygulamayı yarım yüklenmiş ve çalışmaz bırakıyordu. Dosya açılırken onarılır; yine gösterilemezse önceki proje geri gelir.
+- Düzeltme (açılış): tarayıcıdaki kayıt bozuksa uygulama hiç açılmıyordu. Kayıt onarılır; gösterilemezse “tezgah-cad-v3-bozuk” adıyla saklanıp örnek proje açılır.
+- Düzeltme (geri al): parça adı ve malzeme değişikliği geçmişe girmiyordu; sonraki bir adımı geri almak onları da sessizce geri çeviriyordu (ör. ekstrüzyonu geri alınca malzeme eski hâline dönüyordu). Artık kendi geri alma adımlarıdır.
+- Düzeltme (geri al): proje dosyası yeniden açılınca (veya Örnek proje tekrar yüklenince) önceki oturumun teknik resim geçmişi kalıyordu; Geri al yeni projeye eski bir notu getirebiliyordu.
+- Düzeltme (montaj): Eşleştir paneli açıkken Ctrl+Z sayfa hatası veriyordu (geri alınacak başka adım yoksa). Paneli açıp kapatmak veya Taşı aracında bir bileşene tıklamak yinele listesini siliyordu.
+- Düzeltme (çizim): geri al/yinele açık ölçü kutusunu ve çizerken ölçü yazma kutusunu kapatmıyordu; kutu silinen ölçüye bağlı kalıyor, aynı kimliği alan yeni ölçüyü değiştirebiliyordu. Sürükleme sırasında geri al sürüklemeyi de bitirir.
+- Düzeltme (çizim): bir çizime girip değiştirmeden çıkmak boş bir geri alma adımı bırakıyor ve yinele listesini siliyordu.
+- Düzeltme: silme/bastırma bildirimindeki “Geri al” sekme veya parça değiştirildikten sonra basılınca başka bir geçmişi (ör. teknik resmi) geri alıyordu; artık yalnızca o adımı geri alır.
+- Dosya açılırken açık çizim iptal edilmez, kabul edilir; “Geri al” ile dönülen önceki projede kalır.
 - Uygulama çizim yapılarak test edildi; parça (3B), montaj ve teknik resim (2B) arasındaki eşitleme ile düzeltme/silme/ekleme sonrası bozulmalar giderildi:
 - Düzeltme (Radyus/Pah): çizim ölçüsü veya ekstrüzyon derinliği değişince seçilen kenarlar “modelde bulunamadı” hatası veriyordu (örnek parçada 120 → 150). Kenarlar artık iki yanındaki yüzeylerin normalleri ve özellikleriyle de izlenir, yeni konumları saklanır.
 - Silme: bağlı öğesi olan bir özellik (ör. yüzeyine çizim yapılmış ekstrüzyon) silinirken onay sorulur ve hesaplanamayacak öğeler listelenir: “Bağlı öğelerle birlikte sil”, “Yalnızca bunu sil” veya “İptal”. Önceden 8 öğe uyarısız hataya düşüyordu. Çoğaltmanın hedeflerinden biri silinince kalan hedeflerle çalışmaya devam eder.

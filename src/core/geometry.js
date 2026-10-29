@@ -875,6 +875,22 @@ function matchEdge(all,se){
   for(const e of all){const de=vs(e.b,e.a),L=vl(de);if(L<1e-6)continue;const u=vk(de,1/L);if(Math.abs(vd(u,d))<0.9995)continue;const t=vd(vs(m,e.a),u);if(t<-0.05||t>L+0.05)continue;const off=vl(vs(vs(m,e.a),vk(u,t)));if(off<0.05&&off<bd){bd=off;best=e}}
   return best;
 }
+/* kenar imzası: iki yanındaki yüzeylerin normalleri ve onları oluşturan özellikler. Ölçü değişince kenar konumu kayar,
+   imza aynı kalır; konumla bulunamayan kenar imzası aynı olan en yakın kenarla eşleştirilir. */
+const r5=x=>Math.round(x*1e5)/1e5;
+function edgeSig(e){return {n:[pn(e.pa).map(r5),pn(e.pb).map(r5)],f:[e.pa.shared,e.pb.shared]}}
+function sigSame(e,g){
+  const nEq=(p,q)=>vd(p,q)>0.9999,n1=pn(e.pa),n2=pn(e.pb);
+  return (nEq(n1,g.n[0])&&nEq(n2,g.n[1])&&e.pa.shared===g.f[0]&&e.pb.shared===g.f[1])||(nEq(n1,g.n[1])&&nEq(n2,g.n[0])&&e.pa.shared===g.f[1]&&e.pb.shared===g.f[0]);
+}
+function matchEdgeSig(all,se){
+  const g=se.sig;if(!g||!g.n||!g.f)return null;const d=vn(vs(se.b,se.a)),m=vk(va(se.a,se.b),.5);let best=null,bd=Infinity;
+  for(const e of all){const de=vs(e.b,e.a),L=vl(de);if(L<1e-6||Math.abs(vd(vk(de,1/L),d))<0.9995||!sigSame(e,g))continue;
+    const dist=vl(vs(vk(va(e.a,e.b),.5),m));if(dist<bd){bd=dist;best=e}}
+  return best;
+}
+/* önce konumla; konumdaki kenar başka yüzeylerin kenarıysa (ya da yoksa) imzayla */
+function findEdge(all,se){const e=matchEdge(all,se);if(e&&(!se.sig||!se.sig.n||sigSame(e,se.sig)))return e;return matchEdgeSig(all,se)||e}
 function isCurvedEdge(all,e){
   const u=vn(vs(e.b,e.a)),L=vl(vs(e.b,e.a));
   for(const o of all){if(o===e)continue;for(const p of [e.a,e.b])for(const q of [o.a,o.b])if(vl(vs(p,q))<1e-4){const w=vs(o.b,o.a),Lo=vl(w);const ang=Math.acos(Math.min(1,Math.abs(vd(u,vk(w,1/Lo)))))*180/Math.PI;if(ang>0.3&&ang<30&&Lo/L>0.25&&Lo/L<4)return true}}
@@ -886,8 +902,10 @@ function edgeOpBodies(solid,f,anns){
   const sub=[],add=[],done=new Set();const val=num(f.type==='fillet'?f.r:f.d);
   if(!(val>0))throw new Error(f.type==='fillet'?'Yarıçap sıfırdan büyük olmalı.':'Pah mesafesi sıfırdan büyük olmalı.');
   if(!f.edges||!f.edges.length)throw new Error('Kenar seçilmedi.');
+  const refs=[];
   for(const se of f.edges){
-    const e=matchEdge(all,se);if(!e)throw new Error('Seçilen kenarlardan biri modelde bulunamadı. Özelliği düzenleyip kenarları yeniden seç.');
+    const e=findEdge(all,se);if(!e)throw new Error('Seçilen kenarlardan biri modelde bulunamadı. Özelliği düzenleyip kenarları yeniden seç.');
+    refs.push({a:e.a.slice(),b:e.b.slice(),sig:edgeSig(e)});
     if(isCurvedEdge(all,e)){const b=curvedEdgeBody(e,f,val,anns||[],done);if(b)(b.convex?sub:add).push(b.polys);continue}
     const E0=e.a,E1=e.b,t=vn(vs(E1,E0)),Ln=vl(vs(E1,E0));
     const n1=pn(e.pa),n2=pn(e.pb),c1=polyCentroid(e.pa),c2=polyCentroid(e.pb);
@@ -916,7 +934,7 @@ function edgeOpBodies(solid,f,anns){
     g.applyMatrix4(new T.Matrix4().makeBasis(v3(b1),v3(b2),v3(t)).setPosition(v3(st)));
     (convex?sub:add).push(geomToPolys(g,f.id));
   }
-  return {sub,add};
+  return {sub,add,refs};
 }
 
 function findCircleAnn(anns,e){
@@ -1053,7 +1071,7 @@ function clipAnn(a,box,polys){
 }
 function rebuildModel(features,upto){
   const list=upto==null?features:features.slice(0,upto);
-  const ctx={frames:{},caps:{},tools:{},errors:{}};let solid=[];const ann=[];
+  const ctx={frames:{},caps:{},tools:{},errors:{},edgeRefs:{}};let solid=[];const ann=[];
   const byId={};list.forEach(f=>byId[f.id]=f);
   for(const f of list){
     if(f.suppressed)continue;
@@ -1078,7 +1096,7 @@ function rebuildModel(features,upto){
         for(const t of r.tools)solid=csgSubtract(solid,t);
         ctx.tools[f.id]={polys:[].concat(...r.tools),op:'cut',ann:r.ann,parts:r.tools};ann.push(...r.ann);
       }else if(f.type==='lpattern'||f.type==='cpattern'||f.type==='mirror'){
-        const tg=(f.targets||[]).filter(Boolean);if(!tg.length)throw new Error('Çoğaltılacak özellik seçilmedi.');
+        const tg=(f.targets||[]).filter(id=>id&&!(byId[id]&&byId[id].suppressed));if(!tg.length)throw new Error((f.targets||[]).length?'Çoğaltılacak özellikler bastırılmış.':'Çoğaltılacak özellik seçilmedi.');
         const Ms=patternMatrices(f,ctx.frames);
         for(const tid of tg){
           const t=ctx.tools[tid];if(!t)throw new Error('Hedef özellik bulunamadı veya oluşturulamadı.');
@@ -1090,7 +1108,7 @@ function rebuildModel(features,upto){
         }
       }else if(f.type==='fillet'||f.type==='chamfer'){
         if(!solid.length)throw new Error('Önce bir gövde oluştur.');
-        const r=edgeOpBodies(solid,f,ann);
+        const r=edgeOpBodies(solid,f,ann);ctx.edgeRefs[f.id]=r.refs;
         for(const b of r.sub)solid=csgSubtract(solid,b);
         for(const b of r.add)solid=csgUnion(solid,b);
       }
@@ -1098,5 +1116,5 @@ function rebuildModel(features,upto){
   }
   let anns=[];
   if(solid.length){const box=bboxPolys(solid);anns=ann.map(a=>clipAnn({...a,C:a.C.clone(),A:a.A.clone()},box,solid)).filter(Boolean)}
-  return {polys:solid,ann:anns,errors:ctx.errors,frames:ctx.frames,caps:ctx.caps,tools:ctx.tools};
+  return {polys:solid,ann:anns,errors:ctx.errors,frames:ctx.frames,caps:ctx.caps,tools:ctx.tools,edgeRefs:ctx.edgeRefs};
 }

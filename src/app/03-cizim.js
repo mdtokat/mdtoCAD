@@ -18,7 +18,25 @@ const TOOLHELP={
   sfillet:'Çizim radyusu: iki çizginin veya çizgi ile yayın birleştiği köşe noktasına tıkla.',
   smartdim:'Akıllı ölçülendirme: çizgi (uzunluk), daire (çap), yay (yarıçap), iki nokta/çizgi (mesafe) veya iki çizgi (açı) seç; sonra ölçünün yerine tıkla ve değeri gir.'
 };
-function newId(f,pre){let n=1;const has=id=>f.pts[id]||f.ents.some(e=>e.id===id)||f.cons.some(c=>c.id===id);while(has(pre+n))n++;return pre+n}
+/* yeni kimlik: döndürme ekseni olarak başka bir özelliğin kullandığı kimlik (öğe silinmiş olsa da) yeni öğeye verilmez;
+   yoksa silinen eksenin yerine çizilen herhangi bir çizgi sessizce döndürme ekseni olurdu */
+function axisRefs(f){return state.features.filter(x=>x.type==='revolve'&&x.sketch===f.id&&x.axis).map(x=>x.axis)}
+function newId(f,pre){let n=1;const ext=new Set(axisRefs(f));const has=id=>f.pts[id]||ext.has(id)||f.ents.some(e=>e.id===id)||f.cons.some(c=>c.id===id);while(has(pre+n))n++;return pre+n}
+/* çizimden çıkarken ekseni silinmiş döndürme: eski eksenle aynı doğru üzerindeki çizgi (ör. budamadan kalan parça),
+   yoksa çizimdeki tek merkez çizgisi eksen olur */
+function fixRevolveAxes(f,orig){
+  const msgs=[];
+  for(const x of state.features){if(x.type!=='revolve'||x.sketch!==f.id||f.ents.some(e=>e.id===x.axis&&e.t==='line'))continue;
+    const cl=f.ents.filter(e=>e.t==='line'&&e.cons);let ax=null;
+    const o=orig&&orig.ents.find(e=>e.id===x.axis&&e.t==='line');
+    if(o){const P=id=>id==='O'?[0,0]:[orig.pts[id].x,orig.pts[id].y],a=P(o.a),b=P(o.b),L=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
+      const off=id=>{const p=P2(id);return Math.abs((p[0]-a[0])*(b[1]-a[1])-(p[1]-a[1])*(b[0]-a[0]))/L};
+      const on=f.ents.filter(e=>e.t==='line'&&off(e.a)<1e-6*(1+L)&&off(e.b)<1e-6*(1+L));ax=on.find(e=>!!e.cons===!!o.cons)||on[0]||null}
+    if(!ax&&cl.length===1)ax=cl[0];
+    if(ax){x.axis=ax.id;msgs.push(`“${x.name}” için döndürme ekseni güncellendi.`)}
+    else msgs.push(`“${x.name}” özelliğinin döndürme ekseni çizimde yok; özelliği düzenleyip ekseni seç.`)}
+  return msgs.join(' ');
+}
 function skData(f){return JSON.stringify({pts:f.pts,ents:f.ents,cons:f.cons})}
 function skPush(){sk.hist.push(skData(sk.feat));if(sk.hist.length>100)sk.hist.shift();sk.redo=[];updUndo()}
 function skRestore(s){const o=JSON.parse(s);sk.feat.pts=o.pts;sk.feat.ents=o.ents;sk.feat.cons=o.cons}
@@ -56,8 +74,8 @@ function exitSketch(accept){
   endChainIfAny();
   if(!accept){if(wasNew)state.features=state.features.filter(x=>x!==f);else Object.assign(f,JSON.parse(sk.orig));hist.undo.pop();pending=null}
   else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);hist.undo.pop();pending=null}
-    else{let msg='';
-      if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
+    else{let msg=fixRevolveAxes(f,JSON.parse(sk.orig));
+      if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=(msg?msg+' ':'')+`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
       if(msg)toast(msg)}}
   sk=null;closeDimPop();closeSkInput();solidTone();
@@ -891,6 +909,8 @@ function deleteSel(){
   f.cons=f.cons.filter(c=>!cons.has(c.id)&&!CPK.some(k=>pts.has(c[k])));
   for(const p of pts)delete f.pts[p];
   cleanupOrphans(f);sk.sel=[];solveSketch(f);skChanged();
+  const ax=state.features.filter(x=>x.type==='revolve'&&x.sketch===f.id&&ents.has(x.axis));
+  if(ax.length)toast(`Silinen çizgi “${ax.map(x=>x.name).join('”, “')}” özelliğinin döndürme ekseniydi. Yeni bir merkez çizgisi çizersen eksen olarak o kullanılır.`,{label:'Geri al',fn:sketchUndo});
 }
 function updSbar(){
   if(!sk)return;const dof=sk.an?sk.an.dof:null;const el=$('#sbSt');

@@ -78,10 +78,10 @@ Malzeme ekleme varsayılan olarak çizim normali yönünde, kesme ters yönde il
 
 ### `fillet` / `chamfer`
 ```jsonc
-{ "type":"fillet", "r":5, "edges":[ {"a":[x,y,z], "b":[x,y,z]} ] }
+{ "type":"fillet", "r":5, "edges":[ {"a":[x,y,z], "b":[x,y,z], "sig":{"n":[[nx,ny,nz],[nx,ny,nz]], "f":["x1","x1"]}} ] }
 { "type":"chamfer", "d":2, "edges":[ ... ] }
 ```
-Kenarlar dünya koordinatında saklanır ve her hesaplamada modeldeki kenarla eşleştirilir. Dairesel kenarlarda dairenin tek bir parçası saklanır.
+Kenarlar dünya koordinatında saklanır ve her hesaplamada modeldeki kenarla eşleştirilir. Dairesel kenarlarda dairenin tek bir parçası saklanır. `sig` (isteğe bağlı, program yazar) kenarın iki yanındaki yüzeylerin normalleri ve onları oluşturan özelliklerdir: ölçü değişince kenar konumu kayarsa aynı imzalı en yakın kenar kullanılır ve `a`/`b` yeni konuma güncellenir. `sig` olmayan eski dosyalarda ilk hesaplamada eklenir.
 
 ### Çoğaltma ve aynalama
 ```jsonc
@@ -120,7 +120,7 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır.
   "hidden":true, "centers":true, "autodims":true, "iso":true,
   "dno":"TZ-0001", "drawn":"", "checked":"", "company":"",
   "section":"none"|"front"|"top"|"side", "secOff":0, "secType":"full"|"half",
-  "dims":   [ {"view":"front","p1":[a,b],"p2":[a,b],"kind":"h"|"v"|"a","pos":12,
+  "dims":   [ {"view":"front","p1":[a,b],"p2":[a,b],"kind":"h"|"v"|"a","pos":12,"at":[true,false],
                "pre":"Ø", "tt":"none"|"sym"|"dev"|"fit", "tu":0.1, "tl":-0.05, "tf":"H7"},
               {"view":"top","kind":"dia","c":[a,b],"r":19,"rad":false,"off":[dx,dy]},          // çap (rad: yarıçap)
               {"view":"front","kind":"ang","v":[a,b],"u1":[x,y],"u2":[x,y],"rr":20,"e1":30,"e2":15} ], // açı
@@ -135,4 +135,4 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır.
   "raDef":"3,2", "noteDef":"…"
 }
 ```
-`dims`, `details`, `surfs`, `gdts`, `datums` içindeki `[a,b]` görünüş koordinatlarıdır (model mm); `details.pos`, `notes` ve tüm `off`/`vofs` değerleri sayfa koordinatlarıdır (mm, sol üst köşe orijin). `gdts.sym`: `straight`, `flat`, `circ`, `cyl`, `lprof`, `sprof`, `par`, `perp`, `ang`, `pos`, `conc`, `sym`, `run`, `trun`. Yeni alanların hepsi isteğe bağlıdır; eski dosyalar olduğu gibi açılır.
+`dims`, `details`, `surfs`, `gdts`, `datums` içindeki `[a,b]` görünüş koordinatlarıdır (model mm); `dims.at` ucun bir köşeye/merkeze (true) mi yoksa kenar üstüne mi bağlandığını söyler ve model değişince ölçünün geometriye oturup oturmadığını denetlemekte kullanılır (yoksa yalnızca kenar üstünde olması aranır); `details.pos`, `notes` ve tüm `off`/`vofs` değerleri sayfa koordinatlarıdır (mm, sol üst köşe orijin). `gdts.sym`: `straight`, `flat`, `circ`, `cyl`, `lprof`, `sprof`, `par`, `perp`, `ang`, `pos`, `conc`, `sym`, `run`, `trun`. Yeni alanların hepsi isteğe bağlıdır; eski dosyalar olduğu gibi açılır.

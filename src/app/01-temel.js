@@ -137,12 +137,13 @@ let state=project.parts.find(p=>p.id===project.cur.part)||project.parts[0];
 const histMap=new Map();
 function histFor(id){if(!histMap.has(id))histMap.set(id,{undo:[],redo:[]});return histMap.get(id)}
 let hist=histFor(state.id);
-const snapshot=()=>JSON.stringify({features:state.features,partName:state.partName,material:state.material,dims:state.drawing.dims},cleanR);
-function restoreSnap(s){const o=JSON.parse(s);state.features=o.features;state.partName=o.partName;state.material=o.material;state.drawing.dims=o.dims||[]}
+// teknik resim ayrı geçmişte tutulur (dwHist): parçada geri almak resme eklenen ölçüleri silmez
+const snapshot=()=>JSON.stringify({features:state.features,partName:state.partName,material:state.material},cleanR);
+function restoreSnap(s){const o=JSON.parse(s);state.features=o.features;state.partName=o.partName;state.material=o.material}
 function pushHist(){hist.undo.push(snapshot());if(hist.undo.length>80)hist.undo.shift();hist.redo=[];updUndo()}
-function undo(){if(activeTab==='asm')return asmUndo();if(sk)return sketchUndo();if(!hist.undo.length)return;closePM(true);hist.redo.push(snapshot());restoreSnap(hist.undo.pop());afterChange();updUndo()}
-function redo(){if(activeTab==='asm')return asmRedo();if(sk)return sketchRedo();if(!hist.redo.length)return;closePM(true);hist.undo.push(snapshot());restoreSnap(hist.redo.pop());afterChange();updUndo()}
-function updUndo(){if(activeTab==='asm'){const h=asmHistFor();$('#undoBtn').disabled=!h||!h.undo.length;$('#redoBtn').disabled=!h||!h.redo.length;return}$('#undoBtn').disabled=sk?!sk.hist.length:!hist.undo.length;$('#redoBtn').disabled=sk?!sk.redo.length:!hist.redo.length}
+function undo(){if(activeTab==='drawing')return dwUndo();if(activeTab==='asm')return asmUndo();if(sk)return sketchUndo();if(!hist.undo.length)return;closePM(true);hist.redo.push(snapshot());restoreSnap(hist.undo.pop());afterChange();updUndo()}
+function redo(){if(activeTab==='drawing')return dwRedo();if(activeTab==='asm')return asmRedo();if(sk)return sketchRedo();if(!hist.redo.length)return;closePM(true);hist.undo.push(snapshot());restoreSnap(hist.redo.pop());afterChange();updUndo()}
+function updUndo(){if(activeTab==='drawing'&&typeof dwHistFor==='function'){const h=dwHistFor();$('#undoBtn').disabled=!h.undo.length;$('#redoBtn').disabled=!h.redo.length;return}if(activeTab==='asm'){const h=asmHistFor();$('#undoBtn').disabled=!h||!h.undo.length;$('#redoBtn').disabled=!h||!h.redo.length;return}$('#undoBtn').disabled=sk?!sk.hist.length:!hist.undo.length;$('#redoBtn').disabled=sk?!sk.redo.length:!hist.redo.length}
 
 let toastT=0;
 function toast(msg,action){
@@ -150,6 +151,15 @@ function toast(msg,action){
   if(action)t.querySelector('button').onclick=()=>{action.fn();t.classList.remove('on')};
   t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),action?6000:3600);
 }
+/* onay penceresi: btns=[{label,fn,primary}]; Esc veya fn'siz düğme kapatır */
+function ask(title,html,btns){
+  const d=$('#askDlg');$('#askTitle').textContent=title;$('#askMsg').innerHTML=html;
+  $('#askBtns').innerHTML=btns.map((b,i)=>`<button class="sbtn${b.primary?' primary':''}" data-ask="${i}">${esc(b.label)}</button>`).join('');
+  $('#askBtns').onclick=e=>{const b=e.target.closest('[data-ask]');if(!b)return;closeAsk();const fn=btns[+b.dataset.ask].fn;if(fn)fn()};
+  d.classList.add('on');const p=$('#askBtns .primary')||$('#askBtns button');if(p)p.focus();
+}
+function closeAsk(){$('#askDlg').classList.remove('on')}
+const askOpen=()=>$('#askDlg').classList.contains('on');
 function prompt_(msg){const p=$('#vpPrompt');if(msg){p.textContent=msg;p.classList.add('on')}else p.classList.remove('on')}
 
 /* ================= 3B SAHNE ================= */
@@ -234,12 +244,20 @@ function showSolid(polys){
 }
 function rebuild(){
   const t0=performance.now();
-  const r=partRebuild(state);model.key=partKey(state);
+  const old=model.partId===state.id&&model.key?{key:model.key,polys:model.polys,ann:model.ann}:null;
+  const r=partRebuild(state);syncEdgeRefs(state,r);model.key=partKey(state);model.partId=state.id;
+  if(old&&old.key!==model.key&&partChanged(state,old,r))saveState();
   Object.assign(model,{polys:r.polys,ann:r.ann,errors:r.errors,frames:r.frames,caps:r.caps,tools:r.tools});
   model.version++;model.box=r.polys.length?bboxPolys(r.polys):null;model.props=r.polys.length?massProps(r.polys):null;
   model.ms=Math.round(performance.now()-t0);
   model.dof={};for(const f of state.features)if(f.type==='sketch'){try{model.dof[f.id]=analyzeSketch(f).dof}catch(e){}}
   showSolid(sk&&sk.base?sk.base:model.polys);rebuildPlanes();renderSketchDisplays();updateMass();updateStatus();
+}
+/* radyus/pah kenarları: model değişince kenar yeni konumuyla (ve imzasıyla) saklanır; ölçü değişikliğinden sonra da bulunur */
+function syncEdgeRefs(p,r){
+  const close=(x,y)=>Math.hypot(x[0]-y[0],x[1]-y[1],x[2]-y[2])<1e-6;
+  for(const f of p.features){const R=r.edgeRefs&&r.edgeRefs[f.id];if(!R||!f.edges||R.length!==f.edges.length)continue;
+    f.edges.forEach((se,i)=>{const n=R[i];if(!close(se.a,n.a)||!close(se.b,n.b)||JSON.stringify(se.sig)!==JSON.stringify(n.sig)){se.a=n.a;se.b=n.b;se.sig=n.sig}})}
 }
 /* çizim düzenlenirken koyu temada gövde koyulaşır; açık renkli çizim çizgileri normal görünümde parlayan yüzeyde kaybolmaz */
 function solidTone(){matSolid.color.setHex(sk&&isDark()?0x2A3139:0xA9B5C1)}

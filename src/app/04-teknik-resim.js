@@ -184,6 +184,17 @@ function dimGeom(d,v){
   const dx=a2-a1,dy=b2-b1,l=Math.hypot(dx,dy)||1,nx=-dy/l,ny=dx/l;
   return {P1,P2,Q1:v.map(a1+nx*d.pos,b1+ny*d.pos),Q2:v.map(a2+nx*d.pos,b2+ny*d.pos),val:l};
 }
+/* elle ölçü görünüşteki bir kenara/noktaya/daireye oturuyor mu (model değişince ölçü eski yerinde kalır) */
+function dimStale(dm,d){
+  const e=1e-3,segs=d.vis.concat(d.hid);
+  const onPt=(a,b)=>segs.some(q=>Math.hypot(q[0]-a,q[1]-b)<e||Math.hypot(q[2]-a,q[3]-b)<e)||d.circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
+  const onSeg=(a,b)=>segs.some(q=>{const dx=q[2]-q[0],dy=q[3]-q[1],l2=dx*dx+dy*dy;let t=l2?((a-q[0])*dx+(b-q[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q[0]+dx*t-a,q[1]+dy*t-b)<e})||d.circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
+  if(dm.kind==='dia')return !d.circ.some(c=>Math.hypot(c.a-dm.c[0],c.b-dm.c[1])<e&&Math.abs(c.r-dm.r)<e);
+  if(dm.kind==='ang'){const onLine=u=>segs.some(q=>[[q[0],q[1]],[q[2],q[3]]].every(P=>Math.abs((P[0]-dm.v[0])*u[1]-(P[1]-dm.v[1])*u[0])<e)&&Math.hypot(q[2]-q[0],q[3]-q[1])>e);return !onLine(dm.u1)||!onLine(dm.u2)}
+  // köşeye/merkeze bağlanan uç (at) köşede kalmalı; kenar üstündeki uç (ör. kenara dik ayak) kenarda
+  const ok=(P,i)=>dm.at&&dm.at[i]?onPt(P[0],P[1]):onSeg(P[0],P[1]);
+  return !ok(dm.p1,0)||!ok(dm.p2,1);
+}
 function dimFromCursor(p1,p2,c){
   const [a1,b1]=p1,[a2,b2]=p2,[ca,cb]=c;const dx=a2-a1,dy=b2-b1;
   const mnA=Math.min(a1,a2),mxA=Math.max(a1,a2),mnB=Math.min(b1,b2),mxB=Math.max(b1,b2);let kind;
@@ -378,8 +389,10 @@ function buildSheet(forExport,opts){
       o.push(r.m);occ.push(r.box);ctx.hits.push({t:'lbl',k:gid,box:r.box,K:r.K,C})
     }
   }
-  /* elle eklenen ölçüler */
-  S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;o.push(`<g data-dim="${i}">${dimRender(dm,v)}</g>`);ctx.hits.push({t:'dim',i,box:lastBox})});
+  /* elle eklenen ölçüler; model değiştiği için artık geometriye oturmayanlar ekranda kırmızı gösterilir (çıktıda normal) */
+  ctx.stale=new Set();
+  S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;const st=dimStale(dm,v.d);if(st)ctx.stale.add(i);let m=dimRender(dm,v);if(st&&!forExport)m=tint(m,'#D0342C');
+    o.push(`<g data-dim="${i}">${m}</g>`);ctx.hits.push({t:'dim',i,box:lastBox})});
   if(secInfo)o.push(sectionLineMarkup(secInfo,ctx,s));
   o.push(detailsMarkup(S,ctx,s));
   o.push(surfMarkup(S,ctx));
@@ -480,9 +493,13 @@ function dimClick(p,ptype){
   updateDimTip();drawOverlay(p);
 }
 function addDim(d){
-  if(dwDoc().kind==='part')pushHist();dwS().dims.push(d);
+  pushDwHist();
+  // hangi ucun köşeye/merkeze oturduğu saklanır: model değişince ölçünün eskidiği anlaşılır
+  if(d.p1&&dctx){const V=d.view;const at=P=>dctx.snaps.some(s=>s.view===V&&Math.hypot(s.a-P[0],s.b-P[1])<1e-6);d.at=[at(d.p1),at(d.p2)]}
+  dwS().dims.push(d);
   saveState();dimSt={stage:0,p1:null,p2:null};updateDimTip();renderDrawing();
 }
+const tint=(m,c)=>m.replace(/class="d-ar"/g,`class="d-ar" style="fill:${c}"`).replace(/class="d-thin"( style="[^"]*")?/g,`class="d-thin" style="stroke:${c}"`).replace(/class="d-t"/g,`class="d-t" style="fill:${c}"`);
 const toBlue=m=>m.replace(/class="d-ar"/g,'class="d-ar" style="fill:#1F6FEB"').replace(/class="d-thin"( style="[^"]*")?/g,'class="d-thin" style="stroke:#1F6FEB"').replace(/class="d-t"/g,'class="d-t" style="fill:#1F6FEB"');
 function drawOverlay(p){
   const ov=$('#ov');if(!ov)return;if(dwTool){ov.innerHTML=dwToolOverlay(p);return}if(!dimMode){ov.innerHTML=selOverlay();return}
@@ -526,6 +543,7 @@ function renderDrawRibbon(){
 }
 $('#drawRibbon').addEventListener('change',e=>{
   const S=dwS(),t=e.target;
+  if(t.id!=='dDoc')pushDwHist();
   if(t.id==='dDoc'){const [k,id]=t.value.split(':');if(k==='p'){project.cur.dw={kind:'part',id};switchPart(id)}else project.cur.dw={kind:'asm',id};saveState();renderDrawRibbon();renderDrawing(true);return}
   if(t.id==='dAsmView'){S.asmView=t.value;saveState();renderDrawRibbon();renderDrawing(true);return}
   if(t.id==='dSec'){S.section=t.value;saveState();renderDrawing();renderDwPanel();return}
@@ -536,6 +554,7 @@ $('#drawRibbon').addEventListener('change',e=>{
 });
 $('#drawRibbon').addEventListener('click',e=>{
   const b=e.target.closest('[data-dcmd]');if(!b)return;const c=b.dataset.dcmd,S=dwS();
+  if(['balloons','bom','hidden','centers','autodims','iso','explode'].includes(c))pushDwHist();
   if(['balloons','bom'].includes(c)){S[c]=S[c]===false;b.classList.toggle('on',S[c]!==false);saveState();renderDrawing();return}
   if(['hidden','centers','autodims','iso','explode'].includes(c)){S[c]=!S[c];b.classList.toggle('on',S[c]);saveState();renderDrawing()}
   else if(c==='dim')setDimMode(!dimMode);
@@ -556,7 +575,8 @@ function renderDwPanel(){
     <p class="note">Malzeme, kütle, ölçek ve tarih modelden otomatik alınır. Malzemeyi 3B Model sekmesindeki ağaçtan değiştir.</p></div>`;
   h+=`<div class="grp"><div class="grp-t">Eklenen ölçüler</div>`;
   if(!S.dims.length)h+=`<p class="note">Şeritteki “Akıllı ölçü” ile iki nokta, bir kenar (uzunluk), iki kenar (aralık veya açı) ya da bir daire (çap) seç, sonra ölçünün yerini göster. Ölçüler ve açıklamalar sürüklenerek taşınır, seçilip Delete ile silinir.</p>`;
-  else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const lab=v?dimLabel(d,v):'—';return `<div class="dimrow" style="flex-wrap:wrap"><span>${VN[d.view]||d.view}: ${esc(lab)}${d.kind==='ang'?'':' mm'}</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin; çap ölçüsünde R yazınca yarıçap gösterilir.</p>`;
+  else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const lab=v?dimLabel(d,v):'—';const st=dctx&&dctx.stale&&dctx.stale.has(i);return `<div class="dimrow" style="flex-wrap:wrap"><span${st?' style="color:var(--warn)" title="Model değişti; ölçü artık bir kenara veya noktaya oturmuyor. Silip yeniden ekle."':''}>${VN[d.view]||d.view}: ${esc(lab)}${d.kind==='ang'?'':' mm'}${st?' ⚠':''}</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin; çap ölçüsünde R yazınca yarıçap gösterilir.</p>`;
+  if(dctx&&dctx.stale&&dctx.stale.size)h+=`<p class="note" style="color:var(--warn)">${dctx.stale.size} ölçü modele uymuyor (kırmızı, ⚠): parça değiştiği için ölçülen kenar veya nokta artık o konumda değil. Silip yeniden ekle.</p>`;
   h+=`</div>`;
   h+=extraPanel(S);
   if(dctx)h+=`<div class="grp"><div class="grp-t">Sayfa</div><p class="note">Ölçek ${scaleLabel(dctx.scale)}, ${S.method==='E'?'ISO E (birinci açı) izdüşüm: üst görünüş ön görünüşün altında, soldan görünüş sağında.':'ISO A (üçüncü açı) izdüşüm: üst görünüş ön görünüşün üstünde, sağdan görünüş sağında.'}</p><p class="note">Fare tekerleği veya iki parmakla yakınlaştır, sürükleyerek kaydır.</p></div>`;
@@ -571,7 +591,7 @@ $('#dwPanel').addEventListener('input',e=>{
 $('#dwPanel').addEventListener('change',e=>{if(extraPanelInput(e,true))return;if(e.target.dataset.dk==='partName')renderTree()});
 $('#dwPanel').addEventListener('click',e=>{
   if(extraPanelClick(e))return;
-  const b=e.target.closest('[data-deldim]');if(!b)return;if(dwDoc().kind==='part')pushHist();
+  const b=e.target.closest('[data-deldim]');if(!b)return;pushDwHist();
   if(b.dataset.deldim==='all')dwS().dims=[];else dwS().dims.splice(+b.dataset.deldim,1);
   saveState();renderDrawing();
 });

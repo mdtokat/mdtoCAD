@@ -36,14 +36,37 @@ function switchPart(id){
 function uniqueName(base){const names=new Set(project.parts.map(p=>p.partName));if(!names.has(base))return base;let i=2;while(names.has(base+' '+i))i++;return base+' '+i}
 function partUsed(id){return project.asms.some(a=>a.comps.some(c=>c.part===id))}
 function partAction(a){
-  if(a==='new'){let n=project.parts.length+1;while(project.parts.some(p=>p.partName==='Parça'+n))n++;const p=newPart('Parça'+n);project.parts.push(p);switchPart(p.id);toast('Yeni parça oluşturuldu. Bir düzlem seçip Çizim ile başla.')}
-  else if(a==='dup'){const p=normPart(JSON.parse(JSON.stringify(state,cleanR)));p.id=uid('P');p.partName=uniqueName(state.partName+' kopya');project.parts.push(p);switchPart(p.id);toast('Parça çoğaltıldı.')}
+  if(a==='new'||a==='dup'){
+    let p;if(a==='new'){let n=project.parts.length+1;while(project.parts.some(p=>p.partName==='Parça'+n))n++;p=newPart('Parça'+n)}
+    else{p=normPart(JSON.parse(JSON.stringify(state,cleanR)));p.id=uid('P');p.partName=uniqueName(state.partName+' kopya')}
+    const from=state.id;project.parts.push(p);switchPart(p.id);hist.undo.push({op:'create',back:from});updUndo();
+    toast(a==='new'?'Yeni parça oluşturuldu. Bir düzlem seçip Çizim ile başla.':'Parça çoğaltıldı.',{label:'Geri al',fn:undoStep()});
+  }
   else if(a==='del'){
     if(project.parts.length<=1){toast('Projede en az bir parça kalmalı.');return}
     if(partUsed(state.id)){toast('Bu parça bir montajda kullanılıyor. Önce montajdan çıkar.');return}
     const gone=state,idx=project.parts.indexOf(gone);project.parts.splice(idx,1);switchPart(project.parts[Math.max(0,idx-1)].id);
-    toast(`“${gone.partName}” projeden silindi.`,{label:'Geri al',fn:()=>{project.parts.splice(idx,0,gone);switchPart(gone.id)}});
+    hist.undo.push({op:'undelete',part:gone,idx});updUndo();
+    toast(`“${gone.partName}” projeden silindi.`,{label:'Geri al',fn:undoStep()});
   }
+}
+/* parça oluşturma, çoğaltma ve silme parça geçmişinde işaretle tutulur (Geri al / Yinele):
+   create/redelete etkin parçayı projeden kaldırır, recreate/undelete parçayı yerine geri koyar; karşıt işaret öbür listeye yazılır */
+function partHistOp(m,isUndo){
+  const from=isUndo?hist.undo:hist.redo;
+  if(m.op==='create'||m.op==='redelete'){
+    if(project.parts.length<=1)return;
+    if(partUsed(state.id)){toast('Bu parça bir montajda kullanılıyor. Geri almak için önce montajdan çıkar.');return}
+    from.pop();const part=state,idx=project.parts.indexOf(part);project.parts.splice(idx,1);
+    const to=partById(m.back)||project.parts[Math.max(0,idx-1)];switchPart(to.id);
+    (isUndo?hist.redo:hist.undo).push({op:m.op==='create'?'recreate':'undelete',part,idx,back:to.id});
+    toast(m.op==='create'?`“${part.partName}” oluşturması geri alındı.`:`“${part.partName}” projeden silindi.`);
+  }else{
+    from.pop();const back=state.id;project.parts.splice(Math.min(m.idx,project.parts.length),0,m.part);switchPart(m.part.id);
+    (isUndo?hist.redo:hist.undo).push({op:m.op==='recreate'?'create':'redelete',back});
+    toast(`“${m.part.partName}” geri geldi.`);
+  }
+  if(activeTab==='asm')renderAsmTree();updUndo();saveState();
 }
 
 /* ---------- örnek proje ---------- */

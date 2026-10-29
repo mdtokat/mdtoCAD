@@ -84,6 +84,7 @@ PDF'te yazılar standart Helvetica ile, Türkçe karakterler (ğ, ş, ı, İ, Ğ
 | Ad | Açıklama |
 |---|---|
 | `state`, `project`, `model` | Etkin parça, proje, hesaplanmış model |
+| `previewGroup` | Özellik önizlemesinin 3B grubu |
 | `rebuildModel(features)` | Saf hesaplama (arayüzü değiştirmez) |
 | `cmd(ad)` | Şerit komutu çalıştırır (`'sketch'`, `'extrude'`, `'hole'`…) |
 | `startSketch(on)`, `exitSketch(kabul)`, `setTool(ad)`, `toolClick(x, y)` | Çizim oturumu (çizim koordinatlarında) |

@@ -1024,7 +1024,7 @@ function holeTool(f,F,L){
 
 /* ============ Desen matrisleri ============ */
 var AXDIR={x:[1,0,0],'-x':[-1,0,0],y:[0,1,0],'-y':[0,-1,0],z:[0,0,1],'-z':[0,0,-1]};
-function patternMatrices(f,frames){
+function patternMatrices(f,frames,caps){
   const out=[];
   if(f.type==='lpattern'){
     const d1=v3(AXDIR[f.dir1]||AXDIR.x),n1=Math.max(1,Math.round(num(f.n1)));
@@ -1038,7 +1038,8 @@ function patternMatrices(f,frames){
     const tot=num(f.angle)||360;const full=Math.abs(Math.abs(tot)-360)<1e-6;const step=full?Math.PI*2/n:tot*Math.PI/180/(n-1);
     const ax=v3(AXDIR[f.axis]||AXDIR.y);for(let k=1;k<n;k++)out.push(new T.Matrix4().makeRotationAxis(ax,step*k));
   }else if(f.type==='mirror'){
-    const F=STD[f.plane]||frames[f.plane];if(!F)throw new Error('Ayna düzlemi bulunamadı.');
+    // ayna düzlemi: standart/referans düzlem veya modelin düz bir yüzeyi (yüzeyi oluşturan özellik değişince yüzey de taşınır)
+    const F=f.plane&&typeof f.plane==='object'?sketchFrame({on:f.plane},{frames,caps:caps||{}}):STD[f.plane]||frames[f.plane];if(!F)throw new Error('Ayna düzlemi bulunamadı.');
     const n=F.n,a=n[0],b=n[1],c=n[2];const R=new T.Matrix4().set(1-2*a*a,-2*a*b,-2*a*c,0,-2*a*b,1-2*b*b,-2*b*c,0,-2*a*c,-2*b*c,1-2*c*c,0,0,0,0,1);
     const o=F.o;out.push(new T.Matrix4().makeTranslation(o[0],o[1],o[2]).multiply(R).multiply(new T.Matrix4().makeTranslation(-o[0],-o[1],-o[2])));
   }
@@ -1049,6 +1050,12 @@ function patternMatrices(f,frames){
 function reachFor(solid,F){
   let m=60;if(solid&&solid.length){const b=bboxPolys(solid);for(const x of [b.min[0],b.max[0]])for(const y of [b.min[1],b.max[1]])for(const z of [b.min[2],b.max[2]])m=Math.max(m,vl(vs([x,y,z],F.o)))}
   return m*1.1+10;
+}
+/* önizleme için tümünden geç boyu: gövdenin çizim düzlemi normali boyunca (sgn: yalnızca o yönde) en uzak noktası; radyal sınır yerine */
+function reachAlong(solid,F,sgn){
+  if(!solid||!solid.length)return 60;const b=bboxPolys(solid);let m=0;
+  for(const x of [b.min[0],b.max[0]])for(const y of [b.min[1],b.max[1]])for(const z of [b.min[2],b.max[2]]){const t=vd(vs([x,y,z],F.o),F.n);m=Math.max(m,sgn?sgn*t:Math.abs(t))}
+  return m+Math.max(0.5,m*0.02);
 }
 function sketchFrame(sk,ctx){
   const on=sk.on||{kind:'std',key:'front'};
@@ -1100,7 +1107,7 @@ function rebuildModel(features,upto){
         ctx.tools[f.id]={polys:[].concat(...r.tools),op:'cut',ann:r.ann,parts:r.tools};ann.push(...r.ann);
       }else if(f.type==='lpattern'||f.type==='cpattern'||f.type==='mirror'){
         const tg=(f.targets||[]).filter(id=>id&&!(byId[id]&&byId[id].suppressed));if(!tg.length)throw new Error((f.targets||[]).length?'Çoğaltılacak özellikler bastırılmış.':'Çoğaltılacak özellik seçilmedi.');
-        const Ms=patternMatrices(f,ctx.frames);
+        const Ms=patternMatrices(f,ctx.frames,ctx.caps);
         for(const tid of tg){
           const t=ctx.tools[tid];if(!t)throw new Error('Hedef özellik bulunamadı veya oluşturulamadı.');
           for(const M of Ms){

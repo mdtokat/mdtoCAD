@@ -13,6 +13,9 @@
 - Düzeltme (montaj): eşleştirme panelinde mesafe/açı yazıp hemen Enter'a basınca sayfa hatası oluşuyordu (gecikmeli önizleme kapanmış panele yazıyordu) ve yeni değer önizlenmeden onaylanabiliyordu. Türü değiştirilen otomatik adlı eşleştirme yeni türün adını alır (Çakışık1 → Mesafe1).
 - Teknik resim: dairesel çoğaltılmış (bir merkezden eşit uzaklıktaki) delikler, kenardan Kartezyen ölçüler yerine eksen çizgisiyle çizilen **delik dairesi** ve çapıyla (ör. Ø80) ölçülür.
 - PDF penceresi, PDF indirilince kapanır.
+- Düzeltme (önizleme): “Tümünden geç” kesme ve delik önizlemesi parçanın çok ötesine uzanıyordu; artık gövdenin bittiği yerde durur. Çoğaltma/aynalama önizlemesindeki kesme araçları da gövde kutusuna kırpılır (sonuç değişmez).
+- Aynala: ayna düzlemi olarak modelin düz bir yüzeyi de seçilebilir (ekranda yüzeye tıkla veya yüzeyi seçip Aynala'ya bas); uç yüzeyler onları oluşturan ekstrüzyonla birlikte taşınır (yeni `plane: {kind:"face", …}`).
+- Geri al/Yinele: yeni parça oluşturma, parça çoğaltma ve parça silme artık Geri al (Ctrl+Z) ve Yinele (Ctrl+Y) ile geri alınır; önceden yalnızca silme, bildirimdeki düğmeyle geri alınabiliyordu.
 - Düzeltme (arayüz): görünümün üstündeki mavi yönerge şeridi (ör. “Deliğin açılacağı düz yüzeye tıkla…”) ve teknik resimdeki ipucu kutusu altlarındaki modele/sayfaya yapılan tıklamaları yutuyordu; dik duran milin üst yüzeyine delik konumu eklenemiyordu.
 - Uygulama olağandışı kullanımla test edildi (geri al/yinele sıraları, silme, kaydedip yeniden açıp çizime devam etme, bozuk dosya). Bulunan hatalar giderildi (testler: `tests/olagandisi.spec.js`):
 - Düzeltme (montaj resmi): eklenen notlar, yüzey işaretleri, geometrik toleranslar, referanslar ve detay görünüşleri hemen kayboluyordu; kağıt boyutu, yönlendirme, ölçek, kesit ve görünüş sürüklemeleri de kaydedilmiyordu. Montaj resminin ayar nesnesi her okunuşta yenileniyor, değişiklik eskisine yazılıyordu.

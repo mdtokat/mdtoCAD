@@ -221,3 +221,73 @@ test('görünümdeki yönerge şeridi altındaki modele yapılan tıklamayı eng
   expect(await page.evaluate(() => __tz.pm.draft.pts.length)).toBe(1);
   expect(errors).toEqual([]);
 });
+
+test('tümünden geç önizlemesi gövdenin ötesine uzanmaz (delik, kesme çoğaltması)', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.click('#ribbon >> text=Delik Sihirbazı');
+  const [x, y] = await page.evaluate(() => __tz.scrW([-30, 15, 15]));
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(400);
+  // plaka 0..15 yüksekliğinde; delik önizlemesi plakanın altına (ve yukarıdaki göbek boyunca) taşmaz
+  const hole = await page.evaluate(() => { const b = new THREE.Box3().setFromObject(__tz.previewGroup); return [b.min.y, b.max.y]; });
+  expect(hole[0]).toBeGreaterThan(-1.5);
+  expect(hole[1]).toBeLessThan(16);
+  await page.keyboard.press('Escape');
+  // yatay kanalın (tümünden geç) çoğaltma önizlemesi gövde kutusunda kalır
+  await page.click('#ribbon >> text=Doğrusal Çoğaltma');
+  await page.click('#pm >> text=Kesme-Ekstrüzyon3');
+  await page.waitForTimeout(500);
+  const pat = await page.evaluate(() => { const b = new THREE.Box3().setFromObject(__tz.previewGroup), m = __tz.model.box; return [b.min.z - m.min[2], m.max[2] - b.max.z]; });
+  for (const d of pat) expect(d).toBeGreaterThan(-3);
+  expect(errors).toEqual([]);
+});
+
+test('aynala: ayna düzlemi olarak modelin düz bir yüzeyi seçilebilir', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => { document.querySelector('[data-m="new"]').click(); const T = __tz;
+    T.startSketch({ kind: 'std', key: 'top' }); T.setTool('rect'); T.toolClick(0, 0); T.sk.cursor = [30, 30]; T.applySkInput({ W: 60, H: 40 }); T.setTool(null); T.exitSketch(true);
+    T.cmd('extrude'); T.pm.draft.depth = 10; T.commitPM();
+    T.startSketch({ kind: 'face', feat: T.state.features[1].id, which: 'far', sgn: 1 }); T.setTool('circle'); T.toolClick(15, 10); T.sk.cursor = [20, 10]; T.applySkInput({ D: 10 }); T.setTool(null); T.exitSketch(true);
+    T.cmd('extrude'); T.pm.draft.depth = 15; T.commitPM(); });
+  await page.waitForTimeout(500);
+  await page.click('#ribbon >> text=Aynala');
+  const [x, y] = await page.evaluate(() => __tz.scrW([60, 5, -20]));
+  await page.mouse.click(x, y); // plakanın x = 60 yan yüzeyi
+  await expect(page.locator('#pm select[data-k="plane"]')).toHaveValue('__face');
+  await page.keyboard.press('Enter');
+  const r = await page.evaluate(() => ({ err: __tz.model.errors, maxX: __tz.model.box.max[0], plane: __tz.state.features.at(-1).plane.kind }));
+  expect(r).toEqual({ err: {}, maxX: expect.closeTo(110, 3), plane: 'face' });
+  // kaydedip açınca da hesaplanır
+  const re = await page.evaluate(() => __tz.rebuildModel(JSON.parse(JSON.stringify(__tz.state.features))).errors);
+  expect(re).toEqual({});
+  expect(errors).toEqual([]);
+});
+
+test('yeni parça, parça çoğaltma ve silme Geri al / Yinele ile geri alınır', async ({ page }) => {
+  const errors = await openApp(page);
+  const st = () => page.evaluate(() => [__tz.project.parts.length, __tz.state.partName]);
+  await page.click('#tree >> text=+ Yeni');
+  await page.evaluate(() => { const T = __tz; T.startSketch({ kind: 'std', key: 'top' }); T.setTool('circle'); T.toolClick(0, 0); T.toolClick(10, 0); T.setTool(null); T.exitSketch(true); });
+  expect(await st()).toEqual([4, 'Parça4']);
+  await page.keyboard.press('Control+z'); // çizim
+  expect(await st()).toEqual([4, 'Parça4']);
+  await page.keyboard.press('Control+z'); // parça oluşturma
+  expect(await st()).toEqual([3, 'Yatak gövdesi']);
+  await page.keyboard.press('Control+y');
+  await page.keyboard.press('Control+y');
+  expect(await st()).toEqual([4, 'Parça4']);
+  expect(await page.evaluate(() => __tz.state.features.length)).toBe(1);
+  // çoğalt → bildirimdeki Geri al
+  await page.click('#tree >> text=Çoğalt');
+  expect(await st()).toEqual([5, 'Parça4 kopya']);
+  await page.click('#toast button');
+  expect(await st()).toEqual([4, 'Parça4']);
+  // sil → Ctrl+Z → Ctrl+Y
+  await page.click('#tree >> text=Sil');
+  expect(await st()).toEqual([3, 'Cıvata M8x30']);
+  await page.keyboard.press('Control+z');
+  expect(await st()).toEqual([4, 'Parça4']);
+  await page.keyboard.press('Control+y');
+  expect(await st()).toEqual([3, 'Cıvata M8x30']);
+  expect(errors).toEqual([]);
+});

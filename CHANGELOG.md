@@ -1,6 +1,15 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Teknik resim, SolidWorks çizim ortamıyla karşılaştırılarak test edildi (karşılaştırma: `docs/TEKNIK-RESIM.md`). Bulunan hatalar ve eklenenler:
+- Düzeltme (teknik resim): yayların uç noktaları parça köşesi olmadığı için genel ölçüler eksik çıkıyordu (yataklı stand 106 yerine 105,97; disk 813 yerine 812,21). Yaylar artık çeyrek noktalarından da bölünür.
+- Düzeltme (teknik resim): aynı yöne çizilen delik etiketleri üst üste biniyordu (yataklı standda Ø24 ve Ø14). Etiketler boş yer bulana kadar döndürülür; ölçü yazılarına ve görünüş çizgilerine değmez.
+- Teknik resim: delik etiketleri SolidWorks gibi satır satır ve simgeli (`2× Ø9 ↧12` / `⌴Ø18 ↧2`, havşada `⌵`, dişte `M8×1,25 ↧16`); uzun “faturalı … derinlik … / delik derinliği …” yazısının yerini aldı.
+- Teknik resim: görünüşler sürüklenerek taşınır (ön görünüş izdüşümleri de taşır; üst görünüş yalnızca dikey, yan görünüş yalnızca yatay kayar). Ölçüler, etiketler, notlar, detay görünüşleri, geometrik toleranslar ve referanslar sürüklenir; seçili öğe **Delete** ile silinir, otomatik ölçü/etiket/görünüş gizlenir (panelden geri getirilir).
+- Teknik resim: **Akıllı ölçü** kenar uzunluğu, paralel kenar aralığı, noktadan kenara uzaklık, daire çapı (ön ek R ile yarıçap) ve iki kenar arası **açı** verir.
+- Teknik resim: **Geometrik tolerans** (ISO 1101'in 14 sembolü, Ø, üç referans) ve **referans (datum) işareti**.
+- Teknik resim: kesit üst görünüşte de alınabilir; **yarım kesit**. Kesit etiketi “KESİT A-A”, detay etiketi “DETAY B ÖLÇEK 2:1”; kesitten alınan detayda tarama, detaylarda eksen çizgileri çizilir.
+- Teknik resim: **DXF** çıktısı (AutoCAD R12; GORUNUR, GIZLI, EKSEN, INCE, CERCEVE, YAZI katmanları ve kesikli/eksen çizgi türleri; Türkçe yazılar ANSI 1254).
 - Düzeltme: silindirik (eğri) bir yüzey seçilip Çizim'e basılınca tek bir yüzey üçgeninin düzleminde çizim açılıyordu; artık uyarı verilir. Delik Sihirbazı da yalnızca düz yüzeyi kabul eder. Eğri yüzey seçilince ve üzerine gelince yüzeyin tamamı vurgulanır.
 - Çözücü: ön aşama göreli yakınsamada durur; büyük çizimde sürükleme öncekinden hızlıdır.
 - Arayüz: dar telefon ekranında (≤420 px) üst çubuk sığar.

@@ -164,8 +164,9 @@ function build3DPage(opt,preview){
 function dataURLBytes(u){const b=atob(u.split(',')[1]);const a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
 
 /* ---------- PDF penceresi ---------- */
+let pdfScaleCustom=false;
 const pdfOpt={doc:null,kind:'2d',paper:'A3',orient:'landscape',layout:'full',scale:'auto',view:'iso',style:'shadedEdges'};
-const LAYOUTS=[['full','Antetli','Çerçeve ve tam antet (çizen, malzeme, kütle, ölçek…)'],['min','Parça adı ve ölçek','Çerçeve ve antet yok, altta yalnızca parça adı ile ölçek'],['none','Yalnızca parça','Sadece parça görüntüsü, hiçbir yazı yok']];
+const LAYOUTS=[['full','Antetli','Çerçeve ve tam antet (çizen, malzeme, kütle, ölçek…)'],['frame','Antetsiz (çerçeveli)','Çerçeve var, antet yok'],['min','Parça adı ve ölçek','Çerçeve ve antet yok, altta yalnızca parça adı ile ölçek'],['none','Yalnızca parça','Antetsiz ve çerçevesiz; sadece parça görüntüsü, hiçbir yazı yok']];
 function openPdfDialog(kind){
   if(sk)exitSketch(true);if(pm)closePM(true);
   pdfOpt.kind=kind||pdfOpt.kind;
@@ -173,7 +174,7 @@ function openPdfDialog(kind){
   if(activeTab==='asm'&&a)pdfOpt.doc={kind:'asm',id:a.id};
   else if(activeTab==='drawing'){const d=dwDoc();pdfOpt.doc=d.kind==='asm'?{kind:'asm',id:d.a.id}:{kind:'part',id:state.id}}
   else pdfOpt.doc={kind:'part',id:state.id};
-  const S=withDoc(()=>dwS());pdfOpt.paper=S.paper||'A3';pdfOpt.orient=S.orient||'landscape';
+  const S=withDoc(()=>dwS());pdfOpt.paper=S.paper||'A3';pdfOpt.orient=S.orient||'landscape';pdfOpt.layout=S.layout||'full';pdfOpt.scale=S.scale||'auto';pdfScaleCustom=false;
   $('#pdfDlg').classList.add('on');renderPdfOpts();schedulePdfPreview();
 }
 function closePdfDialog(){$('#pdfDlg').classList.remove('on')}
@@ -184,7 +185,8 @@ function renderPdfOpts(){
   let h=`<label class="fld"><span>Belge</span>${sel('doc',docOpts.map(([k,t])=>[k,esc(t)]),(o.doc.kind==='asm'?'a:':'p:')+o.doc.id)}</label><div class="grp-t">İçerik</div>`+seg('kind',[['2d','2B teknik resim'],['3d','3B görünüş']],o.kind);
   h+=`<div class="row2"><label class="fld"><span>Kağıt boyutu</span>${sel('paper',[['A4','A4 (297×210)'],['A3','A3 (420×297)'],['A2','A2 (594×420)'],['A1','A1 (841×594)'],['A0','A0 (1189×841)']],o.paper)}</label><label class="fld"><span>Yön</span>${sel('orient',[['landscape','Yatay'],['portrait','Dikey']],o.orient)}</label></div>`;
   h+=`<div class="grp-t">Sayfa düzeni</div>`+LAYOUTS.map(([k,t,d])=>`<label class="radio ${o.layout===k?'on':''}"><input type="radio" name="playout" value="${k}" ${o.layout===k?'checked':''}><span>${t}<small>${d}</small></span></label>`).join('');
-  h+=`<label class="fld" style="margin-top:8px"><span>Ölçek</span>${sel('scale',[['auto','Otomatik (kağıda sığdır)'],['10','10:1'],['5','5:1'],['2','2:1'],['1','1:1'],['0.5','1:2'],['0.2','1:5'],['0.1','1:10'],['0.05','1:20']],o.scale)}</label>`;
+  h+=`<label class="fld" style="margin-top:8px"><span>Ölçek</span>${sel('scale',scaleOpts(o.scale).map(([k,t])=>[k,k==='auto'?'Otomatik (kağıda sığdır)':t]),pdfScaleCustom?'custom':String(o.scale))}</label>`;
+  if(pdfScaleCustom)h+=`<label class="fld"><span>Özel ölçek (ör. 1:2,5 veya 3:1)</span><input data-pscale value="${esc(o.scale!=='auto'&&+o.scale>0?scaleLabel(+o.scale):'1:1')}" autocomplete="off"></label>`;
   if(o.kind==='3d'){
     h+=`<div class="row2"><label class="fld"><span>Görünüm</span>${sel('view',[['iso','İzometrik'],['dimetric','Dimetrik'],['current','Ekrandaki görünüm'],['front','Ön'],['top','Üst'],['right','Sağ'],['back','Arka']],o.view)}</label><label class="fld"><span>Görüntü</span>${sel('style',[['shadedEdges','Gölgeli, kenarlı'],['shaded','Gölgeli'],['wire','Tel kafes']],o.style)}</label></div>`;
     h+=`<p class="note">3B görünüş ortografik olarak (perspektifsiz) çizilir, böylece ölçek gerçektir.</p>`;
@@ -216,7 +218,9 @@ $('#pdfDlg').addEventListener('click',e=>{
 $('#pdfDlg').addEventListener('change',e=>{
   const t=e.target;
   if(t.dataset.po==='doc'){const [k,id]=t.value.split(':');pdfOpt.doc={kind:k==='a'?'asm':'part',id};renderPdfOpts();schedulePdfPreview();return}
-  if(t.dataset.po){pdfOpt[t.dataset.po]=t.value;if(t.dataset.po==='kind')renderPdfOpts();schedulePdfPreview()}
+  if(t.dataset.po==='scale'&&t.value==='custom'){pdfScaleCustom=true;renderPdfOpts();const i=$('#pdfOpts [data-pscale]');if(i){i.focus();i.select()}return}
+  if(t.hasAttribute('data-pscale')){const v=parseScale(t.value);if(v==null){t.classList.add('bad');return}pdfOpt.scale=String(v);pdfScaleCustom=false;renderPdfOpts();schedulePdfPreview();return}
+  if(t.dataset.po){pdfOpt[t.dataset.po]=t.value;if(t.dataset.po==='scale')pdfScaleCustom=false;if(t.dataset.po==='kind')renderPdfOpts();schedulePdfPreview()}
   if(t.name==='playout'){pdfOpt.layout=t.value;renderPdfOpts();schedulePdfPreview()}
 });
 async function makePdf(){const prev=dwOverride;dwOverride=pdfOpt.doc;try{return await makePdf_()}finally{dwOverride=prev}}

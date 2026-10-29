@@ -15,6 +15,7 @@ const TOOLHELP={
   tarc:'Teğet yay: bir çizginin veya yayın ucuna, sonra yayın bitiş noktasına tıkla. Zincir devam eder; bitirmek için çift tıkla veya Esc.',
   slot:'Düz kanal: iki merkez noktasına, sonra genişliği belirlemek için yana tıkla.',
   polygon:'Çokgen: merkeze, sonra bir köşeye tıkla.',
+  point:'Nokta: konuma tıkla. Bir öğenin üstüne veya kesişimine tıklanırsa nokta ona bağlanır. Noktalar profile katılmaz; ölçü, ilişki ve yapı için kullanılır.',
   sfillet:'Çizim radyusu: iki çizginin veya çizgi ile yayın birleştiği köşe noktasına tıkla.',
   smartdim:'Akıllı ölçülendirme: çizgi (uzunluk), daire (çap), yay (yarıçap), iki nokta/çizgi (mesafe) veya iki çizgi (açı) seç; sonra ölçünün yerine tıkla ve değeri gir.'
 };
@@ -27,7 +28,7 @@ function newId(f,pre){let n=1;const ext=new Set(axisRefs(f));const has=id=>f.pts
 function fixRevolveAxes(f,orig){
   const msgs=[];
   for(const x of state.features){if(x.type!=='revolve'||x.sketch!==f.id||f.ents.some(e=>e.id===x.axis&&e.t==='line'))continue;
-    const cl=f.ents.filter(e=>e.t==='line'&&e.cons);let ax=null;
+    const cl=f.ents.filter(e=>e.t==='line'&&e.cons&&!e.ref);let ax=null;
     const o=orig&&orig.ents.find(e=>e.id===x.axis&&e.t==='line');
     if(o){const P=id=>id==='O'?[0,0]:[orig.pts[id].x,orig.pts[id].y],a=P(o.a),b=P(o.b),L=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
       const off=id=>{const p=P2(id);return Math.abs((p[0]-a[0])*(b[1]-a[1])-(p[1]-a[1])*(b[0]-a[0]))/L};
@@ -37,6 +38,8 @@ function fixRevolveAxes(f,orig){
     else msgs.push(`“${x.name}” özelliğinin döndürme ekseni çizimde yok; özelliği düzenleyip ekseni seç.`)}
   return msgs.join(' ');
 }
+/* çizimde öğe ve tek başına nokta yok */
+const skEmpty=f=>!f.ents.length&&!Object.values(f.pts).some(p=>p.sp);
 function skData(f){return JSON.stringify({pts:f.pts,ents:f.ents,cons:f.cons})}
 function skPush(){sk.hist.push(skData(sk.feat));if(sk.hist.length>100)sk.hist.shift();sk.redo=[];updUndo()}
 function skRestore(s){const o=JSON.parse(s);sk.feat.pts=o.pts;sk.feat.ents=o.ents;sk.feat.cons=o.cons}
@@ -64,7 +67,7 @@ function beginSession(f,F,isNew){
   const user=!isNew&&consumedMap()[f.id];
   if(user){try{sk.base=rebuildModel(state.features.map(x=>x.id===user?{...x,suppressed:true}:x)).polys;showSolid(sk.base)}catch(e){}}
   solidTone();
-  skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setControlsForSketch(true);vpEl.classList.add('sketching');
+  skGroup.matrix.copy(sk.M);skGroup.matrixWorldNeedsUpdate=true;sel=null;updateSelVisual();setOrtho(true);setControlsForSketch(true,true);vpEl.classList.add('sketching');
   cmTab='sketch';renderRibbon();$('#confirm').classList.add('on');$('#sbar').classList.add('on');
   analyze();renderTree();renderPM();updateStatus();updateMass();renderSketchDisplays();updatePlaneVis();normalTo(F);
   if(pendingTool){setTool(pendingTool);pendingTool=null}
@@ -77,15 +80,15 @@ function exitSketch(accept){
   // değişiklik yoksa çizime girerken eklenen geri alma adımı kaldırılır, yinele listesi geri gelir
   const drop=()=>{hist.undo.pop();if(sk.redo0)hist.redo=sk.redo0};
   if(!accept){if(wasNew)state.features=state.features.filter(x=>x!==f);else Object.assign(f,JSON.parse(sk.orig));drop();pending=null}
-  else{cleanupOrphans(f);if(wasNew&&!f.ents.length){state.features=state.features.filter(x=>x!==f);drop();pending=null}
+  else{pruneRefs(f);cleanupOrphans(f);if(wasNew&&skEmpty(f)){state.features=state.features.filter(x=>x!==f);drop();pending=null}
     else{let msg=fixRevolveAxes(f,JSON.parse(sk.orig));
-      if(autoDefOn()&&f.ents.length){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=(msg?msg+' ':'')+`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
+      if(autoDefOn()&&!skEmpty(f)){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=(msg?msg+' ':'')+`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
       if(msg)toast(msg);
       if(!wasNew&&snapshot()===hist.undo[hist.undo.length-1])drop()}}
   sk=null;closeDimPop();closeSkInput();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
-  $('#labels').innerHTML='';setControlsForSketch(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
+  $('#labels').innerHTML='';setControlsForSketch(false);setOrtho(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
   cmTab='features';afterChange();
   const still=byId(f.id);
   if(accept&&pending&&still){const p=pending;pending=null;openNewProfile(p.type,p.op,f.id)}
@@ -136,7 +139,7 @@ const AUTODEF_KEY='tezgah-cad-otomatik-tam-tanimla';
 function autoDefOn(){try{return localStorage.getItem(AUTODEF_KEY)!=='0'}catch(e){return true}}
 function setAutoDef(on){try{localStorage.setItem(AUTODEF_KEY,on?'1':'0')}catch(e){}}
 function autoDefineSketch(silent){
-  if(!sk)return 0;const f=sk.feat;if(!f.ents.length){if(!silent)toast('Çizimde öğe yok.');return 0}
+  if(!sk)return 0;const f=sk.feat;if(skEmpty(f)){if(!silent)toast('Çizimde öğe yok.');return 0}
   endChainIfAny();skPush();let added=[];
   try{added=autoDefine(f,{px:sk.px})}catch(e){added=[]}
   if(!added.length){sk.hist.pop();updUndo();if(!silent)toast('Çizim zaten tam tanımlı.');return 0}
@@ -153,8 +156,8 @@ function cleanupOrphans(f){
   const used=new Set(['O']);for(const e of f.ents){for(const k of ['a','b','c'])if(e[k])used.add(e[k])}
   for(const c of f.cons){if(c.t==='mid'||c.t==='fix'||DIMT.has(c.t)||c.t==='h'||c.t==='v'){if(c.p&&used.has(c.p))continue}}
   const consUsed=new Set();for(const c of f.cons)for(const k of ['p','q'])if(c[k])consUsed.add(c[k]);
-  // öğeye ait olmayan nokta: orta nokta ilişkisi varsa veya iki öğeyi bağlıyorsa (ör. daire çevresi çizgi üstünde) kalır
-  for(const id of Object.keys(f.pts)){if(!used.has(id)){const keep=f.cons.some(c=>c.t==='mid'&&c.p===id)||f.cons.filter(c=>(c.t==='pol'||c.t==='poc')&&c.p===id).length>=2;if(!keep)delete f.pts[id]}}
+  // öğeye ait olmayan nokta: çizim noktası (Nokta aracı), orta nokta ilişkisi varsa veya iki öğeyi bağlıyorsa (ör. daire çevresi çizgi üstünde) kalır
+  for(const id of Object.keys(f.pts)){if(!used.has(id)){const keep=f.pts[id].sp||f.cons.some(c=>c.t==='mid'&&c.p===id)||f.cons.filter(c=>(c.t==='pol'||c.t==='poc')&&c.p===id).length>=2;if(!keep)delete f.pts[id]}}
   f.cons=f.cons.filter(c=>!CPK.some(k=>c[k]&&c[k]!=='O'&&!f.pts[c[k]]));
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
@@ -277,6 +280,7 @@ function skPointerDown(e){
   if(e.button!==0&&e.pointerType==='mouse')return;
   const {q,tol}=skEv(e);if(!q)return;
   if(!sk.tool){const h=skHit(q,tol);if(h&&!(h.k==='pt'&&h.id==='O')){sk.drag={h,q0:q,moved:false,orig:clone({pts:sk.feat.pts,ents:sk.feat.ents})}}}
+  if(sk.tool==='trim')sk.ptrim={last:q,path:[q],n:0};
 }
 function skPointerMove(e){
   const {q,px,tol}=skEv(e);if(!q)return;sk.cursor=q;sk.px=px;
@@ -293,19 +297,27 @@ function skPointerMove(e){
     }
     return;
   }
-  if(!sk.tool||sk.tool==='smartdim'||sk.tool==='sfillet'){const h=skHit(q,tol);const k=h?h.k+':'+h.id:null;if(k!==sk.hover){sk.hover=k}}
+  sk.extHover=null;
+  if(!sk.tool||sk.tool==='smartdim'||sk.tool==='sfillet'){const h=skHit(q,tol);const k=h?h.k+':'+h.id:null;if(k!==sk.hover){sk.hover=k}
+    if(!h&&(!sk.tool||(sk.tool==='smartdim'&&dimRefOk())))sk.extHover=extPick(q,tol*0.7)}
   else sk.hover=null;
-  if(sk.tool==='trim'){const best=trimPick(sk.feat,q,tol);sk.hover=best?'ent:'+best.id:null}
+  if(sk.tool==='trim'){
+    if(sk.ptrim&&!(e.buttons&1))sk.ptrim=null;
+    if(sk.ptrim)trimDragTo(q,px);
+    const best=sk.ptrim?null:trimPick(sk.feat,q,tol);sk.hover=best?'ent:'+best.id:null}
   if(sk.tool==='arc'&&sk.st.c&&sk.st.a){const c=P2(sk.st.c);const ang=Math.atan2(q[1]-c[1],q[0]-c[0]);if(sk.st.last!==undefined){let d=ang-sk.st.last;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;sk.st.acc=(sk.st.acc||0)+d}sk.st.last=ang}
   sk.dirty=true;
 }
 function skPointerUp(e,d){
   const drag=sk.drag;sk.drag=null;
+  // sürükleyerek budama yapıldıysa bırakılan yerde ayrıca tıklama budaması yapılmaz
+  const pt=sk.ptrim;sk.ptrim=null;if(pt&&pt.n){sk.dirty=true;return}
   if(drag&&drag.moved){if(drag.h.k==='pt'){const ev=skEv(e);if(ev.q)dropPoint(drag.h.id,ev.tol)}skChanged();return}
   if(!d||Math.hypot(e.clientX-d.x,e.clientY-d.y)>6)return;
   if(e.button!==0&&e.pointerType==='mouse')return;
   const ev=skEv(e);if(!ev.q)return;
-  if(!sk.tool){const h=skHit(ev.q,ev.tol);if(h)toggleSel(h);else{sk.sel=[];skChanged()}return}
+  // boş yere tıklama: arkadaki model kenarı veya başka bir çizimin öğesi varsa referans olarak eklenip seçilir
+  if(!sk.tool){const h=skHit(ev.q,ev.tol)||refAt(ev.q,ev.tol*0.7);if(h)toggleSel(h);else{sk.sel=[];skChanged()}return}
   toolClick(ev.q,ev.px,ev.tol);
 }
 /* sürüklenen nokta başka bir noktanın (orijin dahil) üstüne bırakılınca onunla birleşir; bir öğenin üstüne bırakılınca üzerinde kalır */
@@ -455,6 +467,10 @@ function toolClick(q,px,tol){
     const added=[];snapTie(s,vsx[0],added);
     sk.st={};finishOp(added);return;
   }
+  if(t==='point'){
+    const s=skSnap(q,tol,null,null);if(s.pid){toast('Bu konumda zaten bir nokta var.');return}
+    skPush();const added=[];const id=resolvePt(s,added);f.pts[id].sp=true;finishOp(added);return;
+  }
   if(t==='sfillet'){
     const h=skHit(q,tol);if(!h||h.k!=='pt'){toast('İki çizginin birleştiği köşe noktasına tıkla.');return}
     sketchFillet(h.id);return;
@@ -557,9 +573,11 @@ function dimCandidate(q){
     if(Math.abs(a[0]-b[0])<1e-9)kind='dv';else if(Math.abs(a[1]-b[1])<1e-9)kind='dh';else if(oy&&!ox)kind='dh';else if(ox&&!oy)kind='dv';else kind='d'}
   return {t:kind,p,q:r};
 }
+/* akıllı ölçüde dış kenar ancak ilk seçim olarak veya tek başına ölçü vermeyen (nokta) seçimden sonra alınır; aksi hâlde tıklama ölçünün yeridir */
+function dimRefOk(){const p=sk.st.picks||[];return !p.length||(p.length===1&&!dimCandidate(null))}
 function skDimClick(q,px,tol){
   const st=sk.st;st.picks=st.picks||[];
-  const h=skHit(q,tol);
+  const h=skHit(q,tol)||(dimRefOk()?refAt(q,tol*0.7):null);
   if(h&&st.picks.length<2&&!st.picks.some(x=>x.k===h.k&&x.id===h.id)){
     const E=entMap(sk.feat);
     if(st.picks.length===0&&h.k==='ent'&&E[h.id].t!=='line'){st.picks=[h];sk.dirty=true;return}
@@ -606,11 +624,7 @@ function fitSketch(withModel){
   // istenirse modelin köşeleri de çizim düzlemine izdüşürülüp hesaba katılır
   if(withModel&&model.box){const B=model.box;for(const i of [0,1])for(const j of [0,1])for(const k of [0,1]){const w=[[B.min[0],B.max[0]][i]-sk.F.o[0],[B.min[1],B.max[1]][j]-sk.F.o[1],[B.min[2],B.max[2]][k]-sk.F.o[2]];const x=vd(w,sk.F.u),y=vd(w,sk.F.v);b.x0=Math.min(b.x0,x);b.x1=Math.max(b.x1,x);b.y0=Math.min(b.y0,y);b.y1=Math.max(b.y1,y)}}const r=Math.max(1,Math.hypot(b.x1-b.x0,b.y1-b.y0)/2)*1.25;
   const c=v3(fpt(sk.F,(b.x0+b.x1)/2,(b.y0+b.y1)/2));
-  const fv=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fv/2)*camera.aspect);const dist=r/Math.tan(Math.min(fv,hf)/2);
-  const d=camera.position.clone().sub(controls.target).normalize();const toPos=c.clone().addScaledVector(d,dist);
-  camera.near=Math.max(.01,dist/200);camera.far=Math.max(camera.far,dist*60);camera.updateProjectionMatrix();
-  if(reduceMotion){camera.position.copy(toPos);controls.target.copy(c);controls.update();camAnim=null;sk.dirty=true;return}
-  camAnim={p0:camera.position.clone(),t0:controls.target.clone(),p1:toPos,t1:c,s:performance.now(),dur:420};
+  camTo(c,camera.position.clone().sub(controls.target).normalize(),r);
 }
 
 /* ---------- etiketler (ölçü değerleri ve ilişki simgeleri) ---------- */
@@ -633,7 +647,7 @@ function placeLabels(){
 }
 
 /* ---------- çizim görüntüsü ---------- */
-function skColors(){const d=isDark();return {def:d?0xE8EDF2:0x10151C,und:d?0x6FA8FF:0x1A64E0,sel:0xF08A1A,hov:0xF0A845,prev:d?0x9CC3FF:0x3A7BE8,origin:0xD0453A,snap:0xF08A1A}}
+function skColors(){const d=isDark();return {def:d?0xE8EDF2:0x10151C,und:d?0x6FA8FF:0x1A64E0,sel:0xF08A1A,hov:0xF0A845,prev:d?0x9CC3FF:0x3A7BE8,origin:0xD0453A,snap:0xF08A1A,ref:d?0xC79BF2:REFCOL}}
 const hex=c=>new T.Color(c);
 function dimGeo(f,c,px){
   const E=entMap(f);const P=id=>{const p=skP(f,id);return [p.x,p.y]};const segs=[];
@@ -674,7 +688,7 @@ function dimGeo(f,c,px){
 /* simgesi yalnızca seçimde gösterilen ilişkiler: çoğaltma/ofset bağları, yapı dairesi üstündeki noktalar (çokgen köşeleri)
    ve aynı öğeye bağlı eşitlik zincirleri (çokgen kenarları, çoğaltılmış kopyalar) */
 function quietRel(f,c){
-  if(QUIETREL.has(c.t))return true;
+  if(QUIETREL.has(c.t)||(c.t==='fix'&&isRefPt(f,c.p)))return true;
   if(c.t==='poc'){const e=f.ents.find(x=>x.id===c.e);return !!(e&&e.cons)}
   if(c.t==='eq')return f.cons.filter(x=>x.t==='eq'&&(x.e1===c.e1||x.e2===c.e1)).length>2;
   return false;
@@ -689,6 +703,7 @@ function relAnchors(f,c,px){
 }
 function entColor(e,C){
   const s=sk.sel.some(x=>x.k==='ent'&&x.id===e.id);if(s)return C.sel;if(sk.hover==='ent:'+e.id)return C.hov;
+  if(e.ref)return C.ref;
   const a=sk.an;if(!a)return C.und;
   const def=e.t==='line'?a.ptDef(e.a)&&a.ptDef(e.b):e.t==='circle'?a.ptDef(e.c)&&a.rDef(e.id):a.ptDef(e.c)&&a.ptDef(e.a)&&a.ptDef(e.b);
   return def?C.def:C.und;
@@ -732,6 +747,7 @@ function renderSketch(){
     let s=null;
     if((sk.tool==='line'||sk.tool==='centerline')){s=skSnap(q,tol,st.start?P(st.start):null,null,st.start);if(st.start)(sk.tool==='centerline'?(dash.push(...P(st.start),0,s.x,s.y,0),dashC.push(...hexArr(C.prev),...hexArr(C.prev))):pv(P(st.start),[s.x,s.y]));
       if(s.hv||s.inf)labels.push({x:s.x+px*14,y:s.y+px*14,cls:'rlab',cid:'',html:s.hv?(s.hv==='h'?'—':'|'):(s.inf.t==='perp'?'⊥':'T')})}
+    else if(sk.tool==='point')s=skSnap(q,tol,null,null);
     else if(sk.tool==='rect'||sk.tool==='crect'){s=skSnap(q,tol,null,st.A?new Set([st.A]):null);if(st.A){const A=P(st.A);let a,b;if(sk.tool==='rect'){a=A;b=[s.x,s.y]}else{a=[2*A[0]-s.x,2*A[1]-s.y];b=[s.x,s.y]}pv([a[0],a[1]],[b[0],a[1]]);pv([b[0],a[1]],[b[0],b[1]]);pv([b[0],b[1]],[a[0],b[1]]);pv([a[0],b[1]],[a[0],a[1]])}}
     else if(sk.tool==='circle'||sk.tool==='polygon'){s=skSnap(q,tol,null,st.c?new Set([st.c]):null);if(st.c){const c=P(st.c);const r=Math.hypot(s.x-c[0],s.y-c[1]);const n=sk.tool==='circle'?72:Math.max(3,Math.round(sk.opts.polyN)||6);const a0=Math.atan2(s.y-c[1],s.x-c[0]);let prev=null;for(let i=0;i<=n;i++){const t=a0+i*2*Math.PI/n;const p=[c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)];if(prev)pv(prev,p);prev=p}}}
     else if(sk.tool==='arc'){s=skSnap(q,tol,null,null);if(st.c&&!st.a)pv(P(st.c),[s.x,s.y]);if(st.c&&st.a){const c=P(st.c),a=P(st.a);const r=Math.hypot(a[0]-c[0],a[1]-c[1]);const a0=Math.atan2(a[1]-c[1],a[0]-c[0]);const acc=st.acc||0;const N=Math.max(4,Math.ceil(Math.abs(acc)/(Math.PI*2)*72));let prev=null;for(let i=0;i<=N;i++){const t=a0+acc*i/N;const p=[c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)];if(prev)pv(prev,p);prev=p}}}
@@ -740,6 +756,9 @@ function renderSketch(){
     else if(sk.tool==='slot'){s=skSnap(q,tol,st.c1&&!st.c2?P(st.c1):null,null);if(st.c1&&!st.c2)pv(P(st.c1),[s.x,s.y]);if(st.c1&&st.c2){const a=P(st.c1),b=P(st.c2);let d=[b[0]-a[0],b[1]-a[1]];const l=Math.hypot(...d);d=[d[0]/l,d[1]/l];const n=[-d[1],d[0]];const r=Math.abs((q[0]-a[0])*n[0]+(q[1]-a[1])*n[1]);pv([a[0]+n[0]*r,a[1]+n[1]*r],[b[0]+n[0]*r,b[1]+n[1]*r]);pv([a[0]-n[0]*r,a[1]-n[1]*r],[b[0]-n[0]*r,b[1]-n[1]*r]);const ba=Math.atan2(d[1],d[0]);for(const [c,o] of [[b,-Math.PI/2],[a,Math.PI/2]]){let prev=null;for(let i=0;i<=24;i++){const t=ba+o+Math.PI*i/24;const p=[c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)];if(prev)pv(prev,p);prev=p}}}}
     if(s){pts.push(s.x,s.y,0);const k=hex(s.pid||s.rel?C.snap:C.prev);ptsC.push(k.r,k.g,k.b);if(s.rel&&s.rel.t==='mid')labels.push({x:s.x+px*12,y:s.y+px*12,cls:'rlab',cid:'',html:'M'})}
   }
+  if(sk.extHover)for(const [a,b] of extHoverSegs(sk.extHover))pushSeg(sol,solC,a,b,C.hov);
+  if(sk.extHover&&sk.extHover.t==='pt'){pts.push(sk.extHover.p[0],sk.extHover.p[1],0);ptsC.push(...hexArr(C.hov))}
+  if(sk.ptrim&&sk.ptrim.path.length>1){const t=sk.ptrim.path;for(let i=0;i<t.length-1;i++)pushSeg(sol,solC,t[i],t[i+1],C.sel)}
   if(sk.tool==='smartdim'&&q){
     for(const h of (st.picks||[])){if(h.k==='ent'){const e=f.ents.find(x=>x.id===h.id);if(e){const t=tessEnt(f,e,72);for(let i=0;i<t.length-1;i++)pushSeg(sol,solC,t[i],t[i+1],C.sel)}}else{const p=P2(h.id);pts.push(p[0],p[1],0);const k=hex(C.sel);ptsC.push(k.r,k.g,k.b)}}
     const c=dimCandidate(q);if(c&&(st.picks||[]).length&&(c.t==='ddia'||c.t==='drad'||(st.picks.length===2)||c.line)){c.lp=q;try{c.val=measure(c);const g=dimGeo(f,c,px);for(const s2 of g.segs)pushSeg(sol,solC,[s2[0],s2[1]],[s2[2],s2[3]],C.prev);labels.push({x:q[0],y:q[1],cls:'dlab',cid:'',html:esc(g.text)})}catch(e){}}
@@ -798,16 +817,19 @@ function renderSketchDisplays(){
     if(!show)continue;const F=model.frames[f.id];if(!F)continue;
     // eksen ve yapı (kesikli) çizgileri yalnızca çizim düzenlenirken görünür
     const arr=[];for(const e of f.ents){if(e.cons)continue;const t=tessEnt(f,e,64);for(let i=0;i<t.length-1;i++){arr.push(...fpt(F,t[i][0],t[i][1]),...fpt(F,t[i+1][0],t[i+1][1]))}}
+    const sp=[];for(const id in f.pts)if(f.pts[id].sp)sp.push(...fpt(F,f.pts[id].x,f.pts[id].y));
+    const col=(sel&&sel.kind==='feature'&&sel.id===f.id)?0xF08A1A:0x3D6FC2;
+    if(sp.length){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(sp,3));const o=new T.Points(g,new T.PointsMaterial({color:col,size:6,sizeAttenuation:false,depthTest:false,transparent:true}));o.renderOrder=6;sketchesGroup.add(o)}
     if(!arr.length)continue;const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(arr,3));
-    const o=new T.LineSegments(g,new T.LineBasicMaterial({color:(sel&&sel.kind==='feature'&&sel.id===f.id)?0xF08A1A:0x3D6FC2,depthTest:false,transparent:true,opacity:.9}));o.renderOrder=6;sketchesGroup.add(o);
+    const o=new T.LineSegments(g,new T.LineBasicMaterial({color:col,depthTest:false,transparent:true,opacity:.9}));o.renderOrder=6;sketchesGroup.add(o);
   }
 }
 
 /* ---------- çizim PropertyManager ---------- */
 function itemName(h){
-  if(h.k==='pt')return h.id==='O'?'Orijin':'Nokta';
+  if(h.k==='pt')return h.id==='O'?'Orijin':(sk.feat.pts[h.id]&&sk.feat.pts[h.id].sp?'Çizim noktası':'Nokta');
   if(h.k==='con'){const c=sk.feat.cons.find(x=>x.id===h.id);if(!c)return '?';return DIMT.has(c.t)?'Ölçü '+fmt(c.val,3):(REL[c.t]||[c.t])[0]}
-  const e=sk.feat.ents.find(x=>x.id===h.id);if(!e)return '?';return e.t==='line'?(e.cons?'Merkez/yapı çizgisi':'Çizgi'):e.t==='circle'?(e.cons?'Yapı dairesi':'Daire'):'Yay';
+  const e=sk.feat.ents.find(x=>x.id===h.id);if(!e)return '?';if(e.ref)return e.t==='line'?'Referans kenar':e.t==='circle'?'Referans daire':'Referans yay';return e.t==='line'?(e.cons?'Merkez/yapı çizgisi':'Çizgi'):e.t==='circle'?(e.cons?'Yapı dairesi':'Daire'):'Yay';
 }
 function selGroups(){
   const E=entMap(sk.feat);const P=[],Ls=[],Cs=[],Cn=[];
@@ -816,6 +838,8 @@ function selGroups(){
 }
 function availRels(){
   const {P,Ls,Cs}=selGroups();const out=[];const n=P.length+Ls.length+Cs.length;if(!n)return out;
+  // yalnızca sabit referanslar seçiliyse verilecek ilişki yok
+  if([...Ls,...Cs].every(e=>e.ref)&&P.every(id=>id==='O'||isRefPt(sk.feat,id)))return out;
   if(Ls.length&&!P.length&&!Cs.length){out.push('h','v');if(Ls.length>=2)out.push('par','eq');if(Ls.length===2)out.push('perp','coll')}
   if(P.length>=2&&!Ls.length&&!Cs.length){out.push('h','v');if(P.length===2)out.push('coin')}
   if(P.length===1&&Ls.length===1&&!Cs.length)out.push('coin','mid');
@@ -853,7 +877,7 @@ function renderSketchPM(){
     if(Cn.length===1){const c=f.cons.find(x=>x.id===Cn[0]);if(c&&DIMT.has(c.t))ops+=`<button data-skop="editdim">Değeri düzenle</button>`}
     ops+=`<button data-skop="del" class="danger">Sil</button></div>`;b+=grp('İşlemler',ops);
   }else if(!sk.tool){
-    b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Fare: orta tuş döndür, sağ tuş kaydır, tekerlek yakınlaştır, F ekrana sığdır. Bir öğeye çift tıklamak bağlı zinciri seçer. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p>`);
+    b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Çizim düzleme dik ve perspektifsiz (2B) görünür. Fare: orta veya sağ tuş kaydır, tekerlek yakınlaştır, F ekrana sığdır. Bir öğeye çift tıklamak bağlı zinciri seçer. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p><p class="note">Arkadaki modelin bir kenarına veya başka bir çizimin öğesine tıklayınca o kenar referans olarak (mor, kesikli) seçilir; çizdiğin öğelerle birlikte seçip çakışık, paralel, teğet gibi ilişkiler ver ya da ölçülendir. Kullanılmayan referanslar çizimden çıkınca silinir.</p>`);
   }
   const dims=f.cons.filter(c=>DIMT.has(c.t));
   const dnm=dims.map(dimName),dup=n=>dnm.filter(x=>x===n).length>1;
@@ -906,7 +930,7 @@ function dimName(c){
 }
 function toggleConstruction(){
   const es=sk.sel.filter(h=>h.k==='ent');if(!es.length){toast('Önce çizgi veya daire seç.');return}
-  skPush();for(const h of es){const e=sk.feat.ents.find(x=>x.id===h.id);if(e)e.cons=!e.cons}skChanged();
+  skPush();for(const h of es){const e=sk.feat.ents.find(x=>x.id===h.id);if(e&&!e.ref)e.cons=!e.cons}skChanged();
 }
 function mergePts(f,keep,drop){
   for(const e of f.ents)for(const k of ['a','b','c'])if(e[k]===drop)e[k]=keep;
@@ -953,5 +977,5 @@ function deleteSel(){
 function updSbar(){
   if(!sk)return;const dof=sk.an?sk.an.dof:null;const el=$('#sbSt');
   if(dof===0){el.textContent='Tam tanımlı';el.className='st full'}else{el.textContent=`Tam tanımlanmamış (${dof})`;el.className='st under'}
-  $('#sbTool').textContent=sk.tool?({line:'Çizgi',centerline:'Merkez çizgisi',rect:'Köşe dikdörtgen',crect:'Merkez dikdörtgen',circle:'Daire',arc:'Merkez nokta yay',slot:'Düz kanal',polygon:'Çokgen',arc3:'3 nokta yay',tarc:'Teğet yay',sfillet:'Çizim radyusu',smartdim:'Akıllı ölçülendirme',trim:'Budama'})[sk.tool]:'Seç';
+  $('#sbTool').textContent=sk.tool?({line:'Çizgi',centerline:'Merkez çizgisi',rect:'Köşe dikdörtgen',crect:'Merkez dikdörtgen',circle:'Daire',arc:'Merkez nokta yay',slot:'Düz kanal',polygon:'Çokgen',point:'Nokta',arc3:'3 nokta yay',tarc:'Teğet yay',sfillet:'Çizim radyusu',smartdim:'Akıllı ölçülendirme',trim:'Budama'})[sk.tool]:'Seç';
 }

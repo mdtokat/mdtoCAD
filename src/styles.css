@@ -78,7 +78,8 @@ button:disabled{cursor:default}
 .ribbon.tight .rb{min-width:34px;padding:6px 4px}
 .ribbon.tight .rb span{display:none}
 .rctl{flex:none;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 6px;font-size:12px;color:var(--muted);white-space:nowrap}
-.rctl select{height:28px;border:1px solid var(--line);background:var(--field);border-radius:5px;padding:0 6px;color:var(--ink);font-size:13px}
+.rctl select,.rctl input{height:28px;border:1px solid var(--line);background:var(--field);border-radius:5px;padding:0 6px;color:var(--ink);font-size:13px}
+.rctl input{width:76px}
 
 .workspace{flex:1;min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:minmax(0,1fr);grid-template-areas:"tree vp"}
 /* sol sütun: üstte tasarım ağacı, araç açıkken altında özellik paneli (PropertyManager) */

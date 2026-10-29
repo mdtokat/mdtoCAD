@@ -172,18 +172,19 @@ function renderMeasurePM(){
 function measurePmClick(e){const b=e.target.closest('[data-meas]');if(!b)return false;if(b.dataset.meas==='close')closeMeasure();else{meas.picks=[];drawMeasure();renderMeasurePM()}return true}
 
 /* ================= ÇİZİM İŞLEMLERİ: budama, ofset, aynalama, çoğaltma ================= */
-TOOLHELP.trim='Budama: silmek istediğin çizgi parçasına tıkla. Parça, en yakın kesişim noktaları arasında kırpılır; kesişim yoksa öğe silinir.';
+TOOLHELP.trim='Budama: silmek istediğin çizgi parçasına tıkla ya da fareyi basılı tutup parçaların üzerinden geçir (güç budama). Parça, en yakın kesişim noktaları arasında kırpılır; kesişim yoksa öğe silinir.';
 function entParamPt(f,e,q){ // tıklanan noktanın öğe üzerindeki parametresi
   if(e.t==='line'){const a=P2(e.a),b=P2(e.b);const dx=b[0]-a[0],dy=b[1]-a[1];return ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/(dx*dx+dy*dy||1)}
   const c=P2(e.c);return Math.atan2(q[1]-c[1],q[0]-c[0]);
 }
 function intersectEnts(f,e,o){return entIntersect(f,e,o)}
 /* budanacak öğe: imlece en yakın olan; profil öğesi ile yapı çizgisi üst üste geliyorsa profil öğesi seçilir */
-function trimPick(f,q,tol){let e=null,bd=tol;for(const x of f.ents){const [d]=entDist(x,q);const k=d+(x.cons?tol*0.3:0);if(d<tol&&k<bd){bd=k;e=x}}return e}
-function trimAt(q,tol){
-  const f=sk.feat;const e=trimPick(f,q,tol);
-  if(!e){toast('Budamak için bir çizgi, yay veya daire parçasına tıkla.');return}
-  skPush();
+function trimPick(f,q,tol){let e=null,bd=tol;for(const x of f.ents){if(x.ref)continue;const [d]=entDist(x,q);const k=d+(x.cons?tol*0.3:0);if(d<tol&&k<bd){bd=k;e=x}}return e}
+/* inDrag: sürükleyerek budamada her kesim ayrı geri alma adımı olmaz (sürükleme başında tek adım eklenir); ent: budanacak öğe */
+function trimAt(q,tol,inDrag,ent){
+  const f=sk.feat;const e=ent||trimPick(f,q,tol);
+  if(!e){if(!inDrag)toast('Budamak için bir çizgi, yay veya daire parçasına tıkla.');return false}
+  const prev=skData(f);if(!inDrag)skPush();
   const hits=[];for(const o of f.ents){if(o===e)continue;for(const p of intersectEnts(f,e,o))hits.push({p,o})}
   // kesim noktası: aynı yerde nokta varsa onu kullan; kesişen öğe sonra bu noktada bölünür
   const cuts=[];
@@ -217,8 +218,22 @@ function trimAt(q,tol){
   }
   splitAtCuts(f,cuts);
   cleanupOrphans(f);
-  if(!solveSketch(f)){skRestore(sk.hist.pop());toast('Budama sonrası çizim çözülemedi; işlem geri alındı.')}
-  sk.sel=[];skChanged();
+  if(!solveSketch(f)){skRestore(prev);if(!inDrag)sk.hist.pop();toast('Budama sonrası çizim çözülemedi; işlem geri alındı.');sk.sel=[];skChanged();return false}
+  sk.sel=[];skChanged();return true;
+}
+/* Güç budama: fare basılı sürüklenirken izin kestiği her öğe parçası, izin geçtiği yerden budanır */
+function trimDragTo(q,px){
+  const d=sk.ptrim,f=sk.feat;let a=d.last;const L=Math.hypot(q[0]-a[0],q[1]-a[1]);if(L<px*2)return;
+  const u=[(q[0]-a[0])/L,(q[1]-a[1])/L];
+  for(let guard=0;guard<60;guard++){
+    const tmp={pts:Object.assign({},f.pts,{_ta:{x:a[0],y:a[1]},_tb:{x:q[0],y:q[1]}}),ents:f.ents,cons:[]};const seg={t:'line',a:'_ta',b:'_tb'};
+    let best=null;
+    for(const e of f.ents)if(!e.ref)for(const p of entIntersect(tmp,e,seg)){const t=(p[0]-a[0])*u[0]+(p[1]-a[1])*u[1];if(t>1e-9&&(!best||t<best.t))best={t,p,e}}
+    if(!best)break;
+    if(!d.n)skPush();if(trimAt(best.p,px*2,true,best.e))d.n++;
+    a=[best.p[0]+u[0]*px*0.5,best.p[1]+u[1]*px*0.5];if((q[0]-a[0])*u[0]+(q[1]-a[1])*u[1]<=0)break;
+  }
+  d.last=q;d.path.push(q);sk.dirty=true;
 }
 /* budanan öğeyle aynı geometrik öğeden kalan parça: doğrusal çizgi veya aynı merkez ve yarıçaplı yay/daire */
 function trimSibling(f,e){
@@ -267,7 +282,7 @@ function splitAtCuts(f,cuts){
 }
 /* İşlem paneli: ofset, aynala, doğrusal/dairesel çoğalt */
 const SKOP_T={offset:'Varlıkları Ofsetle',mirror:'Varlıkları Aynala',lpat:'Doğrusal Çizim Çoğaltma',cpat:'Dairesel Çizim Çoğaltma'};
-function setSkOp(t){if(!sk)return;setTool(null);sk.op={t,d:5,flip:false,n:3,sp:20,ang:0,tot:360};renderSketchPM();renderRibbon()}
+function setSkOp(t){if(!sk)return;setTool(null);sk.op={t,d:5,flip:false,both:false,n:3,sp:20,ang:0,tot:360};renderSketchPM();renderRibbon()}
 function skOpBody(){
   const o=sk.op;let b=`<p class="note">`;
   if(o.t==='offset')b+=`Ofsetlenecek çizgi, yay veya daireleri Seç aracıyla seç; bir öğeye çift tıklamak bağlı zincirin tamamını seçer. Bağlı zincirler köşelerde birleştirilir.`;
@@ -275,21 +290,21 @@ function skOpBody(){
   if(o.t==='lpat')b+=`Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Açı, yatay eksenden saat yönünün tersine ölçülür.`;
   if(o.t==='cpat')b+=`Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Merkez olarak bir nokta da seçebilirsin; seçmezsen orijin kullanılır.`;
   b+=`</p>`;
-  if(o.t==='offset')b+=fNum('Ofset mesafesi','d','mm',o)+`<label class="chk"><input type="checkbox" data-opflip ${o.flip?'checked':''}> Ters yön</label>`;
+  if(o.t==='offset')b+=fNum('Ofset mesafesi','d','mm',o)+`<label class="chk"><input type="checkbox" data-opboth ${o.both?'checked':''}> İki yönde (her iki tarafa aynı mesafe)</label><label class="chk"${o.both?' style="opacity:.5"':''}><input type="checkbox" data-opflip ${o.flip?'checked':''} ${o.both?'disabled':''}> Ters yön</label>`;
   if(o.t==='lpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Aralık','sp','mm',o)}</div>`+fNum('Yön açısı','ang','°',o);
   if(o.t==='cpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Toplam açı','tot','°',o)}</div>`;
   b+=`<div class="relbtns"><button data-opgo>Uygula</button><button data-opx>Kapat</button></div>`;
   return grp(SKOP_T[o.t],b);
 }
 function skOpClick(e){if(e.target.closest('[data-opgo]')){applySkOp();return true}if(e.target.closest('[data-opx]')){sk.op=null;renderSketchPM();renderRibbon();return true}return false}
-function skOpInput(e){const t=e.target;if(!sk.op)return false;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.op[t.dataset.k]=v;return true}if(t.hasAttribute('data-opflip')){sk.op.flip=t.checked;return true}return false}
+function skOpInput(e){const t=e.target;if(!sk.op)return false;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.op[t.dataset.k]=v;return true}if(t.hasAttribute('data-opflip')){sk.op.flip=t.checked;return true}if(t.hasAttribute('data-opboth')){sk.op.both=t.checked;renderSketchPM();return true}return false}
 function selEnts(){const E=entMap(sk.feat);return sk.sel.filter(h=>h.k==='ent').map(h=>E[h.id]).filter(Boolean)}
 function applySkOp(){
   const o=sk.op,f=sk.feat;let ents=selEnts();
   if(!ents.length){toast('Önce Seç aracıyla öğeleri seç.');return}
   skPush();
   try{
-    if(o.t==='offset')doOffset(ents,num(o.d)*(o.flip?-1:1));
+    if(o.t==='offset'){const d=num(o.d);if(o.both){const drv=doOffset(ents,d);doOffset(ents,-d,drv)}else doOffset(ents,d*(o.flip?-1:1))}
     else if(o.t==='mirror')doMirror(ents);
     else if(o.t==='lpat')doLinPattern(ents,Math.round(num(o.n)),num(o.sp),num(o.ang));
     else if(o.t==='cpat'){const pt=sk.sel.find(h=>h.k==='pt');doCircPattern(ents,Math.round(num(o.n)),num(o.tot),pt?pt.id:'O')}
@@ -356,10 +371,11 @@ function doMirror(ents){
     else f.ents.push({id:newId(f,'e'),t:'arc',c:mp(e.c),a:mp(e.b),b:mp(e.a),cons:e.cons});
   }
 }
-function doOffset(ents,dist){
+/* drv: iki yönlü ofsette ikinci taraf ilk tarafın ölçüsüne bağlanır (tek ölçü iki tarafı birlikte sürer) */
+function doOffset(ents,dist,drv){
   const f=sk.feat;if(!(Math.abs(dist)>0))throw new Error('Ofset mesafesi sıfırdan büyük olmalı.');
   // tüm ofset öğeleri tek bir sürücü ölçüye (doff) bağlanır; ölçü değişince hepsi birlikte kayar
-  let drv=null;
+  drv=drv||null;
   const offRel=(src,ne)=>{
     let sg;if(src.t==='line'){const a=P2(src.a),b=P2(src.b),p=P2(ne.a);const dx=b[0]-a[0],dy=b[1]-a[1];sg=Math.sign(((p[0]-a[0])*dy-(p[1]-a[1])*dx))||1}
     else sg=Math.sign(curveR(f,ne)-curveR(f,src))||1;
@@ -412,4 +428,5 @@ function doOffset(ents,dist){
       else{const ne={id:newId(f,'e'),t:'arc',c:s.c,a:s.fwd?a:b,b:s.fwd?b:a};f.ents.push(ne);offRel(s.src,ne)}
     });
   }
+  return drv;
 }

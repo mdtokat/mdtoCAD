@@ -54,6 +54,7 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 | `10-bolgeler.js` | Ekstrüzyon/Döndürme panelinde bölgelerin gösterimi ve tıklanarak seçilmesi |
 | `11-olcu-girisi.js` | Çizerken ölçü yazma (uzunluk, genişlik × yükseklik, çap) |
 | `12-teknik-resim-duzen.js` | Teknik resimde akıllı ölçünün daire/kenar/açı seçimi, görünüş ve açıklamaları seçme, sürükleme, silme/gizleme; DXF yazıcı |
+| `13-cizim-referanslari.js` | Çizimde dış referanslar: model kenarlarının ve diğer çizimlerin izdüşümü (`extCandidates`), tıklanan kenarın sabit referans öğesi olarak eklenmesi (`refAt`), kullanılmayanların silinmesi (`pruneRefs`) |
 | `99-baslat.js` | Sekmeler, Dosya menüsü, içe/dışa aktarma, klavye, başlatma, `window.__tz` |
 
 ### Durum
@@ -62,6 +63,7 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 - `model` — etkin parçanın son hesaplanmış sonucu (`polys`, `ann`, `errors`, `frames`, `caps`, `tools`, `box`, `props`, `version`).
 - `sk` — açık çizim oturumu; `pm` — açık PropertyManager; `sel` — 3B seçim; `asmUI` — montaj arayüz durumu; `meas` — ölçüm.
 - `activeTab` — `'model' | 'asm' | 'drawing'`. Parça ve montaj aynı 3B görünümü paylaşır (`partRoot` / `asmRoot` grupları).
+- `camera` — etkin kamera: normalde `perspCam`, çizim düzenlenirken `orthoCam` (`setOrtho`; görünür yarı yükseklik `1/zoom`). Kamerayı yerleştiren her şey `camTo` üzerinden iki kamera türünde de çalışır; çizimde döndürme kapalıdır (`setControlsForSketch(true, true)`).
 
 ### Montaj eşleştirme çözücüsü
 

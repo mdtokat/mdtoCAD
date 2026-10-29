@@ -26,12 +26,15 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Girişim algılama, patlatılmış görünüm (otomatik ve adım adım), montaj kütlesi.
 - STL dışa aktarma (.zip içinde), STL içe aktarma.
 
-**Teknik resim**
+**Teknik resim** (SolidWorks çizim ortamıyla karşılaştırma: [docs/TEKNIK-RESIM.md](docs/TEKNIK-RESIM.md))
 - Ön, üst, yan ve izometrik görünüşler; gizli çizgiler, eksen çizgileri; ISO E/ISO A izdüşüm.
-- Otomatik genel ölçüler ve delik etiketleri, elle ölçü (tolerans: ±, sapma, geçme), kesit A-A (taramalı), detay görünüşü, yüzey işareti, notlar, diş gösterimi.
+- Görünüşler sürüklenerek taşınır; ön görünüş izdüşüm görünüşlerini de taşır, üst/yan görünüş hizasını korur. Görünüş, ölçü ve açıklamalar tıklanarak seçilir, **Delete** ile silinir/gizlenir.
+- Otomatik genel ölçüler, delik konumları ve SolidWorks gibi satır satır delik etiketleri (↧ derinlik, ⌴ fatura, ⌵ havşa); etiketler birbirinin üstüne binmeyecek yere konur, sürüklenebilir.
+- Akıllı ölçü: iki nokta, kenar uzunluğu, paralel kenar aralığı, noktadan kenara, çap/yarıçap ve açı (tolerans: ±, sapma, geçme).
+- Kesit A-A ön, üst veya yan görünüşte; tam veya yarım kesit (taramalı). Detay görünüşü (tarama ve eksen çizgileriyle), yüzey işareti, **geometrik tolerans** (ISO 1101, 14 sembol) ve **referans (datum) işareti**, notlar, diş gösterimi.
 - Montaj resmi: balonlar ve parça listesi.
 - A4–A0, yatay/dikey; antetli, “parça adı ve ölçek” veya “yalnızca parça” düzenleri.
-- PDF (vektörel 2B, ölçekli 3B görüntü), SVG ve PNG çıktısı.
+- PDF (vektörel 2B, ölçekli 3B görüntü), **DXF** (katmanlı, AutoCAD R12), SVG ve PNG çıktısı.
 
 ## Hızlı başlangıç
 

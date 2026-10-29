@@ -155,10 +155,19 @@ function tessEnt(sk,e,full){
   full=full||64;
   if(e.t==='line'){const a=skP(sk,e.a),b=skP(sk,e.b);return [[a.x,a.y],[b.x,b.y]]}
   if(e.t==='circle'){const c=skP(sk,e.c);const out=[];for(let i=0;i<=full;i++){const t=i/full*Math.PI*2;out.push([c.x+e.r*Math.cos(t),c.y+e.r*Math.sin(t)])}return out}
-  const A=arcInfo(sk,e);const n=Math.max(2,Math.ceil(full*A.sw/(Math.PI*2)));const out=[];
-  const a=skP(sk,e.a),b=skP(sk,e.b);
-  for(let i=0;i<=n;i++){if(i===0){out.push([a.x,a.y]);continue}if(i===n){out.push([b.x,b.y]);continue}const t=A.a0+A.sw*i/n;out.push([A.c.x+A.r*Math.cos(t),A.c.y+A.r*Math.sin(t)])}
-  return out;
+  const A=arcInfo(sk,e);const n=Math.max(2,Math.ceil(full*A.sw/(Math.PI*2)));
+  const a=skP(sk,e.a),b=skP(sk,e.b);const out=[[a.x,a.y]];
+  for(const t of arcTs(A.a0,A.a0+A.sw,n))out.push([A.c.x+A.r*Math.cos(t),A.c.y+A.r*Math.sin(t)]);
+  out.push([b.x,b.y]);return out;
+}
+// yayın iç ara açıları: n eşit parça + çeyrek açılar (0°, 90°…); böylece yayın en uç noktaları köşe olur, teknik resimdeki genel ölçüler tam çıkar
+function arcTs(t0,t1,n){
+  const ts=[];for(let i=1;i<n;i++)ts.push(t0+(t1-t0)*i/n);
+  const q=Math.PI/2,mn=(t1-t0)/n*0.25;
+  for(let k=Math.ceil((t0+1e-9)/q);k*q<t1-1e-9;k++){const t=k*q;if(t-t0<mn||t1-t<mn)continue;
+    let j=0;while(j<ts.length&&ts[j]<t)j++;const near=[ts[j-1],ts[j]].filter(x=>x!=null&&Math.abs(x-t)<mn);
+    if(near.length)ts[ts.indexOf(near[0])]=t;else ts.splice(j,0,t)}
+  return ts;
 }
 function area2d(p){let s=0;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];s+=a[0]*b[1]-b[0]*a[1]}return s/2}
 function pip(pt,poly){let ins=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a[1]>pt[1])!==(b[1]>pt[1]))&&(pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0]))ins=!ins}return ins}
@@ -275,7 +284,7 @@ function skArrangement(sk,inner){
     if(hit)touch.push([e.id,o.id])}
   // 2) öğeleri parçalara bölüp çokgen kenarlarına çevir (yaylar yaklaşık 64 parçalı tam daire inceliğinde)
   const segs=[];
-  const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(64*(t1-t0)/(Math.PI*2)));const out=[pa];for(let i=1;i<n;i++){const t=t0+(t1-t0)*i/n;out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)])}out.push(pb);return out};
+  const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(64*(t1-t0)/(Math.PI*2)));const out=[pa];for(const t of arcTs(t0,t1,n))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
   for(const e of ents){
     const sp=splits.get(e).map(p=>({p,t:par(e,p)})).sort((a,b)=>a.t-b.t);
     let chains=[];
@@ -968,7 +977,11 @@ function holeSpec(f){
   const through=f.end!=='blind';const D=num(f.depth);if(!through&&!(D>0))throw new Error('Delik derinliği sıfırdan büyük olmalı.');
   if(thread){const td=through?null:Math.min(num(f.tdepth)||D,D);thread.len=td;txt+=through?'':(' derinlik '+fmtN(td))}
   else if(!through)txt+=(f.htype==='simple'||f.htype==='clear'?' derinlik ':' / delik derinliği ')+fmtN(D);
-  return {d,txt,thread,cb,cs,through,D};
+  // teknik resim delik etiketi (SolidWorks gibi satır satır; ↧ derinlik, ⌴ fatura, ⌵ havşa)
+  const dp=through?'':' ↧'+fmtN(D);let call;
+  if(thread)call=through?[f.size+'×'+fmtN(s.p)]:['Ø'+fmtN(d)+dp,f.size+'×'+fmtN(s.p)+' ↧'+fmtN(thread.len)];
+  else{call=['Ø'+fmtN(d)+dp];if(cb)call.push('⌴Ø'+fmtN(cb[0])+' ↧'+fmtN(cb[1]));if(cs)call.push('⌵Ø'+fmtN(cs)+'×90°')}
+  return {d,txt,call,thread,cb,cs,through,D};
 }
 function holeTool(f,F,L){
   const H=holeSpec(f);const r=H.d/2,eps=0.05;const D=H.through?L:H.D;const tip=H.through?0:r*0.6;
@@ -982,7 +995,7 @@ function holeTool(f,F,L){
   f.pts.forEach((q,i)=>{
     const P=fpt(F,num(q[0]),num(q[1]),0);const M=new T.Matrix4().makeBasis(v,n,u).setPosition(v3(P));
     tools.push(revolveLoop(prof,0,Math.PI*2,M,f.id));
-    const a={C:v3(P),A:n.clone(),r,t0:-D,t1:0,gid:f.id,op:'cut',label:true,txt:H.txt};
+    const a={C:v3(P),A:n.clone(),r,t0:-D,t1:0,gid:f.id,op:'cut',label:true,txt:H.txt,call:H.call};
     if(H.thread)a.thread={R:H.thread.R,t0:H.thread.len?-H.thread.len:-D,t1:0};
     ann.push(a);
     if(H.cb)ann.push({C:v3(P),A:n.clone(),r:H.cb[0]/2,t0:-H.cb[1],t1:0,gid:f.id+'cb',op:'cut',label:false});

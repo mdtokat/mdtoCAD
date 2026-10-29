@@ -53,6 +53,7 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 | `09-teknik-resim-ekleri.js` | Kesit (CSG ile yarım uzay çıkarma + tarama), detay görünüşü, tolerans editörü, yüzey işareti, notlar, diş gösterimi |
 | `10-bolgeler.js` | Ekstrüzyon/Döndürme panelinde bölgelerin gösterimi ve tıklanarak seçilmesi |
 | `11-olcu-girisi.js` | Çizerken ölçü yazma (uzunluk, genişlik × yükseklik, çap) |
+| `12-teknik-resim-duzen.js` | Teknik resimde akıllı ölçünün daire/kenar/açı seçimi, görünüş ve açıklamaları seçme, sürükleme, silme/gizleme; DXF yazıcı |
 | `99-baslat.js` | Sekmeler, Dosya menüsü, içe/dışa aktarma, klavye, başlatma, `window.__tz` |
 
 ### Durum
@@ -71,7 +72,8 @@ Her sabit olmayan bileşen için 6 değişken (öteleme + dönme vektörü, bile
 1. `dwSrc()` — çizilecek kaynak: parçanın veya montajın (dönüştürülmüş, istenirse patlatılmış) çokgenleri.
 2. `viewData(key, src)` — görünüş yönünde kenarlar (`computeEdges`), derinlik arabelleği (1024², `MeshDepthMaterial` RGBA paketleme) ile her kenar örneklenip görünür/gizli parçalara ayrılır. Sonuç önbelleğe alınır (anahtar: kaynak + görünüş).
 3. `buildSheet()` — ölçek seçimi, görünüş yerleşimi (2×2 veya izometrik ayrı satırda), çizgiler, ölçüler, kesit, detay, etiketler, antet → SVG işaretlemesi (mm birimiyle).
-4. Aynı işaretleme ekranda SVG olarak gösterilir, PDF için `svgToPdfOps` ile PDF komutlarına çevrilir.
+4. Aynı işaretleme ekranda SVG olarak gösterilir, PDF için `svgToPdfOps` ile PDF komutlarına, DXF için `buildDXF` ile çizgi/daire/dolu üçgen/yazı varlıklarına çevrilir. Bu yüzden sayfadaki her şey yalnızca `M`/`L`/`Z` yolları, daire, dikdörtgen ve yazıdan oluşur; delik etiketi simgeleri (↧ ⌴ ⌵) ve geometrik tolerans sembolleri de çizgiyle çizilir.
+5. `buildSheet` her ölçü/etiket kutusunu `occ` listesine yazar; otomatik etiketler kılavuz çizgisini döndürerek bu kutulara ve görünüş çizgilerine en az değen yere konur. Seçilebilir her öğe `ctx.hits` içinde (tür, sıra/anahtar, kutu) yer alır; sürükleme ve **Delete** bu listeyle çalışır.
 
 PDF'te yazılar standart Helvetica ile, Türkçe karakterler (ğ, ş, ı, İ, Ğ, Ş) özel `Differences` kodlamasıyla yazılır; ek yazı tipi gömülmez.
 

@@ -119,13 +119,20 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır.
   "method":"E"|"A", "scale":"auto"|"1"|"0.5"|…,
   "hidden":true, "centers":true, "autodims":true, "iso":true,
   "dno":"TZ-0001", "drawn":"", "checked":"", "company":"",
-  "section":"none"|"front"|"side", "secOff":0,
+  "section":"none"|"front"|"top"|"side", "secOff":0, "secType":"full"|"half",
   "dims":   [ {"view":"front","p1":[a,b],"p2":[a,b],"kind":"h"|"v"|"a","pos":12,
-               "pre":"Ø", "tt":"none"|"sym"|"dev"|"fit", "tu":0.1, "tl":-0.05, "tf":"H7"} ],
+               "pre":"Ø", "tt":"none"|"sym"|"dev"|"fit", "tu":0.1, "tl":-0.05, "tf":"H7"},
+              {"view":"top","kind":"dia","c":[a,b],"r":19,"rad":false,"off":[dx,dy]},          // çap (rad: yarıçap)
+              {"view":"front","kind":"ang","v":[a,b],"u1":[x,y],"u2":[x,y],"rr":20,"e1":30,"e2":15} ], // açı
+  "gdts":   [ {"view":"front","p":[a,b],"off":[dx,dy],"sym":"flat"|"perp"|…,"tol":"0,05","dia":false,"dat":["A","",""]} ],
+  "datums": [ {"view":"front","p":[a,b],"off":[dx,dy],"label":"A"} ],
+  "vofs":   { "front":[dx,dy], "top":dy, "side":dx, "iso":[dx,dy] },   // sürüklenen görünüşler (sayfa mm)
+  "lbl":    { "<delik gid>":[dx,dy] },                                // elle taşınan otomatik etiketler (daire merkezine göre)
+  "hide":   [ "ow:front", "L:<gid>", "V:top", … ],                    // gizlenen otomatik ölçüler, etiketler, görünüşler
   "details":[ {"view":"front","c":[a,b],"r":8,"k":2,"pos":[x,y],"label":"B"} ],
   "surfs":  [ {"view":"top","p":[a,b],"ra":"3,2"} ],
   "notes":  [ {"x":30,"y":200,"text":"…"} ],
   "raDef":"3,2", "noteDef":"…"
 }
 ```
-`dims`, `details`, `surfs` içindeki `[a,b]` görünüş koordinatlarıdır (model mm); `details.pos` ve `notes` sayfa koordinatlarıdır (mm, sol üst köşe orijin).
+`dims`, `details`, `surfs`, `gdts`, `datums` içindeki `[a,b]` görünüş koordinatlarıdır (model mm); `details.pos`, `notes` ve tüm `off`/`vofs` değerleri sayfa koordinatlarıdır (mm, sol üst köşe orijin). `gdts.sym`: `straight`, `flat`, `circ`, `cyl`, `lprof`, `sprof`, `par`, `perp`, `ang`, `pos`, `conc`, `sym`, `run`, `trun`. Yeni alanların hepsi isteğe bağlıdır; eski dosyalar olduğu gibi açılır.

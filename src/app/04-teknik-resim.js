@@ -66,7 +66,7 @@ function viewData(key,alt){
   for(const an of src.ann){
     const A=[an.A.x,an.A.y,an.A.z],C=[an.C.x,an.C.y,an.C.z];const dd=dot3(A,D);
     if(an.thread){const th=an.thread;if(Math.abs(dd)>.99)threads.push({t:'arc',a:dot3(C,R),b:dot3(C,U),R:th.R});else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*th.t0,C[1]+A[1]*th.t0,C[2]+A[2]*th.t0],P1=[C[0]+A[0]*th.t1,C[1]+A[1]*th.t1,C[2]+A[2]*th.t1];const a0=dot3(P0,R),b0=dot3(P0,U),a1=dot3(P1,R),b1=dot3(P1,U);const L=Math.hypot(a1-a0,b1-b0)||1;const nx=-(b1-b0)/L,ny=(a1-a0)/L;for(const sg of [1,-1])threads.push({t:'line',s:[a0+nx*th.R*sg,b0+ny*th.R*sg,a1+nx*th.R*sg,b1+ny*th.R*sg]})}}
-    if(Math.abs(dd)>.99)circ.push({a:dot3(C,R),b:dot3(C,U),r:an.r,gid:an.gid,op:an.op,label:an.label,txt:an.txt});
+    if(Math.abs(dd)>.99)circ.push({a:dot3(C,R),b:dot3(C,U),r:an.r,gid:an.gid,op:an.op,label:an.label,txt:an.txt,call:an.call});
     else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*an.t0,C[1]+A[1]*an.t0,C[2]+A[2]*an.t0],P1=[C[0]+A[0]*an.t1,C[1]+A[1]*an.t1,C[2]+A[2]*an.t1];axRaw.push([dot3(P0,R),dot3(P0,U),dot3(P1,R),dot3(P1,U)])}
   }
   const mm=new Map();for(const q of circ){const k=Math.round(q.a*100)+'_'+Math.round(q.b*100);const o=mm.get(k);if(!o||o.r<q.r)mm.set(k,{a:q.a,b:q.b,r:q.r})}
@@ -95,8 +95,10 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
   let ang=Math.atan2(dy,dx)*180/Math.PI;if(ang>=90)ang-=180;if(ang<-90)ang+=180;
   const r=ang*Math.PI/180,upx=Math.sin(r),upy=-Math.cos(r);
   const mx=(Q1[0]+Q2[0])/2+upx*1.1,my=(Q1[1]+Q2[1])/2+upy*1.1;
-  if(tol&&tol.tt==='sym'&&isFinite(num(tol.tu)))txt+=' ±'+fmt(num(tol.tu),3);
-  if(tol&&tol.tt==='fit'&&tol.tf)txt+=' '+tol.tf;
+  if(tol&&tol.tt!=='dev')txt=tolText(txt,tol);
+  const tw=tol&&tol.tt==='dev'?txt.length*1.72+6:textWidth(txt,3.5);
+  {const c=Math.abs(Math.cos(r)),sn=Math.abs(Math.sin(r)),hw=tw/2+.6,hh=2.3,bx=mx+upx*1.2,by=my+upy*1.2;
+   lastBox=[bx-(c*hw+sn*hh),by-(sn*hw+c*hh),bx+(c*hw+sn*hh),by+(sn*hw+c*hh)];if(occ)occ.push(lastBox)}
   if(tol&&tol.tt==='dev'){
     const sgn=v=>{const n=num(v);if(!isFinite(n)||n===0)return '0';return (n>0?'+':'−')+fmt(Math.abs(n),3)};
     const up=sgn(tol.tu),lo=sgn(tol.tl);const wm=txt.length*1.72,wd=Math.max(up.length,lo.length)*1.25+.6,tot=wm+wd;
@@ -106,13 +108,76 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
   }
   return s+`<text class="d-t" x="${f2(mx)}" y="${f2(my)}" font-size="3.5" text-anchor="middle" transform="rotate(${f2(ang)} ${f2(mx)} ${f2(my)})">${esc(txt)}</text>`;
 }
-function leader(cx,cy,R,th,txt){
-  const ux=Math.cos(th),uy=-Math.sin(th);const P=[cx+ux*R,cy+uy*R],K=[P[0]+ux*7,P[1]+uy*7];const right=ux>=0,sh=right?1:-1;const tw=txt.length*1.75+1.2;
-  return `<path class="d-thin" d="${Lp(P[0],P[1],K[0],K[1])}${Lp(K[0],K[1],K[0]+sh*tw,K[1])}"/>`+arrow(P,-ux,-uy)+`<text class="d-t" x="${f2(K[0]+sh*.6)}" y="${f2(K[1]-.9)}" font-size="3.5" text-anchor="${right?'start':'end'}">${esc(txt)}</text>`;
+/* ölçü metni kutuları: etiketlerin çakışmasını önlemek (occ) ve seçim (lastBox) için */
+let occ=null,lastBox=null;
+function tolText(txt,tol){
+  if(!tol)return txt;
+  if(tol.tt==='sym'&&isFinite(num(tol.tu)))return txt+' ±'+fmt(num(tol.tu),3);
+  if(tol.tt==='fit'&&tol.tf)return txt+' '+tol.tf;
+  if(tol.tt==='dev'){const sgn=v=>{const n=num(v);if(!isFinite(n)||n===0)return '0';return (n>0?'+':'−')+fmt(Math.abs(n),3)};return txt+' '+sgn(tol.tu)+'/'+sgn(tol.tl)}
+  return txt;
 }
+/* SolidWorks delik etiketi simgeleri: ↧ derinlik, ⌴ fatura, ⌵ havşa. PDF ve DXF'te de çıksın diye çizgiyle çizilir. */
+const SYMS='↧⌴⌵';
+function symRuns(t){const out=[];let cur='';for(const ch of String(t)){if(SYMS.includes(ch)){if(cur)out.push({t:cur});cur='';out.push({s:ch})}else cur+=ch}if(cur)out.push({t:cur});return out}
+const symW=fs=>fs*.8;
+function textWidth(t,fs){let w=0;for(const r of symRuns(t))w+=r.s?symW(fs):textW(r.t,fs)*TZ/100;return w}
+function symPath(ch,x,y,fs){
+  const h=fs*.66,w=fs*.58;x+=fs*.11;
+  if(ch==='⌴')return Lp(x,y-h,x,y)+Lp(x,y,x+w,y)+Lp(x+w,y,x+w,y-h);
+  if(ch==='⌵')return Lp(x,y-h,x+w/2,y)+Lp(x+w/2,y,x+w,y-h);
+  const m=x+w/2;return Lp(m,y-h,m,y)+Lp(m-w*.32,y-h*.4,m,y)+Lp(m,y,m+w*.32,y-h*.4)+Lp(x,y,x+w,y);
+}
+function symText(x,y,t,fs,anchor){
+  const runs=symRuns(t);
+  if(!runs.some(r=>r.s))return `<text class="d-t" x="${f2(x)}" y="${f2(y)}" font-size="${fs}"${anchor&&anchor!=='start'?` text-anchor="${anchor}"`:''}>${esc(t)}</text>`;
+  const w=textWidth(t,fs);let cx=anchor==='middle'?x-w/2:anchor==='end'?x-w:x;let o='',p='';
+  for(const r of runs){if(r.s){p+=symPath(r.s,cx,y,fs);cx+=symW(fs)}else{o+=`<text class="d-t" x="${f2(cx)}" y="${f2(y)}" font-size="${fs}">${esc(r.t)}</text>`;cx+=textW(r.t,fs)*TZ/100}}
+  return o+`<path class="d-thin" style="stroke-width:.25" d="${p}"/>`;
+}
+/* kılavuz çizgili etiket: C daire merkezi, R yarıçap (sayfa mm), K yazı omzu; birden çok satır (delik etiketi) üst üste yazılır */
+function leaderM(C,R,lines,K){
+  const dx=K[0]-C[0],dy=K[1]-C[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;const P=[C[0]+ux*R,C[1]+uy*R];
+  const right=ux>=-1e-9,sh=right?1:-1;const tw=Math.max(...lines.map(t=>textWidth(t,3.5)))+1.2;const n=lines.length;
+  let m=`<path class="d-thin" d="${Lp(P[0],P[1],K[0],K[1])}${Lp(K[0],K[1],K[0]+sh*tw,K[1])}"/>`+arrow(P,-ux,-uy);
+  lines.forEach((t,i)=>{m+=symText(K[0]+sh*.6,K[1]-.9-(n-1-i)*4.6,t,3.5,right?'start':'end')});
+  const box=[right?K[0]:K[0]-tw,K[1]-.9-(n-1)*4.6-3.2,right?K[0]+tw:K[0],K[1]+.6];
+  return {m,box,K,C};
+}
+function segHitsBox(x1,y1,x2,y2,B){
+  if(Math.max(x1,x2)<B[0]||Math.min(x1,x2)>B[2]||Math.max(y1,y2)<B[1]||Math.min(y1,y2)>B[3])return false;
+  let t0=0,t1=1;const dx=x2-x1,dy=y2-y1;
+  for(const [p,q] of [[-dx,x1-B[0]],[dx,B[2]-x1],[-dy,y1-B[1]],[dy,B[3]-y1]]){if(Math.abs(p)<1e-12){if(q<0)return false;continue}const r=q/p;if(p<0){if(r>t1)return false;if(r>t0)t0=r}else{if(r<t0)return false;if(r<t1)t1=r}}
+  return t0<=t1;
+}
+const boxOv=(a,b)=>Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0]))*Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));
 const STD_SCALES=[10,5,2,1,.5,.2,.1,.05,.02,.01];
 const scaleLabel=s=>s>=1?`${fmt(s)}:1`:`1:${fmt(Math.round(1/s))}`;
+/* açı ölçüsü: v köşe, u1/u2 kenar yönleri (görünüş koordinatı), rr yay yarıçapı (model mm), e1/e2 kenarların köşeden uzaklığı */
+function angDeg(d){return Math.acos(Math.max(-1,Math.min(1,d.u1[0]*d.u2[0]+d.u1[1]*d.u2[1])))*180/Math.PI}
+function dimLabel(d,v){
+  if(d.kind==='ang')return fmt(angDeg(d),1)+'°';
+  if(d.kind==='dia')return (d.pre||(d.rad?'R':'Ø'))+fmt(d.rad?d.r:2*d.r);
+  return (d.pre||'')+fmt(dimGeom(d,v).val);
+}
+function dimRender(d,v){
+  if(d.kind==='dia'){const C=v.map(d.c[0],d.c[1]);const off=d.off||[12,-12];const r=leaderM(C,d.r*v.s,[tolText(dimLabel(d,v),d)],[C[0]+off[0],C[1]+off[1]]);lastBox=r.box;if(occ)occ.push(r.box);return r.m}
+  if(d.kind==='ang'){
+    const V=v.map(d.v[0],d.v[1]),rr=d.rr*v.s;const a1=Math.atan2(-d.u1[1],d.u1[0]),cr=d.u1[0]*d.u2[1]-d.u1[1]*d.u2[0],sw=-Math.sign(cr||1)*angDeg(d)*Math.PI/180;
+    const pt=t=>[V[0]+rr*Math.cos(t),V[1]+rr*Math.sin(t)];let path='';const N=Math.max(6,Math.ceil(Math.abs(sw)/(Math.PI/36)));
+    for(let i=0;i<N;i++){const A=pt(a1+sw*i/N),B=pt(a1+sw*(i+1)/N);path+=Lp(A[0],A[1],B[0],B[1])}
+    for(const [u,e] of [[d.u1,d.e1],[d.u2,d.e2]]){const ux=u[0],uy=-u[1];const L=(e||0)*v.s;if(rr>L+1)path+=Lp(V[0]+ux*(L+1),V[1]+uy*(L+1),V[0]+ux*(rr+1.5),V[1]+uy*(rr+1.5))}
+    const a2=a1+sw,sg=Math.sign(sw);const P1=pt(a1),P2=pt(a2);
+    let m=`<path class="d-thin" d="${path}"/>`+arrow(P1,sg*Math.sin(a1),-sg*Math.cos(a1))+arrow(P2,-sg*Math.sin(a2),sg*Math.cos(a2));
+    const am=a1+sw/2,T=[V[0]+(rr+3.2)*Math.cos(am),V[1]+(rr+3.2)*Math.sin(am)+1.2];const txt=tolText(dimLabel(d,v),d);const w=textWidth(txt,3.5);
+    m+=`<text class="d-t" x="${f2(T[0])}" y="${f2(T[1])}" font-size="3.5" text-anchor="middle">${esc(txt)}</text>`;
+    lastBox=[T[0]-w/2-.5,T[1]-3,T[0]+w/2+.5,T[1]+.6];if(occ)occ.push(lastBox);return m;
+  }
+  const g=dimGeom(d,v);return dimMarkup(g.P1,g.P2,g.Q1,g.Q2,(d.pre||'')+fmt(g.val),d);
+}
 function dimGeom(d,v){
+  if(d.kind==='dia')return {val:d.rad?d.r:2*d.r};
+  if(d.kind==='ang')return {val:angDeg(d)};
   const [a1,b1]=d.p1,[a2,b2]=d.p2;const P1=v.map(a1,b1),P2=v.map(a2,b2);
   if(d.kind==='h'){const y=v.map(0,d.pos)[1];return {P1,P2,Q1:[P1[0],y],Q2:[P2[0],y],val:Math.abs(a2-a1)}}
   if(d.kind==='v'){const x=v.map(d.pos,0)[0];return {P1,P2,Q1:[x,P1[1]],Q2:[x,P2[1]],val:Math.abs(b2-b1)}}
@@ -189,9 +254,9 @@ function buildSheet(forExport,opts){
   const keys=isoOnly?['iso']:['front','top',side].concat(S.iso?['iso']:[]);
   const bom=isAsm&&S.bom!==false?bomItems(src.a):null;
   const vd={};for(const k of keys)vd[k]=viewData(k);
-  const secKey=!isoOnly&&S.section&&S.section!=='none'?(S.section==='front'?'front':side):null;
+  const secKey=!isoOnly&&S.section&&S.section!=='none'?(S.section==='front'?'front':S.section==='top'?'top':side):null;
   let secInfo=null;
-  if(secKey){try{const ss=sectionSrc(src,secKey,S);const sv=viewData(secKey,ss);vd[secKey]=Object.assign({},sv,{bb:vd[secKey].bb});secInfo={key:secKey,partner:secKey==='front'?'top':'front',P:ss.P,D:VIEWS[secKey].D}}catch(e){console.warn(e)}}
+  if(secKey){try{const ss=sectionSrc(src,secKey,S);const sv=viewData(secKey,ss);vd[secKey]=Object.assign({},sv,{bb:vd[secKey].bb});secInfo={key:secKey,partner:secKey==='front'?'top':'front',P:ss.P,D:VIEWS[secKey].D,half:S.secType==='half'}}catch(e){console.warn(e)}}
   const ext=k=>({w:Math.max(vd[k].bb.maxA-vd[k].bb.minA,.01),h:Math.max(vd[k].bb.maxB-vd[k].bb.minB,.01)});
   let [ax0,ay0,ax1,ay1]=areaFor(W,H,layout);const bomH=bom?(bom.length+1)*6:0;
   if(bom&&layout==='full')ay1-=bomH+4;else if(bom)ax1-=Math.min(184,(ax1-ax0)*0.42);
@@ -226,13 +291,23 @@ function buildSheet(forExport,opts){
     pos=S.method==='E'?{front:[cx1,yA],[side]:[cx2,yA],top:[cx1,yB],iso:[(ax0+ax1)/2,yI]}:{top:[cx1,yA],front:[cx1,yB],[side]:[cx2,yB],iso:[(ax0+ax1)/2,yI]};
   }
   }
+  /* elle taşınan görünüşler: ön görünüş izdüşüm görünüşlerini de taşır; üst yalnızca dikey, yan yalnızca yatay kayar (SolidWorks gibi hizalı) */
+  const VO=S.vofs||{},fo=VO.front||[0,0];const shift=(k,dx,dy)=>{if(pos[k])pos[k]=[pos[k][0]+dx,pos[k][1]+dy]};
+  if(!isoOnly){shift('front',fo[0],fo[1]);shift('top',fo[0],fo[1]+(VO.top||0));shift(side,fo[0]+(VO.side||0),fo[1])}
+  if(VO.iso)shift('iso',VO.iso[0],VO.iso[1]);
+  const hide=new Set(S.hide||[]);const vk2=k=>k===side?'side':k;
+  const shown=keys.filter(k=>k==='front'||!hide.has('V:'+vk2(k)));
+  occ=[];ctx.hits=[];ctx.side=side;ctx.area=[ax0,ay0,ax1,ay1];
   for(const k of keys){
     const d=vd[k],[cx,cy]=pos[k];const ac=(d.bb.minA+d.bb.maxA)/2,bc=(d.bb.minB+d.bb.maxB)/2;
     const vs=k==='iso'?si:s;
     ctx.views[k]={key:k,d,s:vs,map:(a,b)=>[cx+(a-ac)*vs,cy-(b-bc)*vs],inv:(x,y)=>[ac+(x-cx)/vs,bc-(y-cy)/vs]};
   }
   const segPath=(arr,v)=>{let p='';for(const q of arr){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);p+=Lp(A[0],A[1],B[0],B[1])}return p};
-  for(const k of keys){
+  for(const k of keys){if(!shown.includes(k)){delete ctx.views[k];continue}
+    const bbx=[ctx.views[k].map(vd[k].bb.minA,vd[k].bb.maxB),ctx.views[k].map(vd[k].bb.maxA,vd[k].bb.minB)];ctx.hits.push({t:'view',k:vk2(k),box:[bbx[0][0],bbx[0][1],bbx[1][0],bbx[1][1]]});
+  }
+  for(const k of shown){
     const v=ctx.views[k],d=v.d;
     // farklı ölçekli izometrik görünüşün altına kendi ölçeği yazılır
     if(k==='iso'&&v.s!==s){const [cx,cy]=pos.iso;o.push(`<text class="d-l" x="${f2(cx)}" y="${f2(cy+(d.bb.maxB-d.bb.minB)*v.s/2+6)}" font-size="3.2" text-anchor="middle">Ölçek ${esc(scaleLabel(v.s))}</text>`)}
@@ -247,23 +322,17 @@ function buildSheet(forExport,opts){
       if(cp)o.push(`<path class="d-cen" d="${cp}"/>`);
     }
     if(k!=='iso'){
-      const seen=new Set();const add=(a,b)=>{const key=Math.round(a*1000)+'_'+Math.round(b*1000);if(seen.has(key))return;seen.add(key);const [x,y]=v.map(a,b);ctx.snaps.push({view:k,a,b,x,y})};
+      const seen=new Set();const add=(a,b,c)=>{const key=Math.round(a*1000)+'_'+Math.round(b*1000);if(seen.has(key))return;seen.add(key);const [x,y]=v.map(a,b);ctx.snaps.push({view:k,a,b,x,y,c:!!c})};
+      for(const mk of d.marks)add(mk.a,mk.b,true);
       for(const q of d.vis){add(q[0],q[1]);add(q[2],q[3])}
       for(const q of d.hid){add(q[0],q[1]);add(q[2],q[3])}
-      for(const mk of d.marks)add(mk.a,mk.b);
     }
   }
-  /* çap etiketleri */
+  /* otomatik ölçüler (Model öğeleri): önce sabit konumlu ölçüler, sonra etiketler boş yere yerleştirilir */
+  const autoDim=(key,P1,P2,Q1,Q2,txt)=>{if(hide.has(key))return;o.push(dimMarkup(P1,P2,Q1,Q2,txt));ctx.hits.push({t:'auto',k:key,box:lastBox})};
   if(S.autodims&&!isoOnly){
-    const order=['top','front',side];const plan=new Map();
+    const order=['top','front',side].filter(k=>ctx.views[k]);const plan=new Map();
     for(const k of order){for(const q of vd[k].circ){if(!q.label)continue;if(!plan.has(q.gid))plan.set(q.gid,{k,list:[]});const g=plan.get(q.gid);if(g.k===k)g.list.push(q)}}
-    for(const g of plan.values()){
-      const v=ctx.views[g.k];const cut=g.list[0].op==='cut';
-      const best=g.list.reduce((a,q)=>{const sc=cut?q.a+q.b:-q.a+q.b;return !a||sc>a.sc?{q,sc}:a},null).q;
-      const [x,y]=v.map(best.a,best.b);const n=g.list.length;
-      const txt=(n>1?n+'× ':'')+(best.txt||('Ø'+fmt(best.r*2)));
-      o.push(leader(x,y,best.r*s,cut?Math.PI/4:Math.PI*3/4,txt));
-    }
     /* delik konumları: simetrik çift merkezden merkeze, diğerleri görünüşün sol/alt kenarından */
     for(const k of order){
       const hs=[];for(const g of plan.values())if(g.k===k)for(const q of g.list)if(q.op==='cut')hs.push(q);if(!hs.length)continue;
@@ -273,33 +342,56 @@ function buildSheet(forExport,opts){
         const c=(lo+hi)/2;vals=uniq(vals).filter(x=>Math.abs(x-c)>1e-3&&x>lo+1e-3&&x<hi-1e-3);if(!vals.length||vals.length>5)return;
         const pairs=vals.length===2&&Math.abs(vals[0]+vals[1]-2*c)<0.01?[[vals[0],vals[1]]]:vals.map(x=>[lo,x]);
         pairs.forEach(([x0,x1],i)=>{const off=(horiz&&k!=='top'?16:9)+7*i; // ön ve yan görünüşün altında genel boyut var
+          const key='hp:'+vk2(k)+':'+(horiz?'h':'v')+':'+i;
           if(horiz){const P1=v.map(x0,x0===lo?bb.minB:hs.find(q=>Math.abs(q.a-x0)<0.01).b),P2=v.map(x1,hs.find(q=>Math.abs(q.a-x1)<0.01).b),y=v.map(0,bb.minB)[1]+off;
-            o.push(dimMarkup(P1,P2,[P1[0],y],[P2[0],y],fmt(x1-x0)))}
+            autoDim(key,P1,P2,[P1[0],y],[P2[0],y],fmt(x1-x0))}
           else{const P1=v.map(x0===lo?bb.maxA:hs.find(q=>Math.abs(q.b-x0)<0.01).a,x0),P2=v.map(hs.find(q=>Math.abs(q.b-x1)<0.01).a,x1),x=v.map(bb.maxA,0)[0]+off;
-            o.push(dimMarkup(P1,P2,[x,P1[1]],[x,P2[1]],fmt(x1-x0)))}});
+            autoDim(key,P1,P2,[x,P1[1]],[x,P2[1]],fmt(x1-x0))}});
       };
       axis(hs.map(q=>q.a),bb.minA,bb.maxA,true);axis(hs.map(q=>q.b),bb.minB,bb.maxB,false);
     }
     /* genel boyutlar */
     const vF=ctx.views.front,dF=vd.front.bb;
     const BL=vF.map(dF.minA,dF.minB),BR=vF.map(dF.maxA,dF.minB),TL=vF.map(dF.minA,dF.maxB);
-    o.push(dimMarkup(BL,BR,[BL[0],BL[1]+9],[BR[0],BR[1]+9],fmt(dF.maxA-dF.minA)));
-    o.push(dimMarkup(BL,TL,[BL[0]-9,BL[1]],[TL[0]-9,TL[1]],fmt(dF.maxB-dF.minB)));
-    const vS=ctx.views[side],dS=vd[side].bb;
-    const SL=vS.map(dS.minA,dS.minB),SR=vS.map(dS.maxA,dS.minB);
-    o.push(dimMarkup(SL,SR,[SL[0],SL[1]+9],[SR[0],SR[1]+9],fmt(dS.maxA-dS.minA)));
+    autoDim('ow:front',BL,BR,[BL[0],BL[1]+9],[BR[0],BR[1]+9],fmt(dF.maxA-dF.minA));
+    autoDim('oh:front',BL,TL,[BL[0]-9,BL[1]],[TL[0]-9,TL[1]],fmt(dF.maxB-dF.minB));
+    const vS=ctx.views[side];
+    if(vS){const dS=vd[side].bb;const SL=vS.map(dS.minA,dS.minB),SR=vS.map(dS.maxA,dS.minB);
+      autoDim('ow:side',SL,SR,[SL[0],SL[1]+9],[SR[0],SR[1]+9],fmt(dS.maxA-dS.minA))}
+    /* çap ve delik etiketleri: kılavuz çizgisi boş yer bulana kadar döndürülür; elle taşınmışsa o konum kullanılır */
+    const geo=[];for(const k of shown){const v=ctx.views[k];for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);geo.push([A[0],A[1],B[0],B[1]])}}
+    const score=B=>{let sc=0;for(const b of occ){const a=boxOv(B,b);if(a>0)sc+=6+a}for(const g of geo)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;
+      if(B[0]<ax0-8||B[2]>ax1+8||B[1]<ay0-8||B[3]>ay1+8)sc+=30;return sc};
+    for(const [gid,g] of plan){
+      const key='L:'+gid;if(hide.has(key))continue;
+      const v=ctx.views[g.k];const cut=g.list[0].op==='cut';
+      const best=g.list.reduce((a,q)=>{const sc=cut?q.a+q.b:-q.a+q.b;return !a||sc>a.sc?{q,sc}:a},null).q;
+      const C=v.map(best.a,best.b),R=best.r*s;const n=g.list.length;
+      const lines=(best.call||[best.txt||('Ø'+fmt(best.r*2))]).slice();if(n>1)lines[0]=n+'× '+lines[0];
+      let r;const own=S.lbl&&S.lbl[gid];
+      if(own)r=leaderM(C,R,lines,[C[0]+own[0],C[1]+own[1]]);
+      else{const pref=cut?45:135;
+        search:for(const L of [7,12,18])for(const dA of [0,-20,20,-40,40,-60,60,90,-90,-120,120,180]){
+          const th=(pref+dA)*Math.PI/180;const K=[C[0]+Math.cos(th)*(R+L),C[1]-Math.sin(th)*(R+L)];
+          const c=leaderM(C,R,lines,K);c.sc=score(c.box)+Math.abs(dA)/120+(L-7)/22;
+          if(!r||c.sc<r.sc)r=c;if(r.sc<0.05)break search}}
+      o.push(r.m);occ.push(r.box);ctx.hits.push({t:'lbl',k:gid,box:r.box,K:r.K,C})
+    }
   }
   /* elle eklenen ölçüler */
-  S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;const g=dimGeom(dm,v);o.push(`<g data-dim="${i}">${dimMarkup(g.P1,g.P2,g.Q1,g.Q2,(dm.pre||'')+fmt(g.val),dm)}</g>`)});
+  S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;o.push(`<g data-dim="${i}">${dimRender(dm,v)}</g>`);ctx.hits.push({t:'dim',i,box:lastBox})});
   if(secInfo)o.push(sectionLineMarkup(secInfo,ctx,s));
   o.push(detailsMarkup(S,ctx,s));
   o.push(surfMarkup(S,ctx));
-  o.push(notesMarkup(S));
+  o.push(gdtMarkup(S,ctx));
+  o.push(datumMarkup(S,ctx));
+  o.push(notesMarkup(S,ctx));
   if(bom){
     if(S.balloons!==false){const bv=ctx.views.iso?'iso':'front';o.push(balloonsMarkup(ctx.views[bv],bom,[ax0,ay0,ax1,ay1]))}
     o.push(bomMarkup(bom,layout,W,H,[ax0,ay0,ax1,ay1]));
   }
   o.push(footerMarkup(W,H,layout,info));
+  occ=null;
   return {markup:o.join(''),ctx};
 }
 
@@ -327,19 +419,25 @@ function zoomAt(p,f){f=Math.max(.02/ (vb.w/420),Math.min(f,8));vb.x=p[0]-(p[0]-v
 const ptrs=new Map();let pan=null,pinch=null;
 sheetEl.addEventListener('pointerdown',e=>{
   sheetEl.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(ptrs.size===1){pan={x:e.clientX,y:e.clientY,vb:{...vb},k:pxToSheet(1),moved:false}}
-  else if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),vb:{...vb},mid:toSheet((a.x+b.x)/2,(a.y+b.y)/2)};if(pan)pan.moved=true}
+  if(ptrs.size===1){pan={x:e.clientX,y:e.clientY,vb:{...vb},k:pxToSheet(1),moved:false};
+    // araç yokken bir görünüş veya açıklama tutulursa sürüklenir (SolidWorks gibi), boşlukta sayfa kaydırılır
+    if(!dimMode&&!dwTool){const h=dwHitAt(toSheet(e.clientX,e.clientY),e.pointerType);if(h)pan.hit=h}}
+  else if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),vb:{...vb},mid:toSheet((a.x+b.x)/2,(a.y+b.y)/2)};if(pan){if(pan.hit&&pan.moved)dwDragEnd(pan);pan.hit=null;pan.moved=true}}
 });
 sheetEl.addEventListener('pointermove',e=>{
   if(ptrs.has(e.pointerId))ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===2&&pinch){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y)||1;const f=pinch.d/d;vb={...pinch.vb};zoomAt(pinch.mid,f);return}
-  if(ptrs.size===1&&pan){const dx=e.clientX-pan.x,dy=e.clientY-pan.y;if(Math.hypot(dx,dy)>4)pan.moved=true;if(pan.moved){vb.x=pan.vb.x-dx*pan.k;vb.y=pan.vb.y-dy*pan.k;applyVB()}return}
+  if(ptrs.size===1&&pan){const dx=e.clientX-pan.x,dy=e.clientY-pan.y;if(Math.hypot(dx,dy)>4)pan.moved=true;
+    if(pan.moved){if(pan.hit&&DW_DRAG.has(pan.hit.t))dwDragMove(pan,dx*pan.k,dy*pan.k);else{vb.x=pan.vb.x-dx*pan.k;vb.y=pan.vb.y-dy*pan.k;applyVB()}}return}
   if((dimMode||dwTool)&&e.pointerType==='mouse')drawOverlay(toSheet(e.clientX,e.clientY));
+  else if(e.pointerType==='mouse')dwHover(toSheet(e.clientX,e.clientY));
 });
 const endPtr=e=>{
   const wasPan=pan;ptrs.delete(e.pointerId);
-  if(ptrs.size===0){if(wasPan&&!wasPan.moved&&e.type==='pointerup'){if(dimMode)dimClick(toSheet(e.clientX,e.clientY),e.pointerType);else if(dwTool)dwToolClick(toSheet(e.clientX,e.clientY),e.pointerType)}pan=null;pinch=null}
-  else if(ptrs.size===1){const [a]=[...ptrs.values()];pan={x:a.x,y:a.y,vb:{...vb},k:pxToSheet(1),moved:true};pinch=null}
+  if(ptrs.size===0){if(wasPan&&!wasPan.moved&&e.type==='pointerup'){if(dimMode)dimClick(toSheet(e.clientX,e.clientY),e.pointerType);else if(dwTool)dwToolClick(toSheet(e.clientX,e.clientY),e.pointerType);else dwSelect(wasPan.hit||null)}
+    else if(wasPan&&wasPan.hit&&wasPan.moved)dwDragEnd(wasPan);
+    pan=null;pinch=null}
+  else if(ptrs.size===1){if(wasPan&&wasPan.hit&&wasPan.moved)dwDragEnd(wasPan);const [a]=[...ptrs.values()];pan={x:a.x,y:a.y,vb:{...vb},k:pxToSheet(1),moved:true};pinch=null}
 };
 sheetEl.addEventListener('pointerup',endPtr);sheetEl.addEventListener('pointercancel',endPtr);
 sheetEl.addEventListener('wheel',e=>{e.preventDefault();zoomAt(toSheet(e.clientX,e.clientY),Math.pow(1.0015,e.deltaY))},{passive:false});
@@ -351,37 +449,55 @@ function nearestSnap(p,tolPx){
   for(const s of dctx.snaps){const d=Math.hypot(s.x-p[0],s.y-p[1]);if(d<bd){bd=d;best=s}}return best;
 }
 function setDimMode(on){
-  if(on)setDwTool(null,true);
+  if(on){setDwTool(null,true);dwSelect(null)}
   dimMode=on;dimSt={stage:0,p1:null,p2:null};sheetWrap.classList.toggle('dim',on);
   $$('[data-dcmd="dim"]').forEach(b=>b.classList.toggle('on',on));updateDimTip();drawOverlay(null);
 }
 function updateDimTip(){
   const t=$('#dwTip');if(!dimMode){t.classList.remove('on');return}
   t.classList.add('on');
-  t.textContent=dimSt.stage===0?'Ölçü: ilk noktayı seç (kenar uçları ve merkezler yakalanır). Esc ile çık.':dimSt.stage===1?'İkinci noktayı aynı görünüşte seç.':'Ölçü çizgisinin yerini seç. Fareyi noktaların yanına götürürsen dikey, üstüne/altına götürürsen yatay ölçü olur.';
+  t.textContent=dimSt.stage===0?'Akıllı ölçü: nokta (kenar ucu, merkez), daire veya kenar seç. Esc ile çık.':dimSt.stage==='dia'?'Çap ölçüsünün yazı yerine tıkla.':dimSt.stage==='edge'?'Boş yere tıkla: kenar uzunluğu. Başka kenar: paralelse aralık, değilse açı. Nokta: noktadan kenara uzaklık.':dimSt.stage==='ang'?'Açı ölçüsünün yayının yerine tıkla (bölgeyi imleç seçer).':dimSt.stage===1?'İkinci noktayı aynı görünüşte seç.':'Ölçü çizgisinin yerini seç. Fareyi noktaların yanına götürürsen dikey, üstüne/altına götürürsen yatay ölçü olur.';
 }
 function dimClick(p,ptype){
   const tol=ptype==='mouse'?9:20;
-  if(dimSt.stage===0){const s=nearestSnap(p,tol);if(!s)return;dimSt.p1=s;dimSt.stage=1}
+  if(dimSt.stage===0){let s=nearestSnap(p,tol);const c=nearestCircle(p,pxToSheet(tol*.6));
+    // dairenin çevresine tıklanınca (merkez dışında) çap ölçüsü; çevredeki parça uçları nokta sayılmaz
+    if(c&&!(s&&s.c))s=null;
+    if(s){dimSt.p1=s;dimSt.stage=1}
+    else{if(c)dimSt={stage:'dia',c};else{const e=pickLine(p,pxToSheet(tol));if(!e)return;dimSt={stage:'edge',e}}}}
+  else if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);
+    addDim({view:c.view,kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]]});return}
+  else if(dimSt.stage==='edge'){const r=edgeSecond(p,tol);if(!r)return;if(r.dim){addDim(r.dim);return}dimSt=r.st}
+  else if(dimSt.stage==='ang'){const d=angFromCursor(dimSt.e1,dimSt.e2,p);if(d)addDim(d);return}
   else if(dimSt.stage===1){const s=nearestSnap(p,tol);if(!s)return;
     if(s.view!==dimSt.p1.view){toast('İki nokta aynı görünüşte olmalı.');return}
     if(Math.hypot(s.a-dimSt.p1.a,s.b-dimSt.p1.b)<1e-6)return;
     dimSt.p2=s;dimSt.stage=2}
   else{
     const v=dctx.views[dimSt.p1.view];const c=v.inv(p[0],p[1]);const r=dimFromCursor([dimSt.p1.a,dimSt.p1.b],[dimSt.p2.a,dimSt.p2.b],c);
-    if(dwDoc().kind==='part')pushHist();dwS().dims.push({view:dimSt.p1.view,p1:[dimSt.p1.a,dimSt.p1.b],p2:[dimSt.p2.a,dimSt.p2.b],kind:r.kind,pos:r.pos});
-    saveState();dimSt={stage:0,p1:null,p2:null};renderDrawing();
+    addDim({view:dimSt.p1.view,p1:[dimSt.p1.a,dimSt.p1.b],p2:[dimSt.p2.a,dimSt.p2.b],kind:r.kind,pos:r.pos});return;
   }
   updateDimTip();drawOverlay(p);
 }
+function addDim(d){
+  if(dwDoc().kind==='part')pushHist();dwS().dims.push(d);
+  saveState();dimSt={stage:0,p1:null,p2:null};updateDimTip();renderDrawing();
+}
+const toBlue=m=>m.replace(/class="d-ar"/g,'class="d-ar" style="fill:#1F6FEB"').replace(/class="d-thin"( style="[^"]*")?/g,'class="d-thin" style="stroke:#1F6FEB"').replace(/class="d-t"/g,'class="d-t" style="fill:#1F6FEB"');
 function drawOverlay(p){
-  const ov=$('#ov');if(!ov)return;if(dwTool){ov.innerHTML=dwToolOverlay(p);return}if(!dimMode){ov.innerHTML='';return}
+  const ov=$('#ov');if(!ov)return;if(dwTool){ov.innerHTML=dwToolOverlay(p);return}if(!dimMode){ov.innerHTML=selOverlay();return}
   let h='';const acc='#1F6FEB';
+  if(typeof dimSt.stage==='string'){ov.innerHTML=dimStageOverlay(p);return}
   const dotM=(x,y,r,fill)=>`<circle cx="${f2(x)}" cy="${f2(y)}" r="${f2(r)}" fill="${fill}" stroke="${acc}" stroke-width="${f2(pxToSheet(1.5))}"/>`;
   const rr=pxToSheet(5);
   if(dimSt.p1)h+=dotM(dimSt.p1.x,dimSt.p1.y,rr,acc);
   if(dimSt.p2)h+=dotM(dimSt.p2.x,dimSt.p2.y,rr,acc);
-  if(p&&dimSt.stage<2){const s=nearestSnap(p,9);if(s)h+=dotM(s.x,s.y,rr*1.2,'rgba(31,111,235,.18)')}
+  if(p&&dimSt.stage===0){// imlecin altındaki: merkez/nokta, daire veya kenar
+    const s=nearestSnap(p,9),c=nearestCircle(p,pxToSheet(5.4)),w=f2(pxToSheet(2));
+    if(s&&(!c||s.c))h+=dotM(s.x,s.y,rr*1.2,'rgba(31,111,235,.18)');
+    else if(c){const v=dctx.views[c.view],C=v.map(c.a,c.b);h+=`<circle cx="${f2(C[0])}" cy="${f2(C[1])}" r="${f2(c.r*v.s)}" fill="none" stroke="${acc}" stroke-width="${w}"/>`}
+    else{const e=pickLine(p,pxToSheet(9));if(e){const v=dctx.views[e.view],A=v.map(e.A[0],e.A[1]),B=v.map(e.B[0],e.B[1]);h+=`<path d="${Lp(A[0],A[1],B[0],B[1])}" stroke="${acc}" stroke-width="${w}" fill="none"/>`}}}
+  else if(p&&dimSt.stage===1){const s=nearestSnap(p,9);if(s)h+=dotM(s.x,s.y,rr*1.2,'rgba(31,111,235,.18)')}
   if(p&&dimSt.stage===2){
     const v=dctx.views[dimSt.p1.view];const c=v.inv(p[0],p[1]);const r=dimFromCursor([dimSt.p1.a,dimSt.p1.b],[dimSt.p2.a,dimSt.p2.b],c);
     const g=dimGeom({p1:[dimSt.p1.a,dimSt.p1.b],p2:[dimSt.p2.a,dimSt.p2.b],kind:r.kind,pos:r.pos},v);
@@ -404,8 +520,8 @@ function renderDrawRibbon(){
     rctl('Ölçek','dScale',[['auto','Otomatik'],['5','5:1'],['2','2:1'],['1','1:1'],['0.5','1:2'],['0.2','1:5'],['0.1','1:10']],S.scale)+
     (doc.kind==='asm'?'<div class="rsep"></div>'+rctl('Görünüşler','dAsmView',[['std','Ön, üst, yan + izometrik'],['iso','Yalnızca izometrik']],S.asmView||'std')+dRb('explode','explode','Patlatılmış',!!S.explode)+dRb('balloons','balloon','Balonlar',S.balloons!==false)+dRb('bom','bom','Parça listesi',S.bom!==false):'')+
     '<div class="rsep"></div>'+dRb('hidden','hidden','Gizli çizgiler',S.hidden)+dRb('centers','center','Eksen çizgileri',S.centers)+dRb('autodims','autodim','Oto. ölçüler',S.autodims)+dRb('iso','isoView','İzometrik',S.iso)+
-    '<div class="rsep"></div>'+(doc.kind==='part'||S.asmView!=='iso'?rctl('Kesit','dSec',[['none','Yok'],['front','Ön görünüş A-A'],['side','Yan görünüş A-A']],S.section||'none'):'')+dRb('dim','dim','Ölçü ekle',dimMode)+dRb('detail','detailv','Detay görünüşü',dwTool==='detail')+dRb('surf','surf','Yüzey işareti',dwTool==='surf')+dRb('note','note','Not ekle',dwTool==='note')+dRb('fit','fit','Sığdır',false)+
-    '<div class="rsep"></div>'+dRb('pdf','pdf','PDF olarak al',false)+dRb('svg','svg','SVG indir',false)+dRb('png','png','PNG indir',false);
+    '<div class="rsep"></div>'+(doc.kind==='part'||S.asmView!=='iso'?rctl('Kesit','dSec',[['none','Yok'],['front','Ön görünüş A-A'],['top','Üst görünüş A-A'],['side','Yan görünüş A-A']],S.section||'none'):'')+dRb('dim','dim','Akıllı ölçü',dimMode)+dRb('detail','detailv','Detay görünüşü',dwTool==='detail')+dRb('surf','surf','Yüzey işareti',dwTool==='surf')+dRb('gdt','gdt','Geometrik tolerans',dwTool==='gdt')+dRb('datum','datum','Referans',dwTool==='datum')+dRb('note','note','Not ekle',dwTool==='note')+dRb('fit','fit','Sığdır',false)+
+    '<div class="rsep"></div>'+dRb('pdf','pdf','PDF olarak al',false)+dRb('dxf','dxf','DXF indir',false)+dRb('svg','svg','SVG indir',false)+dRb('png','png','PNG indir',false);
   fitRibbon($('#drawRibbon'));
 }
 $('#drawRibbon').addEventListener('change',e=>{
@@ -415,7 +531,7 @@ $('#drawRibbon').addEventListener('change',e=>{
   if(t.id==='dSec'){S.section=t.value;saveState();renderDrawing();renderDwPanel();return}
   if(t.id==='dPaper'){S.paper=t.value;saveState();renderDrawing(true)}
   if(t.id==='dOrient'){S.orient=t.value;saveState();renderDrawing(true)}
-  if(t.id==='dMethod'){S.method=t.value;S.dims=S.dims.filter(d=>d.view==='front'||d.view==='top');saveState();renderDrawing()}
+  if(t.id==='dMethod'){S.method=t.value;const keep=x=>x.view==='front'||x.view==='top';S.dims=S.dims.filter(keep);for(const k of ['details','surfs','gdts','datums'])if(S[k])S[k]=S[k].filter(keep);saveState();renderDrawing()}
   if(t.id==='dScale'){S.scale=t.value;saveState();renderDrawing()}
 });
 $('#drawRibbon').addEventListener('click',e=>{
@@ -423,7 +539,8 @@ $('#drawRibbon').addEventListener('click',e=>{
   if(['balloons','bom'].includes(c)){S[c]=S[c]===false;b.classList.toggle('on',S[c]!==false);saveState();renderDrawing();return}
   if(['hidden','centers','autodims','iso','explode'].includes(c)){S[c]=!S[c];b.classList.toggle('on',S[c]);saveState();renderDrawing()}
   else if(c==='dim')setDimMode(!dimMode);
-  else if(['detail','surf','note'].includes(c))setDwTool(dwTool===c?null:c);
+  else if(['detail','surf','note','gdt','datum'].includes(c))setDwTool(dwTool===c?null:c);
+  else if(c==='dxf')exportDXF();
   else if(c==='fit')fitSheet();
   else if(c==='svg')exportSVG();
   else if(c==='png')exportPNG();
@@ -438,8 +555,8 @@ function renderDwPanel(){
     <div class="row2"><label class="fld"><span>Çizen</span><input data-dk="drawn" value="${esc(S.drawn)}"></label><label class="fld"><span>Kontrol</span><input data-dk="checked" value="${esc(S.checked)}"></label></div>
     <p class="note">Malzeme, kütle, ölçek ve tarih modelden otomatik alınır. Malzemeyi 3B Model sekmesindeki ağaçtan değiştir.</p></div>`;
   h+=`<div class="grp"><div class="grp-t">Eklenen ölçüler</div>`;
-  if(!S.dims.length)h+=`<p class="note">Şeritteki “Ölçü ekle” ile iki nokta seç, sonra ölçü çizgisinin yerini göster.</p>`;
-  else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const val=v?dimGeom(d,v).val:Math.hypot(d.p2[0]-d.p1[0],d.p2[1]-d.p1[1]);return `<div class="dimrow" style="flex-wrap:wrap"><span>${VN[d.view]||d.view}: ${esc(d.pre||'')}${fmt(val)} mm</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin.</p>`;
+  if(!S.dims.length)h+=`<p class="note">Şeritteki “Akıllı ölçü” ile iki nokta, bir kenar (uzunluk), iki kenar (aralık veya açı) ya da bir daire (çap) seç, sonra ölçünün yerini göster. Ölçüler ve açıklamalar sürüklenerek taşınır, seçilip Delete ile silinir.</p>`;
+  else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const lab=v?dimLabel(d,v):'—';return `<div class="dimrow" style="flex-wrap:wrap"><span>${VN[d.view]||d.view}: ${esc(lab)}${d.kind==='ang'?'':' mm'}</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin; çap ölçüsünde R yazınca yarıçap gösterilir.</p>`;
   h+=`</div>`;
   h+=extraPanel(S);
   if(dctx)h+=`<div class="grp"><div class="grp-t">Sayfa</div><p class="note">Ölçek ${scaleLabel(dctx.scale)}, ${S.method==='E'?'ISO E (birinci açı) izdüşüm: üst görünüş ön görünüşün altında, soldan görünüş sağında.':'ISO A (üçüncü açı) izdüşüm: üst görünüş ön görünüşün üstünde, sağdan görünüş sağında.'}</p><p class="note">Fare tekerleği veya iki parmakla yakınlaştır, sürükleyerek kaydır.</p></div>`;

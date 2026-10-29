@@ -65,16 +65,42 @@ $('#tree').addEventListener('click',e=>{
   if(act==='editsk'){editSketch(f.type==='sketch'?id:f.sketch);return}
   if(act==='sketchon'){startSketch({kind:'plane',id});return}
   if(sk||pm)return;
-  if(act==='sup'){pushHist();f.suppressed=!f.suppressed;if(f.sketch){const s=byId(f.sketch);if(s)s.suppressed=f.suppressed}afterChange()}
-  else if(act==='del'){
-    // özellik silinince çizimi ağaçta kalır (SolidWorks gibi); çizim ayrıca silinir.
-    // çizim silinirse ona bağlı özellik çizimsiz kalacağı için onunla birlikte gider.
-    pushHist();const ids=new Set([id]);let dep=null;
-    if(f.type==='sketch'){const c=consumedMap()[id];if(c){ids.add(c);dep=byId(c)}}
-    state.features=state.features.filter(x=>!ids.has(x.id));sel=null;afterChange();
-    toast(dep?`“${f.name}” ve ona bağlı “${dep.name}” silindi.`:f.sketch?`“${f.name}” silindi; “${(byId(f.sketch)||{}).name||'çizim'}” ağaçta kaldı.`:`“${f.name}” silindi.`,{label:'Geri al',fn:undo});
-  }
+  if(act==='sup'){
+    // bağlı öğeler (yüzeyine çizilen çizimler, onları kullanan özellikler…) de birlikte bastırılır/geri getirilir; yoksa hata verirlerdi
+    pushHist();const on=!f.suppressed;const ids=new Set([f.id]);if(f.sketch)ids.add(f.sketch);
+    const deps=dependents(ids);for(const g of [f,...(f.sketch?[byId(f.sketch)]:[]),...deps])if(g)g.suppressed=on;
+    afterChange();if(deps.length)toast(`“${f.name}” ve bağlı ${deps.length} öğe ${on?'bastırıldı':'geri getirildi'}.`,{label:'Geri al',fn:undo})}
+  else if(act==='del')deleteFeature(f);
 });
+/* silinen öğeler olmadan hesaplanamayacak özellikler (ağaç sırasıyla, zincirleme): yüzeyine/düzlemine çizilen çizimler,
+   çizimini kullanan özellikler, tüm hedefleri silinen çoğaltmalar, kenarları silinen özelliğin yüzeyinde olan radyuslar */
+function dependents(ids){
+  const D=new Set(ids),out=[];
+  for(const g of state.features){if(D.has(g.id))continue;const on=g.on||{},t=g.targets||[];
+    const uses=(on.kind==='face'&&D.has(on.feat))||(on.kind==='plane'&&D.has(on.id))||(g.sketch&&D.has(g.sketch))||(g.type==='plane'&&D.has(g.base))||(g.type==='mirror'&&D.has(g.plane))||
+      (t.length>0&&t.every(x=>D.has(x)))||(g.edges||[]).some(e=>e.sig&&e.sig.f&&e.sig.f.some(x=>D.has(x)));
+    if(uses){D.add(g.id);out.push(g)}}
+  return out;
+}
+function deleteFeature(f){
+  // özellik silinince çizimi ağaçta kalır (SolidWorks gibi); çizim ayrıca silinir.
+  // çizim silinirse ona bağlı özellik çizimsiz kalacağı için onunla birlikte gider.
+  const ids=new Set([f.id]);let dep=null;
+  if(f.type==='sketch'){const c=consumedMap()[f.id];if(c){ids.add(c);dep=byId(c)}}
+  const deps=dependents(ids);
+  const run=withDeps=>{
+    pushHist();const all=new Set(ids);if(withDeps)for(const g of deps)all.add(g.id);
+    state.features=state.features.filter(x=>!all.has(x.id));
+    // çoğaltma/aynalama hedeflerinden silinenler çıkarılır (kalan hedefler çalışmaya devam eder)
+    for(const g of state.features)if(Array.isArray(g.targets))g.targets=g.targets.filter(x=>!all.has(x));
+    sel=null;afterChange();
+    const extra=withDeps&&deps.length?` Bağlı ${deps.length} öğe de silindi.`:'';
+    toast((dep?`“${f.name}” ve ona bağlı “${dep.name}” silindi.`:f.sketch?`“${f.name}” silindi; “${(byId(f.sketch)||{}).name||'çizim'}” ağaçta kaldı.`:`“${f.name}” silindi.`)+extra,{label:'Geri al',fn:undo});
+  };
+  if(!deps.length){run(false);return}
+  ask('Silmeyi onayla',`<b>${esc(f.name)}</b>${dep?` ve <b>${esc(dep.name)}</b>`:''} silinirse şu öğeler hesaplanamaz:<ul>${deps.slice(0,8).map(g=>`<li>${esc(g.name)}</li>`).join('')}${deps.length>8?`<li>… ve ${deps.length-8} öğe daha</li>`:''}</ul>`,
+    [{label:'İptal'},{label:'Yalnızca bunu sil',fn:()=>run(false)},{label:'Bağlı öğelerle birlikte sil',fn:()=>run(true),primary:true}]);
+}
 $('#tree').addEventListener('dblclick',e=>{
   if(activeTab==='asm'){asmTreeDbl(e);return}
   if(sk||pm)return;const ti=e.target.closest('.ti[data-id]');if(!ti||e.target.closest('[data-a]'))return;const f=byId(ti.dataset.id);if(!f)return;

@@ -210,6 +210,38 @@ function mateRefOk(s){
   return d.ann.some(an=>Math.abs(Math.abs(an.A.dot(A))-1)<1e-4&&an.C.clone().sub(C).sub(A.clone().multiplyScalar(an.C.clone().sub(C).dot(A))).length()<1e-3)||!d.ann.length;
 }
 
+/* ---------- parça değişince montajın güncellenmesi ---------- */
+/* eşleştirme referansı (parça koordinatında düzlem/eksen) eski geometride bir yüzeye/eksene oturuyor, yenisinde oturmuyorsa:
+   aynı özelliğin oluşturduğu, aynı yöndeki en yakın yüzeye/eksene taşınır (ör. mil boyu 100 → 110: omuz yüzeyi de kayar) */
+function refOn(r,polys,ann){
+  if(r.t==='plane'){const w=r.n[0]*r.p[0]+r.n[1]*r.p[1]+r.n[2]*r.p[2];return polys.filter(coplanarFilter(r.n,w))}
+  const A=new T.Vector3(...r.d),C=new T.Vector3(...r.p);
+  return ann.filter(an=>Math.abs(Math.abs(an.A.dot(A))-1)<1e-4&&an.C.clone().sub(C).sub(A.clone().multiplyScalar(an.C.clone().sub(C).dot(A))).length()<1e-3);
+}
+function remapRef(r,old,nw){
+  if(refOn(r,nw.polys,nw.ann||[]).length)return null;
+  const was=refOn(r,old.polys,old.ann||[]);if(!was.length)return null;
+  if(r.t==='plane'){
+    const F=new Set(was.map(q=>q.shared)),n=r.n,w0=n[0]*r.p[0]+n[1]*r.p[1]+n[2]*r.p[2];let best=null;
+    for(const q of nw.polys){if(!F.has(q.shared)||q.plane.n.x*n[0]+q.plane.n.y*n[1]+q.plane.n.z*n[2]<1-1e-6)continue;const d=Math.abs(q.plane.w-w0);if(!best||d<best.d)best={d,w:q.plane.w}}
+    if(!best)return null;const k=best.w-w0,q6=x=>Math.round(x*1e6)/1e6;return {...r,p:[q6(r.p[0]+n[0]*k),q6(r.p[1]+n[1]*k),q6(r.p[2]+n[2]*k)]};
+  }
+  const o=was[0],pre=g=>String(g).split(':')[0],A=new T.Vector3(...r.d),C=new T.Vector3(...r.p);let best=null;
+  for(const an of nw.ann||[]){if(pre(an.gid)!==pre(o.gid)||Math.abs(Math.abs(an.A.dot(A))-1)>1e-4)continue;
+    const w=an.C.clone().sub(C);const perp=w.sub(A.clone().multiplyScalar(w.dot(A))).length();const sc=perp+Math.abs(an.r-o.r)+(an.gid===o.gid?0:1e-3);if(!best||sc<best.sc)best={sc,an}}
+  if(!best)return null;const an=best.an,sg=an.A.dot(A)<0?-1:1,q6=x=>Math.round(x*1e6)/1e6;
+  return {...r,p:[q6(an.C.x),q6(an.C.y),q6(an.C.z)],d:[an.A.x*sg,an.A.y*sg,an.A.z*sg],r:an.r,t0:sg>0?an.t0:-an.t1,t1:sg>0?an.t1:-an.t0};
+}
+/* parça yeniden hesaplandı: onu kullanan montajlarda eşleştirmeler yeni geometriye taşınır ve montaj yeniden çözülür
+   (montaj sekmesine geçmeden açılan montaj resmi de güncel konumları gösterir) */
+function partChanged(p,old,nw){
+  let n=0;
+  for(const a of project.asms){const cs=new Set(a.comps.filter(c=>c.part===p.id).map(c=>c.id));if(!cs.size)continue;
+    if(old)for(const m of a.mates)for(const sd of [m.a,m.b]){if(!cs.has(sd.comp))continue;const r=remapRef(sd.ref,old,nw);if(r){sd.ref=r;n++}}
+    a._unsolved=!solveAsm(a)}
+  return n;
+}
+
 /* ---------- montaj değişikliği ---------- */
 function asmChanged(rebuildView=true){
   const a=curAsm();
@@ -233,7 +265,7 @@ function addComp(partId){
   asmChanged();if(a.comps.length<=2)fitCamera(null);
   toast(`${compName(a,c)} eklendi${c.fixed?' ve sabitlendi':''}.`);
 }
-function delComp(id){const a=curAsm();const c=compById(id);if(!c)return;pushAsmHist();const nm=compName(a,c);a.comps=a.comps.filter(x=>x!==c);a.mates=a.mates.filter(m=>m.a.comp!==id&&m.b.comp!==id);if(asmUI.sel===id)asmUI.sel=null;asmChanged();toast(`${nm} ve eşleştirmeleri silindi.`,{label:'Geri al',fn:asmUndo})}
+function delComp(id){const a=curAsm();const c=compById(id);if(!c)return;pushAsmHist();const nm=compName(a,c);a.comps=a.comps.filter(x=>x!==c);a.mates=a.mates.filter(m=>m.a.comp!==id&&m.b.comp!==id);if(a.explode&&a.explode.steps){for(const st of a.explode.steps)st.comps=st.comps.filter(x=>x!==id);a.explode.steps=a.explode.steps.filter(st=>st.comps.length)}if(asmUI.sel===id)asmUI.sel=null;asmChanged();toast(`${nm} ve eşleştirmeleri silindi.`,{label:'Geri al',fn:asmUndo})}
 
 /* ---------- ağaç ---------- */
 function renderAsmTree(){

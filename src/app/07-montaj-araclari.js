@@ -18,6 +18,14 @@ function dwS(doc){
     a.drawing=Object.assign(defaultDrawing(),a.drawing);if(!Array.isArray(a.drawing.dims))a.drawing.dims=[];return a.drawing}
   return doc.p.drawing;
 }
+/* teknik resim geri al/yinele: belge (parça veya montaj) başına, resim ayarlarının tamamı */
+const dwHists=new Map();
+function dwHistFor(doc){doc=doc||dwDoc();const k=doc.kind==='asm'?'A'+doc.a.id:'P'+doc.p.id;if(!dwHists.has(k))dwHists.set(k,{undo:[],redo:[]});return dwHists.get(k)}
+const dwSnap=doc=>JSON.stringify(dwS(doc),cleanR);
+function pushDwHist(){const doc=dwDoc(),h=dwHistFor(doc);h.undo.push(dwSnap(doc));if(h.undo.length>80)h.undo.shift();h.redo=[];updUndo()}
+function dwRestore(s){const doc=dwDoc(),o=JSON.parse(s);if(doc.kind==='asm')doc.a.drawing=o;else doc.p.drawing=o;dwSel=null;dimSt={stage:0,p1:null,p2:null};saveState();renderDrawRibbon();renderDrawing()}
+function dwUndo(){const h=dwHistFor();if(!h.undo.length)return;h.redo.push(dwSnap());dwRestore(h.undo.pop());updUndo()}
+function dwRedo(){const h=dwHistFor();if(!h.redo.length)return;h.undo.push(dwSnap());dwRestore(h.redo.pop());updUndo()}
 function hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36)}
 function partSrc(p){
   const d=partData(p);const mat=MATERIALS[p.material]||MATERIALS.steel;
@@ -26,7 +34,7 @@ function partSrc(p){
 const srcCache=new Map();
 function asmSrc(a,exploded){
   const f=exploded?1:0;
-  const key='A'+a.id+':'+hashStr(JSON.stringify(a.comps.map(c=>[c.part,c.T,!!c.hidden]))+JSON.stringify(a.explode||{})+f+a.comps.map(c=>{const p=partById(c.part);return p?hashStr(partKey(p)):''}).join());
+  const key='A'+a.id+':'+hashStr(JSON.stringify(a.comps.map(c=>[c.part,c.T,!!c.hidden]))+JSON.stringify(a.explode||{})+f+a.comps.map(c=>{const p=partById(c.part);return p?hashStr(partKey(p))+p.material:''}).join());
   if(srcCache.has(key))return srcCache.get(key);
   let polys=[];const ann=[];let massG=0,vol=0,area=0;
   for(const c of a.comps){

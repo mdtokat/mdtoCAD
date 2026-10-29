@@ -17,12 +17,12 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Ölçüye dayalı çizim: çizimi düzenlemeye girince tüm ölçüler görünür; ölçüye çift tıklayarak veya paneldeki **Ölçüler** listesinden değer girilir, geometri yeni ölçüye göre güncellenir.
 - **Tam Tanımla:** eksik ölçü ve ilişkiler geometriyi oynatmadan otomatik eklenir. Ölçüsüz çizimler (kendi çizdiklerin veya dışarıdan yüklenen dosyalar) çizime girerken ve çıkarken kendiliğinden tam tanımlanır; panelden kapatılabilir.
 - Özellikler: Ekstrüzyon Katman/Taban, Ekstrüzyon Kesme (kör, tümünden geç, orta düzlem, gövdeye kadar, ters yön, yön 2, çizim düzleminden başlangıç ofseti, **İnce özellik**: açık çizgi/yay zinciri kalınlık verilerek bükülmüş sac veya U profil olarak ekstrüde edilir), Döndürme Katman/Taban ve Kesme, Delik Sihirbazı (ISO metrik M3–M20: basit, geçiş, diş, faturalı, havşa; standart dışı faturalı/havşa için özel ölçü), Radyus ve Pah (düz ve dairesel kenarlar), Doğrusal/Dairesel Çoğaltma, Aynala, Referans Düzlem.
-- FeatureManager ağacı, özellik düzenlerken geri sarma, bastırma, parça başına geri al/yinele.
+- FeatureManager ağacı, özellik düzenlerken geri sarma, bastırma, parça başına geri al/yinele. Bağlı öğesi olan özellik silinirken onay sorulur (bağlı öğelerle birlikte veya yalnızca kendisi); bastırma bağlı öğeleri de bastırır. Radyus/pah kenarları ölçü değişince yeni konumlarında bulunur.
 - Malzeme, hacim, yüzey alanı, kütle; Ölç aracı (uzunluk, mesafe, açı, çap, alan).
 
 **Montaj**
 - Çok parçalı proje; bileşen ekleme, sabitleme, gizleme.
-- Eşleştirmeler: çakışık, eşmerkezli, paralel, dik, mesafe, açı. Bileşen taşıma/döndürme eşleştirmelere uyar.
+- Eşleştirmeler: çakışık, eşmerkezli, paralel, dik, mesafe, açı. Bileşen taşıma/döndürme eşleştirmelere uyar. Parça değişince eşleştirmeler aynı özelliğin yeni yüzeyine/eksenine taşınır ve montaj yeniden çözülür.
 - Girişim algılama, patlatılmış görünüm (otomatik ve adım adım), montaj kütlesi.
 - STL dışa aktarma (.zip içinde), STL içe aktarma.
 
@@ -33,6 +33,7 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Akıllı ölçü: iki nokta, kenar uzunluğu, paralel kenar aralığı, noktadan kenara, çap/yarıçap ve açı (tolerans: ±, sapma, geçme).
 - Kesit A-A ön, üst veya yan görünüşte; tam veya yarım kesit (taramalı). Detay görünüşü (tarama ve eksen çizgileriyle), yüzey işareti, **geometrik tolerans** (ISO 1101, 14 sembol) ve **referans (datum) işareti**, notlar, diş gösterimi.
 - Montaj resmi: balonlar ve parça listesi.
+- Teknik resmin kendi geri al/yinele geçmişi vardır; model değişince geometriye artık oturmayan elle ölçüler kırmızı işaretlenir.
 - A4–A0, yatay/dikey; antetli, “parça adı ve ölçek” veya “yalnızca parça” düzenleri.
 - PDF (vektörel 2B, ölçekli 3B görüntü), **DXF** (katmanlı, AutoCAD R12), SVG ve PNG çıktısı.
 

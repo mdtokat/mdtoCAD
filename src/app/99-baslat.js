@@ -71,11 +71,13 @@ $('#fileInput').addEventListener('change',e=>{
   rd.readAsArrayBuffer(file);e.target.value='';
 });
 document.addEventListener('keydown',e=>{
+  if(askOpen()&&e.key!=='Escape')return;
   const ae=document.activeElement;const typing=ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName);
   if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}
   if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}
   if(e.key==='Escape'){
     menu.classList.remove('on');
+    if(askOpen()){closeAsk();return}
     if($('#pdfDlg').classList.contains('on')){closePdfDialog();return}
     if(dimPopEl){closeDimPop();return}
     if(skInEl){closeSkInput();return}

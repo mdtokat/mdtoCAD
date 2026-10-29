@@ -1,6 +1,16 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Uygulama çizim yapılarak test edildi; parça (3B), montaj ve teknik resim (2B) arasındaki eşitleme ile düzeltme/silme/ekleme sonrası bozulmalar giderildi:
+- Düzeltme (Radyus/Pah): çizim ölçüsü veya ekstrüzyon derinliği değişince seçilen kenarlar “modelde bulunamadı” hatası veriyordu (örnek parçada 120 → 150). Kenarlar artık iki yanındaki yüzeylerin normalleri ve özellikleriyle de izlenir, yeni konumları saklanır.
+- Silme: bağlı öğesi olan bir özellik (ör. yüzeyine çizim yapılmış ekstrüzyon) silinirken onay sorulur ve hesaplanamayacak öğeler listelenir: “Bağlı öğelerle birlikte sil”, “Yalnızca bunu sil” veya “İptal”. Önceden 8 öğe uyarısız hataya düşüyordu. Çoğaltmanın hedeflerinden biri silinince kalan hedeflerle çalışmaya devam eder.
+- Bastırma: bir özellik bastırılınca/geri getirilince ona bağlı öğeler de birlikte bastırılır/geri getirilir (yüzeyine çizilen çizimler hata vermez).
+- Düzeltme (çizim): döndürme ekseni olan çizgi silinip çizime yeni bir çizgi eklenince yeni çizgi aynı kimliği alıp sessizce döndürme ekseni oluyordu. Eksen kimliği artık yeniden kullanılmaz; ekseni silerken uyarı verilir, çizimden çıkınca eski eksenle aynı doğrudaki çizgi veya tek merkez çizgisi eksen olur.
+- Montaj: parça değişince (ör. mil omzu 100 → 110) o yüzeye/eksene bağlı eşleştirme yeni konuma taşınır ve montaj hemen çözülür; montaj sekmesine geçmeden açılan montaj resmi de güncel konumları gösterir. Önceden eşleştirme kırmızıya dönüyor, bileşen eski yerinde kalıyordu.
+- Düzeltme (montaj resmi): parçanın malzemesi değişince montaj resmindeki toplam kütle eski kalıyordu.
+- Düzeltme (teknik resim): teknik resim artık kendi geri al/yinele geçmişini kullanır. Önceden montaj resminde Ctrl+Z etkin parçanın son özellik değişikliğini geri alıyor; notlar, gizlenen görünüşler ve taşımalar geri alınamıyor; Parça sekmesinde geri almak resme eklenen ölçüleri siliyordu.
+- Teknik resim: parça değiştiği için artık bir kenara/köşeye oturmayan elle ölçüler ekranda kırmızı, panelde ⚠ ile işaretlenir (çıktıda normal renkte).
+- Montaj: bileşen silinince patlatma adımlarından da çıkarılır.
 - Teknik resim, SolidWorks çizim ortamıyla karşılaştırılarak test edildi (karşılaştırma: `docs/TEKNIK-RESIM.md`). Bulunan hatalar ve eklenenler:
 - Düzeltme (teknik resim): yayların uç noktaları parça köşesi olmadığı için genel ölçüler eksik çıkıyordu (yataklı stand 106 yerine 105,97; disk 813 yerine 812,21). Yaylar artık çeyrek noktalarından da bölünür.
 - Düzeltme (teknik resim): aynı yöne çizilen delik etiketleri üst üste biniyordu (yataklı standda Ø24 ve Ø14). Etiketler boş yer bulana kadar döndürülür; ölçü yazılarına ve görünüş çizgilerine değmez.

@@ -213,8 +213,8 @@ function extraPanelInput(e,isChange){
   return hit;
 }
 function extraPanelClick(e){
-  if(e.target.closest('[data-unhide]')){dwS().hide=[];saveState();renderDrawing();return true}
-  const b=e.target.closest('[data-xdel]');if(!b)return false;const [k,i]=b.dataset.xdel.split(':');const S=dwS();(S[k]||[]).splice(+i,1);saveState();renderDrawing();return true;
+  if(e.target.closest('[data-unhide]')){pushDwHist();dwS().hide=[];saveState();renderDrawing();return true}
+  const b=e.target.closest('[data-xdel]');if(!b)return false;const [k,i]=b.dataset.xdel.split(':');const S=dwS();pushDwHist();(S[k]||[]).splice(+i,1);saveState();renderDrawing();return true;
 }
 
 /* ---------- araçlar: detay, yüzey, not ---------- */
@@ -249,23 +249,23 @@ function dwToolClick(p,ptype){
   if(dwTool==='detail'){
     if(!dwSt.stage){const v=viewAt(p);if(!v){toast('Bir görünüşün (izometrik hariç) içine tıkla.');return}dwSt={stage:1,view:v.key,c:v.inv(p[0],p[1])}}
     else if(dwSt.stage===1){const v=dctx.views[dwSt.view];const C=v.map(dwSt.c[0],dwSt.c[1]);const r=Math.max(3,Math.hypot(p[0]-C[0],p[1]-C[1]));dwSt.r=r/(v.s||dctx.scale);dwSt.stage=2}
-    else{S.details=S.details||[];const used=new Set(S.details.map(d=>d.label));let L=66;while(used.has(String.fromCharCode(L)))L++;
+    else{pushDwHist();S.details=S.details||[];const used=new Set(S.details.map(d=>d.label));let L=66;while(used.has(String.fromCharCode(L)))L++;
       S.details.push({view:dwSt.view,c:dwSt.c,r:dwSt.r,k:2,pos:[p[0],p[1]],label:String.fromCharCode(L)});saveState();setDwTool(null);renderDrawing();return}
     dwTip();drawOverlay(p);return;
   }
-  if(dwTool==='surf'){const h=nearestEdgePoint(p,ptype==='mouse'?4:8);if(!h){toast('Bir kenarın üzerine tıkla.');return}S.surfs=S.surfs||[];S.surfs.push({view:h.v.key,p:h.v.inv(h.X[0],h.X[1]),ra:S.raDef||'3,2'});saveState();renderDrawing();return}
+  if(dwTool==='surf'){const h=nearestEdgePoint(p,ptype==='mouse'?4:8);if(!h){toast('Bir kenarın üzerine tıkla.');return}pushDwHist();S.surfs=S.surfs||[];S.surfs.push({view:h.v.key,p:h.v.inv(h.X[0],h.X[1]),ra:S.raDef||'3,2'});saveState();renderDrawing();return}
   if(dwTool==='gdt'||dwTool==='datum'){
     const h=nearestEdgePoint(p,ptype==='mouse'?4:8);if(!h){toast('Bir kenarın üzerine tıkla.');return}
     const bb=h.v.d.bb,Cv=h.v.map((bb.minA+bb.maxA)/2,(bb.minB+bb.maxB)/2);
     // kenara dik, görünüşün dışına doğru
     let nx=-(h.B[1]-h.A[1]),ny=h.B[0]-h.A[0];const l=Math.hypot(nx,ny)||1;nx/=l;ny/=l;if((h.X[0]-Cv[0])*nx+(h.X[1]-Cv[1])*ny<0){nx=-nx;ny=-ny}
-    if(dwDoc().kind==='part')pushHist();const at=h.v.inv(h.X[0],h.X[1]);
+    pushDwHist();const at=h.v.inv(h.X[0],h.X[1]);
     if(dwTool==='gdt'){S.gdts=S.gdts||[];S.gdts.push({view:h.v.key,p:at,off:[nx*12+(nx>=0?6:-6),ny*12-4],sym:'flat',tol:'0,05',dia:false,dat:['','','']})}
     else{S.datums=S.datums||[];const used=new Set(S.datums.map(d=>d.label));let L=65;while(used.has(String.fromCharCode(L)))L++;
       S.datums.push({view:h.v.key,p:at,off:[nx*11,ny*11],label:String.fromCharCode(L)})}
     saveState();setDwTool(null);renderDrawing();return;
   }
-  if(dwTool==='note'){S.notes=S.notes||[];S.notes.push({x:p[0],y:p[1],text:S.noteDef||'Keskin kenarları 0,5×45° kırın.'});saveState();setDwTool(null);renderDrawing();return}
+  if(dwTool==='note'){pushDwHist();S.notes=S.notes||[];S.notes.push({x:p[0],y:p[1],text:S.noteDef||'Keskin kenarları 0,5×45° kırın.'});saveState();setDwTool(null);renderDrawing();return}
 }
 function dwToolOverlay(p){
   const acc='#1F6FEB';let h='';if(!p||!dctx)return h;

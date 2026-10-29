@@ -347,6 +347,9 @@ test('özellik silinince çizimi ağaçta kalır; çizim silinince bağlı özel
   const skId = await page.evaluate(id => __tz.state.features.find(f => f.id === id).sketch, ex);
   await page.click(`.ti[data-id="${ex}"]`);
   await page.click(`.ti[data-id="${ex}"] [data-a="del"]`);
+  // bağlı öğeler (yüzeyine çizilen çizimler…) olduğu için onay sorulur
+  await expect(page.locator('#askDlg')).toHaveClass(/on/);
+  await page.click('#askBtns button:has-text("Yalnızca bunu sil")');
   const r = await page.evaluate(([ex, s]) => ({ ids: __tz.state.features.map(f => f.id), err: __tz.model.errors }), [ex, skId]);
   expect(r.ids).not.toContain(ex);
   expect(r.ids).toContain(skId);
@@ -359,6 +362,7 @@ test('özellik silinince çizimi ağaçta kalır; çizim silinince bağlı özel
   const ids2 = await page.evaluate(() => { const f = __tz.state.features.find(f => f.type === 'extrude' && f.sketch); return [f.id, f.sketch]; });
   await page.click(`.ti[data-id="${ids2[1]}"]`);
   await page.click(`.ti[data-id="${ids2[1]}"] [data-a="del"]`);
+  await page.click('#askBtns button:has-text("Yalnızca bunu sil")');
   const left = await page.evaluate(() => __tz.state.features.map(f => f.id));
   expect(left).not.toContain(ids2[0]);
   expect(left).not.toContain(ids2[1]);

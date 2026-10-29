@@ -2,10 +2,10 @@
 
 ## Bilinen sınırlamalar
 
-- **Radyus ve pah** yalnızca düz kenarlarda ve dairesel kenarlarda çalışır; köşelerde üç radyusun birleştiği küresel geçiş üretilmez.
+- **Radyus ve pah** kenarları yüz normalleri ve özellik kimlikleriyle izlenir; bir ölçü değişikliği aynı yöne bakan iki benzer kenarın yerini değiştirirse en yakını seçilir. Radyus ve pah yalnızca düz kenarlarda ve dairesel kenarlarda çalışır; köşelerde üç radyusun birleştiği küresel geçiş üretilmez.
 - **Kesit** tek düzlemlidir (tam veya yarım); kademeli ve döndürülmüş (hizalı) kesit, kısmi kesit yok. Kesit düzlemi görünüşün ortasından geçer (kaydırılabilir), istenen çizgiye çizilemez.
-- **Teknik resimde akıllı ölçü** görünüşteki noktalara, dairelere ve düz kenarlara bağlanır; ölçüler modele bağlı değildir, model değişince yeniden eklenmelidir. Yay (kısmi daire) kenarlarında yarıçap ölçüsü yok.
-- **Eşleştirme referansları** parçanın kendi koordinatlarında saklanır; parçada o yüzey taşınırsa eşleştirme kırmızı görünür ve yeniden seçilmelidir.
+- **Teknik resimde akıllı ölçü** görünüşteki noktalara, dairelere ve düz kenarlara bağlanır; ölçüler modele bağlı değildir; model değişince geometriye artık oturmayan ölçüler ekranda kırmızı ve panelde ⚠ ile işaretlenir, yeniden eklenmelidir. Yay (kısmi daire) kenarlarında yarıçap ölçüsü yok.
+- **Eşleştirme referansları** parçanın kendi koordinatlarında saklanır. Parça değişince referans yüzey/eksen aynı özelliğin oluşturduğu, aynı yöndeki en yakın yüzeye/eksene taşınır; böyle bir yüzey kalmazsa eşleştirme kırmızı görünür ve yeniden seçilmelidir.
 - **Balon konumları** otomatiktir, elle taşınamaz. Yüzey işaretleri de sürüklenemez (silinip yeniden eklenir).
 - **Bölge seçimi** tıklanan noktaları çizim koordinatında saklar; çizim ölçüleri bölgeyi o noktadan uzaklaştıracak kadar değişirse bölge yeniden seçilmelidir.
 - **İnce özellik** dallanmayan zincirlerle çalışır; köşeler sivri (gönye) birleşir, yay yarıçapı kalınlıktan küçük olamaz.

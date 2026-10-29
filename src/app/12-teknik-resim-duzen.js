@@ -92,7 +92,7 @@ function dwHover(p){const h=dwHitAt(p,'mouse');if(sameHit(h,hoverHit)&&(h||!hove
 const DW_DRAG=new Set(['view','lbl','dim','note','detail','gdt','datum']);
 function dwDragMove(pan,dx,dy){
   const S=dwS(),h=pan.hit;
-  if(!pan.orig){pan.orig=clone(S);if(dwDoc().kind==='part')pushHist();dwSel={t:h.t,i:h.i,k:h.k}}
+  if(!pan.orig){pan.orig=clone(S);pushDwHist();dwSel={t:h.t,i:h.i,k:h.k}}
   const O=pan.orig;
   if(h.t==='view'){S.vofs=clone(O.vofs||{});const V=S.vofs;
     if(h.k==='front'||h.k==='iso'){const o=V[h.k]||[0,0];V[h.k]=[o[0]+dx,o[1]+dy]}
@@ -113,10 +113,10 @@ function dwDragMove(pan,dx,dy){
 }
 function dwDragEnd(pan){if(!pan.orig)return;cancelAnimationFrame(pan.raf);saveState();renderDrawing()}
 function dwDeleteSel(){
-  if(!dwSel)return false;const S=dwS(),h=dwSel;if(dwDoc().kind==='part')pushHist();
+  if(!dwSel)return false;const S=dwS(),h=dwSel;if(h.t==='view'&&h.k==='front'){toast('Ön görünüş gizlenemez.');return true}pushDwHist();
   const lists={dim:'dims',note:'notes',surf:'surfs',detail:'details',gdt:'gdts',datum:'datums'};
   if(lists[h.t])(S[lists[h.t]]||[]).splice(h.i,1);
-  else if(h.t==='view'){if(h.k==='front'){toast('Ön görünüş gizlenemez.');return true}S.hide=(S.hide||[]).concat('V:'+h.k)}
+  else if(h.t==='view'){S.hide=(S.hide||[]).concat('V:'+h.k)}
   else if(h.t==='lbl')S.hide=(S.hide||[]).concat('L:'+h.k);
   else if(h.t==='auto')S.hide=(S.hide||[]).concat(h.k);
   dwSel=null;saveState();renderDrawing();dwStatus();return true;

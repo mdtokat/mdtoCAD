@@ -91,17 +91,33 @@ function bboxPolys(ps){
   return {min:mn,max:mx};
 }
 function boxHit(a,b){for(let k=0;k<3;k++){if(a.max[k]<b.min[k]-1e-6||b.max[k]<a.min[k]-1e-6)return false}return true}
+/* Gövdenin araç kutusuna değmeyen çokgenleri araçtan etkilenmez: kırpılmaz ve sonuca bölünmeden aynen geçer.
+   Aracın çokgenleri ise tüm gövdenin BSP'siyle sınıflandırılır (yalnızca kutudaki yüzeylerle kurulan BSP bazı noktaları
+   yanlış sınıflandırıyordu). Önceden her radyus/delik tüm gövdeyi aracın ve gövdenin kendi düzlemleriyle parçalıyor,
+   çokgen sayısı ve sonraki işlemlerin süresi katlanıyordu. */
+function splitByBox(ps,bx){
+  const e=CSG_EPS*100,ins=[],out=[];
+  for(const p of ps){let o=true;
+    for(let k=0;k<3&&o;k++){const c=k===0?'x':k===1?'y':'z';let lo=Infinity,hi=-Infinity;for(const v of p.verts){const x=v[c];if(x<lo)lo=x;if(x>hi)hi=x}if(hi<bx.min[k]-e||lo>bx.max[k]+e)o=false}
+    (o?ins:out).push(p)}
+  return [ins,out];
+}
 function csgUnion(a,b){
   if(!a.length)return clonePolys(b);if(!b.length)return a;
-  if(!boxHit(bboxPolys(a),bboxPolys(b)))return a.concat(clonePolys(b));
-  const A=new BSP(clonePolys(a)),B=new BSP(clonePolys(b));
-  A.clipTo(B);B.clipTo(A);B.invert();B.clipTo(A);B.invert();A.build(B.all());return A.all();
+  const bb=bboxPolys(b);if(!boxHit(bboxPolys(a),bb))return a.concat(clonePolys(b));
+  const [ai,ao]=splitByBox(a,bb);
+  const B=new BSP(clonePolys(b));const ak=B.clipPolygons(clonePolys(ai));
+  const A=new BSP(clonePolys(a));B.clipTo(A);B.invert();B.clipTo(A);B.invert();
+  return ao.concat(ak,B.all());
 }
 function csgSubtract(a,b){
   if(!a.length||!b.length)return a;
-  if(!boxHit(bboxPolys(a),bboxPolys(b)))return a;
-  const A=new BSP(clonePolys(a)),B=new BSP(clonePolys(b));
-  A.invert();A.clipTo(B);B.clipTo(A);B.invert();B.clipTo(A);B.invert();A.build(B.all());A.invert();return A.all();
+  const bb=bboxPolys(b);if(!boxHit(bboxPolys(a),bb))return a;
+  const [ai,ao]=splitByBox(a,bb);
+  const B=new BSP(clonePolys(b));const fl=ps=>{for(const p of ps)p.flip();return ps};
+  const ak=fl(B.clipPolygons(fl(clonePolys(ai))));
+  const A=new BSP(clonePolys(a));A.invert();B.clipTo(A);B.invert();B.clipTo(A);B.invert();
+  return ao.concat(ak,fl(B.all()));
 }
 function geomToPolys(g,shared){
   const gg=g.index?g.toNonIndexed():g;const a=gg.attributes.position.array;const out=[];let vol=0;
@@ -782,25 +798,29 @@ function extrudeTool(f,sk,F,L,solid){
   const zf=s>0?z1:z0,zn=s>0?z0:z1;
   return {polys,ann,cap:{F,zf,zn}};
 }
-function revolveLoop(pts2,phi0,phiLen,M,shared){
+/* holes: profilin delikleri (halka gibi); yan yüzeyleri ters yönde dolaşılır, kapaklar delikli üçgenlenir (CSG gerekmez) */
+function revolveLoop(pts2,phi0,phiLen,M,shared,holes){
   if(area2d(pts2)<0)pts2=pts2.slice().reverse();
+  const hs=(holes||[]).map(h=>area2d(h)>0?h.slice().reverse():h);
   const full=Math.abs(phiLen)>=Math.PI*2-1e-9;const N=Math.max(3,Math.ceil(64*Math.abs(phiLen)/(Math.PI*2)));
   const e=M.elements;const tw=p=>new Vec(e[0]*p[0]+e[4]*p[1]+e[8]*p[2]+e[12],e[1]*p[0]+e[5]*p[1]+e[9]*p[2]+e[13],e[2]*p[0]+e[6]*p[1]+e[10]*p[2]+e[14]);
   const P=(q,ph)=>[q[0]*Math.sin(ph),q[1],q[0]*Math.cos(ph)];
   const out=[];
   const tri=(A,B,C,ex)=>{const n=vc(vs(B,A),vs(C,A));if(vl(n)<1e-10)return;if(vd(n,ex)<0){const t=B;B=C;C=t}const q=[tw(A),tw(B),tw(C)];const pl=newell(q);if(pl)out.push(new Poly(q,shared,pl))};
-  const L=pts2.length;
-  for(let k=0;k<N;k++){
-    const p0=phi0+phiLen*k/N,p1=phi0+phiLen*(k+1)/N,pm=(p0+p1)/2;
-    for(let i=0;i<L;i++){
-      const p=pts2[i],q=pts2[(i+1)%L];const nx=q[1]-p[1],ny=-(q[0]-p[0]);const ex=[nx*Math.sin(pm),ny,nx*Math.cos(pm)];
-      const A=P(p,p0),B=P(q,p0),C=P(q,p1),D=P(p,p1);tri(A,B,C,ex);tri(A,C,D,ex);
+  for(const lp of [pts2,...hs]){const L=lp.length;
+    for(let k=0;k<N;k++){
+      const p0=phi0+phiLen*k/N,p1=phi0+phiLen*(k+1)/N,pm=(p0+p1)/2;
+      for(let i=0;i<L;i++){
+        const p=lp[i],q=lp[(i+1)%L];const nx=q[1]-p[1],ny=-(q[0]-p[0]);const ex=[nx*Math.sin(pm),ny,nx*Math.cos(pm)];
+        const A=P(p,p0),B=P(q,p0),C=P(q,p1),D=P(p,p1);tri(A,B,C,ex);tri(A,C,D,ex);
+      }
     }
   }
   if(!full){
-    const idx=T.ShapeUtils.triangulateShape(pts2.map(q=>new T.Vector2(q[0],q[1])),[]);
+    const v2=a=>a.map(q=>new T.Vector2(q[0],q[1]));const all=pts2.concat(...hs);
+    const idx=T.ShapeUtils.triangulateShape(v2(pts2),hs.map(v2));
     const sg=phiLen>0?1:-1;
-    for(const [ph,side] of [[phi0,-1],[phi0+phiLen,1]]){const td=[Math.cos(ph),0,-Math.sin(ph)];const ex=vk(td,side*sg);for(const t of idx)tri(P(pts2[t[0]],ph),P(pts2[t[1]],ph),P(pts2[t[2]],ph),ex)}
+    for(const [ph,side] of [[phi0,-1],[phi0+phiLen,1]]){const td=[Math.cos(ph),0,-Math.sin(ph)];const ex=vk(td,side*sg);for(const t of idx)tri(P(all[t[0]],ph),P(all[t[1]],ph),P(all[t[2]],ph),ex)}
   }
   return out;
 }
@@ -822,9 +842,8 @@ function revolveTool(f,sk,F){
   for(const sh of shapes){
     const o=sh.outer.map(q=>{const l=loc(q);return [Math.max(0,l[0]),l[1]]});
     o.forEach(q=>{tmin=Math.min(tmin,q[1]);tmax=Math.max(tmax,q[1]);rmax=Math.max(rmax,q[0])});
-    let body=revolveLoop(o,phi0,phiLen,M,f.id);
-    for(const h of sh.holes){const hp=h.pts.map(q=>{const l=loc(q);return [Math.max(0,l[0]),l[1]]});body=csgSubtract(body,revolveLoop(hp,phi0,phiLen,M,f.id))}
-    polys=polys.concat(body);
+    const hs=sh.holes.map(h=>h.pts.map(q=>{const l=loc(q);return [Math.max(0,l[0]),l[1]]}));
+    polys=polys.concat(revolveLoop(o,phi0,phiLen,M,f.id,hs));
   }
   ann.push({C:v3(P3),A:v3(A3),r:rmax,t0:tmin,t1:tmax,gid:f.id,op:f.op,label:false});
   // eksene paralel profil kenarları = silindirik yüzeyler (montajda eşmerkezli eşleştirme için)
@@ -963,13 +982,15 @@ function curvedEdgeBody(e,f,val,anns,done){
   const P=(a,b)=>[a,b];let sec;
   if(f.type==='fillet'){
     const R=val;const cx=sr*R,cy=st*R;sec=[P(sr*R-w2[0]*eps,-w2[1]*eps),P(-(w1[0]+w2[0])*eps,-(w1[1]+w2[1])*eps),P(-w1[0]*eps,st*R-w1[1]*eps),P(0,st*R)];
-    const N=16;for(let i=N-1;i>=1;i--){const th=i/N*Math.PI/2;sec.push(P(cx-R*(Math.cos(th)*w2[0]+Math.sin(th)*w1[0]),cy-R*(Math.cos(th)*w2[1]+Math.sin(th)*w1[1])))}
+    // yay parça sayısı yarıçapa göre (kiriş sapması ≈ 0,02 mm): küçük radyusta gereksiz ince bölme CSG'yi yavaşlatıyordu
+    const N=Math.max(4,Math.min(16,Math.ceil(4*Math.sqrt(R))));for(let i=N-1;i>=1;i--){const th=i/N*Math.PI/2;sec.push(P(cx-R*(Math.cos(th)*w2[0]+Math.sin(th)*w1[0]),cy-R*(Math.cos(th)*w2[1]+Math.sin(th)*w1[1])))}
     sec.push(P(sr*R,0));
   }else{
     const d=val;sec=[P(sr*d-w2[0]*eps,-w2[1]*eps),P(-(w1[0]+w2[0])*eps,-(w1[1]+w2[1])*eps),P(-w1[0]*eps,st*d-w1[1]*eps),P(0,st*d),P(sr*d,0)];
   }
   const pts2=sec.map(([rho,tau])=>[Math.max(0,r0+rho),te+tau]);
-  const hp=Math.abs(A[0])<0.9?[1,0,0]:[0,1,0];const B3=vn(vc(A,hp));const X3=vc(A,B3);
+  // döndürme açısı kenarın bir köşesinden başlar: araç gövdenin 64 parçalı yüzeyleriyle aynı açılara oturur, yüzeyler gereksiz bölünmez
+  const wa=vs(e.a,C),ra=vs(wa,vk(A,vd(wa,A)));const hp=Math.abs(A[0])<0.9?[1,0,0]:[0,1,0];const B3=vl(ra)>1e-9?vn(ra):vn(vc(A,hp));const X3=vc(A,B3);
   const M=new T.Matrix4().makeBasis(v3(X3),v3(A),v3(B3)).setPosition(v3(C));
   return {convex,polys:revolveLoop(pts2,0,Math.PI*2,M,f.id)};
 }

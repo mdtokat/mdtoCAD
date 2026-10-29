@@ -318,8 +318,8 @@ function bomMarkup(bom,layout,W,H,area){
   const head=['Poz','Parça adı','Adet','Malzeme','Kütle'];
   const row=it=>[String(it.no),it.name.length>34?it.name.slice(0,33)+'…':it.name,String(it.qty),it.mat.length>30?it.mat.slice(0,29)+'…':it.mat,it.mass?massText(it.mass):'—'];
   const n=bom.length+1;
-  if(layout==='full'){
-    const x=W-10-TW,yb=H-10-36;const y=yb-n*RH;
+  if(layout==='full'||layout==='frame'){
+    const x=W-10-TW,yb=H-10-(layout==='full'?36:0);const y=yb-n*RH;
     o+=lines(x,y,n);
     bom.slice().reverse().forEach((it,i)=>{o+=cells(x,y+i*RH,row(it),false)});
     o+=cells(x,y+bom.length*RH,head,true);

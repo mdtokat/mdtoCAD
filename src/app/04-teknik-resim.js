@@ -161,7 +161,15 @@ function segHitsBox(x1,y1,x2,y2,B){
 }
 const boxOv=(a,b)=>Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0]))*Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));
 const STD_SCALES=[10,5,2,1,.5,.2,.1,.05,.02,.01];
-const scaleLabel=s=>s>=1?`${fmt(s)}:1`:`1:${fmt(Math.round(1/s))}`;
+const scaleLabel=s=>s>=1?`${fmt(s,3)}:1`:`1:${fmt(1/s,3)}`;
+/* ölçek seçenekleri; listede olmayan (elle girilmiş) değer kendi etiketiyle eklenir, sonda “Özel…” */
+const SCALE_PRESETS=[['auto','Otomatik'],['10','10:1'],['5','5:1'],['2','2:1'],['1','1:1'],['0.5','1:2'],['0.2','1:5'],['0.1','1:10'],['0.05','1:20']];
+function scaleOpts(val){const o=SCALE_PRESETS.slice();if(!o.some(([k])=>k===String(val))&&+val>0)o.push([String(val),scaleLabel(+val)]);o.push(['custom','Özel…']);return o}
+/* elle girilen ölçek: “1:2,5”, “3:1”, “1/25” veya çarpan (0,4) */
+function parseScale(t){
+  t=String(t||'').trim().replace(/\s+/g,'');const m=t.match(/^([^:/]+)[:/]([^:/]+)$/);
+  const v=m?num(m[1])/num(m[2]):num(t);return isFinite(v)&&v>=0.001&&v<=1000?Math.round(v*1e9)/1e9:null;
+}
 /* açı ölçüsü: v köşe, u1/u2 kenar yönleri (görünüş koordinatı), rr yay yarıçapı (model mm), e1/e2 kenarların köşeden uzaklığı */
 function angDeg(d){return Math.acos(Math.max(-1,Math.min(1,d.u1[0]*d.u2[0]+d.u1[1]*d.u2[1])))*180/Math.PI}
 function dimLabel(d,v){
@@ -239,9 +247,10 @@ function titleBlock(x0,y0,info){
   return s;
 }
 function paperWH(key,orient){const P=PAPERS[key]||PAPERS.A3;return orient==='portrait'?{W:P.H,H:P.W}:{W:P.W,H:P.H}}
-function areaFor(W,H,layout){if(layout==='min')return [12,12,W-12,H-24];if(layout==='none')return [8,8,W-8,H-8];return [24,14,W-14,H-56]}
+/* düzenler: full (çerçeve ve antet), frame (çerçeve, antetsiz), min (parça adı ve ölçek), none (yalnızca parça) */
+function areaFor(W,H,layout){if(layout==='min')return [12,12,W-12,H-24];if(layout==='none')return [8,8,W-8,H-8];if(layout==='frame')return [24,14,W-14,H-14];return [24,14,W-14,H-56]}
 function frameMarkup(W,H,layout){
-  if(layout!=='full')return '';
+  if(layout!=='full'&&layout!=='frame')return '';
   const fx0=20,fy0=10,fx1=W-10,fy1=H-10;
   return `<rect class="d-frame" x="${fx0}" y="${fy0}" width="${fx1-fx0}" height="${fy1-fy0}"/>`+
     `<path class="d-frame" d="${Lp((fx0+fx1)/2,fy0-5,(fx0+fx1)/2,fy0+5)}${Lp((fx0+fx1)/2,fy1-5,(fx0+fx1)/2,fy1+5)}${Lp(fx0-5,(fy0+fy1)/2,fx0+5,(fy0+fy1)/2)}${Lp(fx1-5,(fy0+fy1)/2,fx1+5,(fy0+fy1)/2)}"/>`;
@@ -289,7 +298,7 @@ function holeDimCounts(vd,order){const plan=holePlan(vd,order),out={};
   return out}
 function buildSheet(forExport,opts){
   opts=opts||{};const S=dwS(),src=dwSrc(),isAsm=src.kind==='asm';const pw=paperWH(S.paper,S.orient);
-  const W=opts.W||pw.W,H=opts.H||pw.H,layout=opts.layout||'full',scaleSet=opts.scale!=null?opts.scale:S.scale;
+  const W=opts.W||pw.W,H=opts.H||pw.H,layout=opts.layout||S.layout||'full',scaleSet=opts.scale!=null?opts.scale:S.scale;
   const o=[`<style>${SHEET_CSS}</style>`];
   if(!forExport)o.push(`<rect x="1.4" y="1.8" width="${W}" height="${H}" fill="#000" fill-opacity=".2"/>`);
   o.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>`);
@@ -311,7 +320,8 @@ function buildSheet(forExport,opts){
   if(secKey){try{const ss=sectionSrc(src,secKey,S);const sv=viewData(secKey,ss);vd[secKey]=Object.assign({},sv,{bb:vd[secKey].bb});secInfo={key:secKey,partner:secKey==='front'?'top':'front',P:ss.P,D:VIEWS[secKey].D,half:S.secType==='half'}}catch(e){console.warn(e)}}
   const ext=k=>({w:Math.max(vd[k].bb.maxA-vd[k].bb.minA,.01),h:Math.max(vd[k].bb.maxB-vd[k].bb.minB,.01)});
   let [ax0,ay0,ax1,ay1]=areaFor(W,H,layout);const bomH=bom?(bom.length+1)*6:0;
-  if(bom&&layout==='full')ay1-=bomH+4;else if(bom)ax1-=Math.min(184,(ax1-ax0)*0.42);  // tam düzende ilk deneme bu yüksekliği geri ekler
+  const bomLow=layout==='full'||layout==='frame';  // parça listesi sağ altta (antetin üstünde) mi
+  if(bom&&bomLow)ay1-=bomH+4;else if(bom)ax1-=Math.min(184,(ax1-ax0)*0.42);  // tam düzende ilk deneme bu yüksekliği geri ekler
   const m=16,gapX=30,gapY=28;
   // delik konum ölçüleri görünüşlerin arasına sığsın: kağıtta yer varsa aralık ölçü sırası sayısına göre açılır (ölçek değişmez)
   let needX=0,needY=0;
@@ -356,7 +366,7 @@ function buildSheet(forExport,opts){
   return {pos,s,si}};
   /* parça listesi sağ alt köşede: önce liste yok sayılarak yerleştirilir; görünüşler listeye değmiyorsa bu (daha büyük) ölçek kullanılır.
      değiyorsa izometrik hücresi listenin üstünde kalacak kadar küçültülür; yine değiyorsa liste yüksekliği çıkarılmış alanla yerleştirilir */
-  const bomBox=bom&&layout==='full'?[ax1-Math.min(184,ax1-ax0),ay1,ax1,ay1+bomH+4]:null;
+  const bomBox=bom&&bomLow?[ax1-Math.min(184,ax1-ax0),ay1,ax1,ay1+bomH+4]:null;
   let L=place(ay0,bomBox?ay1+bomH+4:ay1);
   if(bomBox){const hit=k=>{const P=L.pos[k];if(!P||(S.hide||[]).includes('V:'+(k===side?'side':k)))return false;const e=ext(k),sc=k==='iso'?L.si:L.s,w=e.w*sc/2+10,h=e.h*sc/2+10;
       return P[0]+w>bomBox[0]&&P[0]-w<bomBox[2]&&P[1]+h>bomBox[1]&&P[1]-h<bomBox[3]};
@@ -614,7 +624,7 @@ function drawOverlay(p){
 /* çizim şeridi ve paneli */
 function dRb(cmd,icon,label,on){return `<button class="rb ${on?'on':''}" data-dcmd="${cmd}" title="${esc(label)}">${IC[icon]}<span>${label}</span></button>`}
 function rctl(label,id,opts,val){return `<label class="rctl"><span>${label}</span><select id="${id}">${opts.map(([k,t])=>`<option value="${k}" ${String(k)===String(val)?'selected':''}>${t}</option>`).join('')}</select></label>`}
-let dlCap=null;
+let dlCap=null,dwScaleCustom=false;
 function renderDrawRibbon(){
   const S=dwS(),doc=dwDoc();
   const docOpts=[...project.parts.map(p=>['p:'+p.id,'Parça: '+p.partName]),...project.asms.map(a=>['a:'+a.id,'Montaj: '+a.name])];
@@ -622,7 +632,8 @@ function renderDrawRibbon(){
   $('#drawRibbon').innerHTML=rctl('Belge','dDoc',docOpts.map(([k,t])=>[k,esc(t)]),docVal)+
     rctl('Kağıt','dPaper',[['A4','A4'],['A3','A3'],['A2','A2'],['A1','A1'],['A0','A0']],S.paper)+rctl('Yön','dOrient',[['landscape','Yatay'],['portrait','Dikey']],S.orient||'landscape')+
     rctl('İzdüşüm','dMethod',[['E','ISO E (Avrupa)'],['A','ISO A (Amerikan)']],S.method)+
-    rctl('Ölçek','dScale',[['auto','Otomatik'],['5','5:1'],['2','2:1'],['1','1:1'],['0.5','1:2'],['0.2','1:5'],['0.1','1:10']],S.scale)+
+    rctl('Düzen','dLayout',LAYOUTS.map(([k,t])=>[k,t]),S.layout||'full')+
+    rctl('Ölçek','dScale',scaleOpts(S.scale),dwScaleCustom?'custom':S.scale)+(dwScaleCustom?`<label class="rctl"><span>Özel ölçek</span><input id="dScaleIn" value="${esc(dctx&&dctx.scale?scaleLabel(dctx.scale):'1:1')}" placeholder="1:2,5" title="Örnek: 1:2,5 · 3:1 · 1/25 (Enter ile uygula)" autocomplete="off"></label>`:'')+
     (doc.kind==='asm'?'<div class="rsep"></div>'+rctl('Görünüşler','dAsmView',[['std','Ön, üst, yan + izometrik'],['iso','Yalnızca izometrik']],S.asmView||'std')+dRb('explode','explode','Patlatılmış',!!S.explode)+dRb('balloons','balloon','Balonlar',S.balloons!==false)+dRb('bom','bom','Parça listesi',S.bom!==false):'')+
     '<div class="rsep"></div>'+dRb('hidden','hidden','Gizli çizgiler',S.hidden)+dRb('centers','center','Eksen çizgileri',S.centers)+dRb('autodims','autodim','Oto. ölçüler',S.autodims)+dRb('iso','isoView','İzometrik',S.iso)+
     '<div class="rsep"></div>'+(doc.kind==='part'||S.asmView!=='iso'?rctl('Kesit','dSec',[['none','Yok'],['front','Ön görünüş A-A'],['top','Üst görünüş A-A'],['side','Yan görünüş A-A']],S.section||'none'):'')+dRb('dim','dim','Akıllı ölçü',dimMode)+dRb('detail','detailv','Detay görünüşü',dwTool==='detail')+dRb('surf','surf','Yüzey işareti',dwTool==='surf')+dRb('gdt','gdt','Geometrik tolerans',dwTool==='gdt')+dRb('datum','datum','Referans',dwTool==='datum')+dRb('note','note','Not ekle',dwTool==='note')+dRb('fit','fit','Sığdır',false)+
@@ -631,6 +642,10 @@ function renderDrawRibbon(){
 }
 $('#drawRibbon').addEventListener('change',e=>{
   const S=dwS(),t=e.target;
+  // Özel…: değer kutusu açılır, ölçek yazılınca uygulanır
+  if(t.id==='dScale'&&t.value==='custom'){dwScaleCustom=true;renderDrawRibbon();const i=$('#dScaleIn');if(i){i.focus();i.select()}return}
+  if(t.id==='dScaleIn'){const v=parseScale(t.value);if(v==null){t.style.borderColor='var(--warn)';toast('Ölçek “1:2,5”, “3:1” veya “1/25” biçiminde olmalı.');return}
+    pushDwHist();S.scale=String(v);dwScaleCustom=false;saveState();renderDrawRibbon();renderDrawing();return}
   if(t.id!=='dDoc')pushDwHist();
   if(t.id==='dDoc'){const [k,id]=t.value.split(':');if(k==='p'){project.cur.dw={kind:'part',id};switchPart(id)}else project.cur.dw={kind:'asm',id};saveState();renderDrawRibbon();renderDrawing(true);return}
   if(t.id==='dAsmView'){S.asmView=t.value;saveState();renderDrawRibbon();renderDrawing(true);return}
@@ -638,8 +653,10 @@ $('#drawRibbon').addEventListener('change',e=>{
   if(t.id==='dPaper'){S.paper=t.value;saveState();renderDrawing(true)}
   if(t.id==='dOrient'){S.orient=t.value;saveState();renderDrawing(true)}
   if(t.id==='dMethod'){S.method=t.value;const keep=x=>x.view==='front'||x.view==='top';S.dims=S.dims.filter(keep);for(const k of ['details','surfs','gdts','datums'])if(S[k])S[k]=S[k].filter(keep);saveState();renderDrawing()}
-  if(t.id==='dScale'){S.scale=t.value;saveState();renderDrawing()}
+  if(t.id==='dScale'){S.scale=t.value;dwScaleCustom=false;saveState();renderDrawRibbon();renderDrawing()}
+  if(t.id==='dLayout'){S.layout=t.value;saveState();renderDrawing(true)}
 });
+$('#drawRibbon').addEventListener('keydown',e=>{if(e.target.id!=='dScaleIn')return;e.stopPropagation();if(e.key==='Enter'){e.preventDefault();e.target.dispatchEvent(new Event('change',{bubbles:true}))}if(e.key==='Escape'){dwScaleCustom=false;renderDrawRibbon()}});
 $('#drawRibbon').addEventListener('click',e=>{
   const b=e.target.closest('[data-dcmd]');if(!b)return;const c=b.dataset.dcmd,S=dwS();
   if(['balloons','bom','hidden','centers','autodims','iso','explode'].includes(c))pushDwHist();

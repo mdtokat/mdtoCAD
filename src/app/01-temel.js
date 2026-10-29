@@ -35,6 +35,7 @@ const IC={
   tarc:sv('<path d="M3 17h8"/><path d="M11 17a6.5 6.5 0 0 0 6.5-6.5V5"/><circle cx="11" cy="17" r="1.5" fill="currentColor"/>'),
   slot:sv('<rect x="3" y="8" width="18" height="8" rx="4"/><path d="M7 12h10" stroke-dasharray="2 1.5" opacity=".6"/>'),
   polygon:sv('<path d="M12 3.5 19.4 7.8v8.4L12 20.5 4.6 16.2V7.8z"/>'),
+  point:sv('<circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4" opacity=".5"/>'),
   sfillet:sv('<path d="M5 20V12a7 7 0 0 1 7-7h7"/><path d="M5 5h0" /><path d="M5 9V5h4" stroke-dasharray="1.5 1.5" opacity=".6"/>'),
   construction:sv('<path d="M4 20 20 4" stroke-dasharray="3 2.5"/>'),
   normal:sv('<rect x="5" y="5" width="14" height="14" rx="1"/><path d="M12 8v8M8 12h8" opacity=".5"/>'),
@@ -216,7 +217,11 @@ const renderer=new T.WebGLRenderer({antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setClearColor(0x000000,0);
 vpEl.insertBefore(renderer.domElement,vpEl.firstChild);
 const scene=new T.Scene();
-const camera=new T.PerspectiveCamera(30,1,0.5,20000);camera.position.set(240,190,280);scene.add(camera);
+const perspCam=new T.PerspectiveCamera(30,1,0.5,20000);perspCam.position.set(240,190,280);scene.add(perspCam);
+/* çizim düzenlenirken ortografik kamera: perspektif yok, yakınlaştırınca çizim ile arkadaki model birbirine göre kaymaz.
+   Görünür yarı yükseklik 1/zoom'dur (top=1, bottom=-1). */
+const orthoCam=new T.OrthographicCamera(-1,1,1,-1,0.1,20000);scene.add(orthoCam);
+let camera=perspCam;
 const controls=new T.OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;controls.dampingFactor=.14;controls.screenSpacePanning=true;controls.rotateSpeed=.8;
 scene.add(new T.HemisphereLight(0xffffff,0x7d8895,0.72));
@@ -357,16 +362,37 @@ function updatePlaneVis(){
 
 /* ---------- kamera ---------- */
 let camAnim=null;
+const isOrtho=()=>camera===orthoCam;
+/* ortografik kamerada kameranın hedefe uzaklığı yalnızca kırpmayı etkiler: model her zaman önünde kalsın */
+function orthoDepth(r){return Math.max(200,modelExtent()*4,(r||0)*4)}
+function orthoClip(D){orthoCam.near=0.1;orthoCam.far=D*2+modelExtent()*4;orthoCam.updateProjectionMatrix()}
+/* yarıçapı r olan küreyi ekrana sığdıran zoom (görünür yarı yükseklik r veya dar ekranda r/en-boy) */
+const orthoZoomFor=r=>1/(r*Math.max(1,1/camera.aspect));
+/* kamerayı (bakış yönü ve görünür alan aynı kalarak) ortografik veya perspektif yapar */
+function setOrtho(on){
+  if(on===isOrtho())return;
+  camAnim=null;const from=camera,to=on?orthoCam:perspCam,t=controls.target;
+  const dir=from.position.clone().sub(t);const dist=dir.length()||1;dir.normalize();const tf=Math.tan(perspCam.fov*Math.PI/360);
+  if(on){orthoCam.zoom=1/Math.max(1e-6,dist*tf);const D=orthoDepth();orthoCam.position.copy(t).addScaledVector(dir,D);orthoCam.aspect=perspCam.aspect;orthoCam.left=-perspCam.aspect;orthoCam.right=perspCam.aspect;orthoClip(D)}
+  else{const d=1/orthoCam.zoom/tf;perspCam.position.copy(t).addScaledVector(dir,d);perspCam.near=Math.max(.01,d/200);perspCam.far=Math.max(d*60,d+modelExtent()*8);perspCam.updateProjectionMatrix()}
+  to.up.copy(from.up);to.quaternion.copy(from.quaternion);to.add(keyLight);
+  camera=to;controls.object=to;controls.update();
+}
 function fitCamera(dir,animate=true,up,box){
   let c=new T.Vector3(),r=60;
   const bx=box||curBox();if(bx){const b=bx;c.set((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2);r=Math.max(5,Math.hypot(b.max[0]-b.min[0],b.max[1]-b.min[1],b.max[2]-b.min[2])/2)}
-  const fov=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fov/2)*camera.aspect);const dist=r/Math.sin(Math.min(fov,hf)/2)*1.08;
   let d=dir?new T.Vector3(...dir).normalize():camera.position.clone().sub(controls.target).normalize();
   if(Math.abs(d.y)>0.9995)d=new T.Vector3(0,d.y,d.y>0?0.001:-0.001).normalize();
-  const toPos=c.clone().addScaledVector(d,dist);
-  camera.near=Math.max(.1,dist/200);camera.far=dist*60;camera.updateProjectionMatrix();
-  if(!animate||reduceMotion){camera.position.copy(toPos);controls.target.copy(c);controls.update();camAnim=null;return}
-  camAnim={p0:camera.position.clone(),t0:controls.target.clone(),p1:toPos,t1:c,s:performance.now(),dur:420};
+  camTo(c,d,r*1.08,animate);
+}
+/* hedef c, bakış yönü d (hedeften kameraya), r yarıçaplı küre ekrana sığacak şekilde */
+function camTo(c,d,r,animate=true){
+  let toPos,z1=null;
+  if(isOrtho()){const D=orthoDepth(r);toPos=c.clone().addScaledVector(d,D);orthoClip(D);z1=orthoZoomFor(r)}
+  else{const fov=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fov/2)*camera.aspect);const dist=r/Math.sin(Math.min(fov,hf)/2);
+    toPos=c.clone().addScaledVector(d,dist);camera.near=Math.max(.1,dist/200);camera.far=dist*60;camera.updateProjectionMatrix()}
+  if(!animate||reduceMotion){camera.position.copy(toPos);controls.target.copy(c);if(z1){camera.zoom=z1;camera.updateProjectionMatrix()}controls.update();camAnim=null;return}
+  camAnim={p0:camera.position.clone(),t0:controls.target.clone(),p1:toPos,t1:c,z0:camera.zoom,z1,s:performance.now(),dur:420};
 }
 function normalTo(F){
   if(!F)return;let n=F.n.slice();
@@ -374,21 +400,20 @@ function normalTo(F){
   const c=model.box?new T.Vector3((model.box.min[0]+model.box.max[0])/2,(model.box.min[1]+model.box.max[1])/2,(model.box.min[2]+model.box.max[2])/2):new T.Vector3();
   const o=v3(F.o);const nv=v3(n);const cp=c.clone().sub(nv.clone().multiplyScalar(c.clone().sub(o).dot(nv)));
   let d=nv.clone();if(Math.abs(d.y)>0.9995)d=new T.Vector3(0,d.y,d.y>0?0.001:-0.001).normalize();
-  const r=Math.max(40,modelExtent()*.75);const fv=camera.fov*Math.PI/180,hf=2*Math.atan(Math.tan(fv/2)*camera.aspect);const dist=r/Math.sin(Math.min(fv,hf)/2);
-  const toPos=cp.clone().addScaledVector(d,dist);camera.near=Math.max(.1,dist/200);camera.far=dist*60;camera.updateProjectionMatrix();
-  if(reduceMotion){camera.position.copy(toPos);controls.target.copy(cp);controls.update();return}
-  camAnim={p0:camera.position.clone(),t0:controls.target.clone(),p1:toPos,t1:cp,s:performance.now(),dur:420};
+  camTo(cp,d,Math.max(40,modelExtent()*.75));
 }
 const VIEWDIRS={front:[0,0,1],top:[0,1,0],right:[1,0,0],iso:[1,1,1]};
-function resize(){const r=vpEl.getBoundingClientRect();if(r.width<2||r.height<2)return;renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();if(sk)sk.dirty=true}
+function resize(){const r=vpEl.getBoundingClientRect();if(r.width<2||r.height<2)return;renderer.setSize(r.width,r.height,false);
+  const a=r.width/r.height;perspCam.aspect=a;perspCam.updateProjectionMatrix();orthoCam.aspect=a;orthoCam.left=-a;orthoCam.right=a;orthoCam.updateProjectionMatrix();if(sk)sk.dirty=true}
 new ResizeObserver(resize).observe(vpEl);
 const tmp2=new T.Vector2();let lastCamKey='';
 function loop(){
   requestAnimationFrame(loop);
   if(activeTab==='drawing')return;
-  if(camAnim){let t=Math.min(1,(performance.now()-camAnim.s)/camAnim.dur);t=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;camera.position.lerpVectors(camAnim.p0,camAnim.p1,t);controls.target.lerpVectors(camAnim.t0,camAnim.t1,t);if(t>=1)camAnim=null}
+  if(camAnim){let t=Math.min(1,(performance.now()-camAnim.s)/camAnim.dur);t=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;camera.position.lerpVectors(camAnim.p0,camAnim.p1,t);controls.target.lerpVectors(camAnim.t0,camAnim.t1,t);
+    if(camAnim.z1&&isOrtho()){camera.zoom=camAnim.z0+(camAnim.z1-camAnim.z0)*t;camera.updateProjectionMatrix()}if(t>=1)camAnim=null}
   controls.update();
-  const ck=camera.position.toArray().map(v=>v.toFixed(3)).join()+controls.target.toArray().map(v=>v.toFixed(3)).join()+camera.aspect.toFixed(3);
+  const ck=camera.position.toArray().map(v=>v.toFixed(3)).join()+controls.target.toArray().map(v=>v.toFixed(3)).join()+camera.aspect.toFixed(3)+camera.zoom.toPrecision(6);
   if(ck!==lastCamKey){lastCamKey=ck;if(sk)sk.dirty=true}
   if(sk&&sk.dirty){sk.dirty=false;renderSketch()}
   if(sk)placeLabels();
@@ -397,9 +422,11 @@ function loop(){
   const dir=camera.position.clone().sub(controls.target).normalize();triCam.position.copy(dir).multiplyScalar(4);triCam.up.copy(camera.up);triCam.lookAt(0,0,0);
   renderer.render(triScene,triCam);renderer.setScissorTest(false);
 }
-function setControlsForSketch(on){
-  if(on){controls.mouseButtons={LEFT:-1,MIDDLE:T.MOUSE.ROTATE,RIGHT:T.MOUSE.PAN};controls.touches={ONE:-1,TWO:T.TOUCH.DOLLY_PAN}}
+/* sol tuş araca kalır; flat: çizim düzenlenirken görünüm 2B kalır (döndürme yok, orta ve sağ tuş kaydırır) */
+function setControlsForSketch(on,flat){
+  if(on){controls.mouseButtons={LEFT:-1,MIDDLE:flat?T.MOUSE.PAN:T.MOUSE.ROTATE,RIGHT:T.MOUSE.PAN};controls.touches={ONE:-1,TWO:T.TOUCH.DOLLY_PAN}}
   else{controls.mouseButtons={LEFT:T.MOUSE.ROTATE,MIDDLE:T.MOUSE.DOLLY,RIGHT:T.MOUSE.PAN};controls.touches={ONE:T.TOUCH.ROTATE,TWO:T.TOUCH.DOLLY_PAN}}
+  controls.enableRotate=!(on&&flat);
 }
 /* fare tekerleği: ekran merkezine değil imlecin altındaki noktaya doğru yakınlaş (SolidWorks gibi) */
 const zoomPlane=new T.Plane();
@@ -415,6 +442,12 @@ function zoomPoint(e){
 function wheelZoom(e){
   const dy=e.deltaY*(e.deltaMode===1?33:e.deltaMode===2?400:1);const f=Math.pow(1.0015,Math.max(-300,Math.min(300,dy)));
   const p=zoomPoint(e),ext=modelExtent();
+  if(isOrtho()){
+    // ortografik: görünür alan küçülür/büyür, imleç noktası yerinde kalsın diye hedef ve kamera yana kayar
+    const h=1/camera.zoom;if(f<1&&h*f<ext*.0005)return;if(f>1&&h*f>ext*20)return;
+    camAnim=null;const n=camera.getWorldDirection(new T.Vector3());const sh=p.clone().sub(controls.target).multiplyScalar(1-f);sh.addScaledVector(n,-sh.dot(n));
+    controls.target.add(sh);camera.position.add(sh);camera.zoom/=f;camera.updateProjectionMatrix();return;
+  }
   if(f<1&&camera.position.distanceTo(p)*f<ext*.002)return;
   if(f>1&&camera.position.distanceTo(controls.target)*f>ext*60)return;
   camAnim=null;

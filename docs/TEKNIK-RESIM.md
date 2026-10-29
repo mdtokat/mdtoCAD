@@ -37,7 +37,7 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Eksen çizgisi, merkez işareti, kozmetik diş | ✅ | Otomatik |
 | Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar ölçülere binmez, sürüklenir ve gizlenir (yeni) |
 | Kaynak sembolü, delik tablosu, revizyon tablosu | ❌ | Yol haritasında |
-| Antet, kağıt boyutu, ölçek | ✅ | A4–A0, yatay/dikey |
+| Antet, kağıt boyutu, ölçek | ✅ | A4–A0, yatay/dikey; ölçek listeden veya elle (1:2,5, 3:1); antetli, antetsiz (çerçeveli), yalnızca parça adı ve ölçek, yalnızca parça |
 | Çok sayfalı resim | ❌ | Yol haritasında |
 | PDF / DXF / resim olarak kaydet | ✅ | PDF, **DXF (yeni)**, SVG, PNG |
 

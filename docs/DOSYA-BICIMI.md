@@ -40,7 +40,7 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
   "on": { "kind": "std", "key": "front" | "top" | "right" }
       | { "kind": "plane", "id": "<referans düzlem id>" }
       | { "kind": "face", "feat": "<ekstrüzyon id>", "which": "far" | "near", "sgn": 1 | -1, "frame": {o,u,v,n} },
-  "pts":  { "p1": {"x": 0, "y": 0}, ... },          // "O" = orijin (sabit, burada yazılmaz)
+  "pts":  { "p1": {"x": 0, "y": 0}, "p7": {"x": 5, "y": 8, "sp": true}, ... },  // "O" = orijin (sabit, burada yazılmaz)
   "ents": [ {"id":"e1","t":"line","a":"p1","b":"p2","cons":false},
             {"id":"e2","t":"circle","c":"p3","r":5},
             {"id":"e3","t":"arc","c":"p4","a":"p5","b":"p6"} ],   // yay: a'dan b'ye saat yönünün tersine
@@ -48,6 +48,8 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
 }
 ```
 `cons: true` öğe yapı geometrisidir (profile katılmaz; merkez çizgisi dahil).
+`sp: true` nokta, Nokta aracıyla konmuş tek başına çizim noktasıdır (hiçbir öğeye ait olmasa da silinmez, profile katılmaz).
+`ref: true` öğe (her zaman `cons: true`) arkadaki modelin bir kenarından veya başka bir çizimin öğesinden izdüşürülmüş **dış referanstır**: noktaları `fix` ile sabitlenir, referans dairenin yarıçapı çözücüde sabittir. Referans noktalar da `ref: true` (ve `sp: true`) taşıyabilir. Hiçbir ilişki, ölçü veya öğe kullanmayan referanslar çizimden çıkarken silinir.
 
 **İlişkiler:** `h`, `v` (`e` çizgi veya `p`,`q` nokta) · `pol` nokta-çizgi · `poc` nokta-eğri · `mid` (`p`,`e`) · `par`, `perp`, `coll`, `eq`, `tan` (`e1`,`e2`; `tan` için eğri-eğri `int`) · `sym` (`p`,`q`, eksen `e`) · `fix` (`p`) · `offd` ofset izleyicisi (`e1` kaynak, `e2` ofset, `sg` yön ±1, `dim` sürücü `doff` ölçüsünün id'si) · `tr` doğrusal çoğaltma (`q = p + k·(s − r)`) · `rot` dairesel çoğaltma (`q`, `p`'nin `o` merkezi etrafında `r`→`s` açısının `k` katı döndürülmüşü).
 
@@ -128,7 +130,8 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır. `distance` e�
 ```jsonc
 {
   "paper":"A4"|"A3"|"A2"|"A1"|"A0", "orient":"landscape"|"portrait",
-  "method":"E"|"A", "scale":"auto"|"1"|"0.5"|…,
+  "method":"E"|"A", "scale":"auto"|"1"|"0.5"|"0.4"|…,   // elle girilen ölçek çarpan olarak (1:2,5 → "0.4")
+  "layout":"full"|"frame"|"min"|"none",   // antetli · antetsiz çerçeveli · parça adı ve ölçek · yalnızca parça (yoksa "full")
   "hidden":true, "centers":true, "autodims":true, "iso":true,
   "dno":"TZ-0001", "drawn":"", "checked":"", "company":"",
   "section":"none"|"front"|"top"|"side", "secOff":0, "secType":"full"|"half",

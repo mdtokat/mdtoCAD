@@ -446,10 +446,11 @@ function sysBuild(sk,extraCons){
   const fixed=new Set();for(const c of cons)if(c.t==='fix')fixed.add(c.p);
   const X0=[],pIdx={},rIdx={};
   for(const id in sk.pts){if(fixed.has(id))continue;pIdx[id]=X0.length;X0.push(sk.pts[id].x,sk.pts[id].y)}
-  for(const e of sk.ents)if(e.t==='circle'){rIdx[e.id]=X0.length;X0.push(e.r)}
+  // referans daireler (modelden izdüşürülen) sabit yarıçaplıdır
+  for(const e of sk.ents)if(e.t==='circle'&&!e.ref){rIdx[e.id]=X0.length;X0.push(e.r)}
   const gx=(X,id)=>id==='O'?0:(pIdx[id]!==undefined?X[pIdx[id]]:sk.pts[id].x);
   const gy=(X,id)=>id==='O'?0:(pIdx[id]!==undefined?X[pIdx[id]+1]:sk.pts[id].y);
-  const R=(X,e)=>e.t==='circle'?X[rIdx[e.id]]:Math.hypot(gx(X,e.a)-gx(X,e.c),gy(X,e.a)-gy(X,e.c));
+  const R=(X,e)=>e.t==='circle'?(rIdx[e.id]!==undefined?X[rIdx[e.id]]:e.r):Math.hypot(gx(X,e.a)-gx(X,e.c),gy(X,e.a)-gy(X,e.c));
   const cid=e=>e.t==='circle'||e.t==='arc'?e.c:null;
   const dir=(X,e)=>[gx(X,e.b)-gx(X,e.a),gy(X,e.b)-gy(X,e.a)];
   const un=d=>{const l=Math.hypot(d[0],d[1])||1e-12;return [d[0]/l,d[1]/l]};
@@ -616,7 +617,8 @@ function autoDefine(sk,opt){
   if(rank>=n)return [];
   const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
   const used=new Set();for(const e of sk.ents)for(const k of ['a','b','c'])if(e[k])used.add(e[k]);
-  const ids=Object.keys(sk.pts).filter(id=>used.has(id)&&!S.fixed.has(id));
+  // öğelerin noktaları ve tek başına çizim noktaları (Nokta aracı)
+  const ids=Object.keys(sk.pts).filter(id=>(used.has(id)||sk.pts[id].sp)&&!S.fixed.has(id));
   let ext=1;for(const id of ids){const p=P(id);ext=Math.max(ext,Math.abs(p[0]),Math.abs(p[1]))}
   for(const e of sk.ents)if(e.t==='circle'){const c=P(e.c);ext=Math.max(ext,Math.abs(c[0])+e.r,Math.abs(c[1])+e.r)}
   const tol=Math.max(1e-6,ext*1e-7),ttol=Math.max(5e-4,ext*2e-6),off=ext*0.08;

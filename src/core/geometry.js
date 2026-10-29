@@ -1090,11 +1090,21 @@ function holeTool(f,F,L){
 
 /* ============ Desen matrisleri ============ */
 var AXDIR={x:[1,0,0],'-x':[-1,0,0],y:[0,1,0],'-y':[0,-1,0],z:[0,0,1],'-z':[0,0,-1]};
+/* çoğaltma yönü/ekseni: dünya ekseni adı ('x', '-y'…) veya modelde seçilen kenar/silindir: {d:[…], p:[…]} */
+const patDir=(d,def)=>d&&typeof d==='object'&&Array.isArray(d.d)?v3(d.d).normalize():v3(AXDIR[d]||AXDIR[def]);
+/* seçilen eksen, onu oluşturan özelliğin silindiri model değişince taşındıysa (ör. göbeğin konum ölçüsü) yenisine kayar:
+   aynı özelliğin, aynı yöndeki ve aynı yarıçaptaki en yakın silindiri */
+function resolveAxis(ax,ann){
+  if(!ax||typeof ax!=='object'||!ax.feat||!ann)return ax;const A=v3(ax.d).normalize(),P=v3(ax.p);let best=null;
+  for(const a of ann){if(String(a.gid).split(':')[0]!==ax.feat||Math.abs(Math.abs(a.A.dot(A))-1)>1e-6||(ax.r&&Math.abs(a.r-ax.r)>1e-6))continue;
+    const w=a.C.clone().sub(P);const d=w.sub(A.clone().multiplyScalar(w.dot(A))).length();if(!best||d<best.d)best={d,a}}
+  return best?{...ax,p:best.a.C.toArray()}:ax;
+}
 function patternMatrices(f,frames,caps){
   const out=[];
   if(f.type==='lpattern'){
-    const d1=v3(AXDIR[f.dir1]||AXDIR.x),n1=Math.max(1,Math.round(num(f.n1)));
-    const has2=f.dir2&&f.dir2!=='none';const d2=has2?v3(AXDIR[f.dir2]):null;const n2=has2?Math.max(1,Math.round(num(f.n2))):1;
+    const d1=patDir(f.dir1,'x'),n1=Math.max(1,Math.round(num(f.n1)));
+    const has2=f.dir2&&f.dir2!=='none';const d2=has2?patDir(f.dir2,'y'):null;const n2=has2?Math.max(1,Math.round(num(f.n2))):1;
     if(!isFinite(n1)||!isFinite(n2))throw new Error('Adet geçerli bir sayı olmalı.');
     if(n1*n2>200)throw new Error('En fazla 200 kopya oluşturulabilir.');
     if(n1*n2<2)throw new Error('Toplam adet en az 2 olmalı.');
@@ -1102,7 +1112,8 @@ function patternMatrices(f,frames,caps){
   }else if(f.type==='cpattern'){
     const n=Math.round(num(f.n));if(!(n>=2&&n<=200))throw new Error('Adet 2 ile 200 arasında olmalı.');
     const tot=num(f.angle)||360;const full=Math.abs(Math.abs(tot)-360)<1e-6;const step=full?Math.PI*2/n:tot*Math.PI/180/(n-1);
-    const ax=v3(AXDIR[f.axis]||AXDIR.y);for(let k=1;k<n;k++)out.push(new T.Matrix4().makeRotationAxis(ax,step*k));
+    const ax=patDir(f.axis,'y');const o=f.axis&&typeof f.axis==='object'&&Array.isArray(f.axis.p)?f.axis.p:[0,0,0];
+    for(let k=1;k<n;k++)out.push(new T.Matrix4().makeTranslation(o[0],o[1],o[2]).multiply(new T.Matrix4().makeRotationAxis(ax,step*k)).multiply(new T.Matrix4().makeTranslation(-o[0],-o[1],-o[2])));
   }else if(f.type==='mirror'){
     // ayna düzlemi: standart/referans düzlem veya modelin düz bir yüzeyi (yüzeyi oluşturan özellik değişince yüzey de taşınır)
     const F=f.plane&&typeof f.plane==='object'?sketchFrame({on:f.plane},{frames,caps:caps||{}}):STD[f.plane]||frames[f.plane];if(!F)throw new Error('Ayna düzlemi bulunamadı.');
@@ -1153,7 +1164,8 @@ function rebuildModel(features,upto){
     if(f.suppressed)continue;
     try{
       if(f.type==='plane'){
-        const B=STD[f.base]||ctx.frames[f.base];if(!B)throw new Error('Referans düzlem bulunamadı.');
+        // taban: standart/referans düzlem veya modelin düz yüzeyi (yüzeyi oluşturan özellik değişince düzlem de taşınır)
+        const B=f.base&&typeof f.base==='object'?sketchFrame({on:f.base},ctx):STD[f.base]||ctx.frames[f.base];if(!B)throw new Error('Referans düzlem bulunamadı.');
         const off=num(f.offset)*(f.flip?-1:1);if(!isFinite(off))throw new Error('Ofset geçerli değil.');
         ctx.frames[f.id]={o:va(B.o,vk(B.n,off)),u:B.u,v:B.v,n:B.n};
       }else if(f.type==='sketch'){
@@ -1173,7 +1185,7 @@ function rebuildModel(features,upto){
         ctx.tools[f.id]={polys:[].concat(...r.tools),op:'cut',ann:r.ann,parts:r.tools};ann.push(...r.ann);
       }else if(f.type==='lpattern'||f.type==='cpattern'||f.type==='mirror'){
         const tg=(f.targets||[]).filter(id=>id&&!(byId[id]&&byId[id].suppressed));if(!tg.length)throw new Error((f.targets||[]).length?'Çoğaltılacak özellikler bastırılmış.':'Çoğaltılacak özellik seçilmedi.');
-        const Ms=patternMatrices(f,ctx.frames,ctx.caps);
+        const Ms=patternMatrices(f.type==='cpattern'?{...f,axis:resolveAxis(f.axis,ann)}:f,ctx.frames,ctx.caps);
         for(const tid of tg){
           const t=ctx.tools[tid];if(!t)throw new Error('Hedef özellik bulunamadı veya oluşturulamadı.');
           for(const M of Ms){

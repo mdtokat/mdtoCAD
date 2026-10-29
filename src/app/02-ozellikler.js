@@ -77,7 +77,7 @@ $('#tree').addEventListener('click',e=>{
 function dependents(ids){
   const D=new Set(ids),out=[];
   for(const g of state.features){if(D.has(g.id))continue;const on=g.on||{},t=g.targets||[];
-    const uses=(on.kind==='face'&&D.has(on.feat))||(on.kind==='plane'&&D.has(on.id))||(g.sketch&&D.has(g.sketch))||(g.type==='plane'&&D.has(g.base))||(g.type==='mirror'&&(D.has(g.plane)||(g.plane&&D.has(g.plane.feat))))||
+    const uses=(on.kind==='face'&&D.has(on.feat))||(on.kind==='plane'&&D.has(on.id))||(g.sketch&&D.has(g.sketch))||(g.type==='plane'&&(D.has(g.base)||(g.base&&D.has(g.base.feat))))||(g.type==='mirror'&&(D.has(g.plane)||(g.plane&&D.has(g.plane.feat))))||
       (t.length>0&&t.every(x=>D.has(x)))||(g.edges||[]).some(e=>e.sig&&e.sig.f&&e.sig.f.some(x=>D.has(x)));
     if(uses){D.add(g.id);out.push(g)}}
   return out;
@@ -315,15 +315,20 @@ function renderPM(){
     const tg=eligible(f);
     b=grp('',b)+grp('Çoğaltılacak özellikler',tg.length?`<div class="lst">${tg.map(x=>`<label class="chk" style="margin:0"><input type="checkbox" data-tg="${x.id}" ${f.targets.includes(x.id)?'checked':''}> ${esc(x.name)}</label>`).join('')}</div><p class="note">Ağaçtaki özelliklere tıklayarak da seçebilirsin.</p>`:'<p class="note">Uygun özellik yok.</p>');
     if(f.type==='lpattern'){
-      b+=grp('Yön 1',fSel('Yön','dir1',DIR_OPTS)+`<div class="row2">${fNum('Aralık','sp1')}${fNum('Adet','n1','adet')}</div>`);
-      let s2=fSel('Yön','dir2',[['none','Kullanma'],...DIR_OPTS]);if(f.dir2!=='none')s2+=`<div class="row2">${fNum('Aralık','sp2')}${fNum('Adet','n2','adet')}</div>`;
-      b+=grp('Yön 2',s2);
+      // yön: dünya ekseni veya modelde seçilen düz kenar (SolidWorks gibi); kenar yönü “Ters” ile çevrilir
+      const dirSel=(k,extra)=>{const o=typeof f[k]==='object';return fSel('Yön',k,[...extra,...(o?[['__edge','Seçilen kenar']]:[]),...DIR_OPTS],{[k]:o?'__edge':f[k]})+
+        `<div class="row2"><button type="button" class="sbtn${(pm.dirSlot||1)===(k==='dir1'?1:2)?' on':''}" data-dslot="${k==='dir1'?1:2}">Kenar seç</button>${o?`<button type="button" class="sbtn" data-drev="${k}">⇄ Ters</button>`:''}</div>`};
+      b+=grp('Yön 1',dirSel('dir1',[])+`<div class="row2">${fNum('Aralık','sp1')}${fNum('Adet','n1','adet')}</div>`);
+      let s2=dirSel('dir2',[['none','Kullanma']]);if(f.dir2!=='none')s2+=`<div class="row2">${fNum('Aralık','sp2')}${fNum('Adet','n2','adet')}</div>`;
+      b+=grp('Yön 2',s2+`<p class="note">Yönü modelden almak için “Kenar seç”e basıp ekranda düz bir kenara tıkla.</p>`);
     }else if(f.type==='cpattern'){
-      b+=grp('Parametreler',fSel('Eksen (orijinden geçen)','axis',[['x','X ekseni'],['y','Y ekseni'],['z','Z ekseni']])+`<div class="row2">${fNum('Adet','n','adet')}${fNum('Toplam açı','angle','°')}</div><p class="note">360° girersen kopyalar eşit dağıtılır.</p>`);
+      const o=typeof f.axis==='object';
+      b+=grp('Parametreler',fSel('Eksen','axis',[...(o?[['__sel',f.axis.r?`Seçilen silindir (Ø${fmt(f.axis.r*2)})`:'Seçilen kenar']]:[]),['x','X ekseni (orijin)'],['y','Y ekseni (orijin)'],['z','Z ekseni (orijin)']],{axis:o?'__sel':f.axis})+`<p class="note">Ekranda bir silindirik yüze (delik, göbek), dairesel kenara veya düz bir kenara tıklayarak ekseni seçebilirsin.</p><div class="row2">${fNum('Adet','n','adet')}${fNum('Toplam açı','angle','°')}</div><p class="note">360° girersen kopyalar eşit dağıtılır.</p>`);
     }else{const face=typeof f.plane==='object';if(face)pm.mirFace=f.plane;
       b+=grp('Ayna düzlemi',fSel('Düzlem','plane',(pm.mirFace?[['__face','Seçilen model yüzeyi']]:[]).concat(planeOpts(f)),{plane:face?'__face':f.plane})+`<p class="note">Ekranda bir düzleme, ağaçta bir düzleme veya modelin düz bir yüzeyine tıklayabilirsin.</p>`)}
   }else if(f.type==='plane'){
-    b=grp('',b)+grp('İlk referans',fSel('Paralel düzlem','base',planeOpts(f))+fNum('Ofset mesafesi','offset')+fChk('Ters taraf','flip'));
+    const face=typeof f.base==='object';if(face)pm.baseFace=f.base;
+    b=grp('',b)+grp('İlk referans',fSel('Paralel düzlem','base',(pm.baseFace?[['__face','Seçilen model yüzeyi']]:[]).concat(planeOpts(f)),{base:face?'__face':f.base})+fNum('Ofset mesafesi','offset')+fChk('Ters taraf','flip')+`<p class="note">Ekranda bir düzleme, ağaçta bir düzleme veya modelin düz bir yüzeyine tıklayabilirsin; yüzeyden ofsette pozitif değer yüzeyin dışına doğrudur.</p>`);
   }
   el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${esc(typeLabel(f))}</div><div class="pm-sub">${pm.isNew?'Yeni özellik':'Özellik düzenleniyor (geri sarıldı)'}</div></div><div class="pm-actions"><button class="ok" data-pm="ok" title="Tamam (Enter)" aria-label="Tamam">${IC.ok}</button><button data-pm="cancel" title="İptal (Esc)" aria-label="İptal">${IC.x}</button></div></div><div class="pm-body">${b}<div class="pm-err" id="pmErr"></div></div>`;
 }
@@ -339,6 +344,8 @@ pmEl.addEventListener('click',e=>{
   if(e.target.closest('[data-flip]')){pm.draft.flip=!pm.draft.flip;renderPM();schedulePreview();return}
   if(e.target.closest('[data-regclr]')){delete pm.draft.regions;renderPM();schedulePreview();return}
   const rm=e.target.closest('[data-rmedge]');if(rm){pm.draft.edges.splice(+rm.dataset.rmedge,1);renderPM();updateSelVisual();schedulePreview();return}
+  const ds=e.target.closest('[data-dslot]');if(ds){pm.dirSlot=+ds.dataset.dslot;renderPM();return}
+  const dr=e.target.closest('[data-drev]');if(dr){const o=pm.draft[dr.dataset.drev];if(o&&o.d){o.d=o.d.map(v=>-v);renderPM();schedulePreview()}return}
 });
 pmEl.addEventListener('input',e=>{
   if(activeTab==='asm'){asmPmInput(e);return}
@@ -355,7 +362,9 @@ pmEl.addEventListener('change',e=>{
   if(t.dataset.chk){setPath(pm.draft,t.dataset.chk,t.checked);renderPM();schedulePreview();return}
   if(t.dataset.tg){const ar=pm.draft.targets;const i=ar.indexOf(t.dataset.tg);if(t.checked&&i<0)ar.push(t.dataset.tg);if(!t.checked&&i>=0)ar.splice(i,1);renderTree();schedulePreview();return}
   if(!t.dataset.rr)return;
-  setPath(pm.draft,t.dataset.k,t.dataset.k==='plane'&&t.value==='__face'?pm.mirFace:t.value);
+  // seçilen yüzey/kenar/eksen seçeneği listede kalır; o seçilirse saklanan model referansı geri gelir
+  if(['__edge','__sel'].includes(t.value)){renderPM();return}
+  setPath(pm.draft,t.dataset.k,t.dataset.k==='plane'&&t.value==='__face'?pm.mirFace:t.dataset.k==='base'&&t.value==='__face'?pm.baseFace:t.value);
   if(t.dataset.k==='sketch'&&pm.type==='revolve')pm.draft.axis=defaultAxis(byId(t.value));
   renderPM();renderTree();updatePlaneVis();schedulePreview();
 });
@@ -371,6 +380,9 @@ function clipToBody(ps,solid){
   const g=new T.BoxGeometry(sz[0]+2*pad,sz[1]+2*pad,sz[2]+2*pad);g.translate((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2);
   try{return csgIntersect(ps,geomToPolys(g,'box'))}catch(e){return ps}
 }
+/* seçilen çoğaltma ekseni önizlemede çizgiyle gösterilir */
+function axisPreview(p,d){const L=Math.max(40,modelExtent()*0.8),P=v3(p),D=v3(d).normalize();
+  const g=new T.BufferGeometry().setFromPoints([P.clone().addScaledVector(D,-L),P.clone().addScaledVector(D,L)]);const l=new T.Line(g,matPrevEdgeA);l.renderOrder=6;previewGroup.add(l)}
 /* yüzeye göre aynalamada ayna düzlemi önizlemede gösterilir */
 function mirrorFacePreview(f,B){
   const F=sketchFrame({on:f.plane},{frames:B.frames||model.frames,caps:B.caps||model.caps});
@@ -386,12 +398,13 @@ function updatePreview(){
     }else if(['lpattern','cpattern','mirror'].includes(f.type)){
       if(!f.targets.length)throw new Error('Ağaçtan çoğaltılacak özelliği seç.');
       const Ms=patternMatrices(f,B.frames,B.caps||model.caps);if(f.type==='mirror'&&typeof f.plane==='object')mirrorFacePreview(f,B);
+      if(f.type==='cpattern'&&typeof f.axis==='object')axisPreview(f.axis.p,f.axis.d);
       for(const tid of f.targets){const t=B.tools[tid]||model.tools[tid];if(!t)continue;let ps=[];for(const M of Ms)ps=ps.concat(transformPolys(t.polys,M,'p'));addPreview(t.op==='cut'?clipToBody(ps,B.polys):ps,t.op==='cut')}
     }else if(f.type==='hole'){holePreview(f,B)
     }else if(f.type==='fillet'||f.type==='chamfer'){
       if(f.edges.length){const r=edgeOpBodies(B.polys,f,B.ann||model.ann);addPreview([].concat(...r.sub),true);addPreview([].concat(...r.add),false)}
     }else if(f.type==='plane'){
-      const Bf=STD[f.base]||B.frames[f.base];if(!Bf)throw new Error('Referans düzlem bulunamadı.');const off=num(f.offset)*(f.flip?-1:1);
+      const Bf=typeof f.base==='object'?sketchFrame({on:f.base},{frames:B.frames||model.frames,caps:B.caps||model.caps}):STD[f.base]||B.frames[f.base];if(!Bf)throw new Error('Referans düzlem bulunamadı.');const off=num(f.offset)*(f.flip?-1:1);
       const F={o:va(Bf.o,vk(Bf.n,off)),u:Bf.u,v:Bf.v,n:Bf.n};const o=makePlaneObj(F,'prev',Math.max(80,modelExtent()));o.children[0].material.opacity=.2;o.children[0].material.color.setHex(0xE2A83A);o.children[1].material.color.setHex(0xB0760E);previewGroup.add(o);
     }
     if(err){err.classList.remove('on');err.textContent=''}

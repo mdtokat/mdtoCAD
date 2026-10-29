@@ -34,7 +34,7 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Referans (datum) işareti | ✅ yeni | A, B, C… sırayla |
 | Not | ✅ | Sürüklenebilir (yeni) |
 | Eksen çizgisi, merkez işareti, kozmetik diş | ✅ | Otomatik |
-| Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar elle taşınamaz |
+| Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar ölçülere binmez, sürüklenir ve gizlenir (yeni) |
 | Kaynak sembolü, delik tablosu, revizyon tablosu | ❌ | Yol haritasında |
 | Antet, kağıt boyutu, ölçek | ✅ | A4–A0, yatay/dikey |
 | Çok sayfalı resim | ❌ | Yol haritasında |

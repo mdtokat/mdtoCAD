@@ -311,7 +311,7 @@ function buildSheet(forExport,opts){
   if(secKey){try{const ss=sectionSrc(src,secKey,S);const sv=viewData(secKey,ss);vd[secKey]=Object.assign({},sv,{bb:vd[secKey].bb});secInfo={key:secKey,partner:secKey==='front'?'top':'front',P:ss.P,D:VIEWS[secKey].D,half:S.secType==='half'}}catch(e){console.warn(e)}}
   const ext=k=>({w:Math.max(vd[k].bb.maxA-vd[k].bb.minA,.01),h:Math.max(vd[k].bb.maxB-vd[k].bb.minB,.01)});
   let [ax0,ay0,ax1,ay1]=areaFor(W,H,layout);const bomH=bom?(bom.length+1)*6:0;
-  if(bom&&layout==='full')ay1-=bomH+4;else if(bom)ax1-=Math.min(184,(ax1-ax0)*0.42);
+  if(bom&&layout==='full')ay1-=bomH+4;else if(bom)ax1-=Math.min(184,(ax1-ax0)*0.42);  // tam düzende ilk deneme bu yüksekliği geri ekler
   const m=16,gapX=30,gapY=28;
   // delik konum ölçüleri görünüşlerin arasına sığsın: kağıtta yer varsa aralık ölçü sırası sayısına göre açılır (ölçek değişmez)
   let needX=0,needY=0;
@@ -320,7 +320,8 @@ function buildSheet(forExport,opts){
     for(const k in hc){needX=Math.max(needX,need(hc[k].v,9));needY=Math.max(needY,need(hc[k].h,k==='top'?9:16))}}
   const gapFor=(g,nd,room)=>Math.max(g,Math.min(nd,room));
   let pos,s,si;
-  if(isoOnly){const e=ext('iso');const sF=Math.min((ax1-ax0-2*m)/e.w,(ay1-ay0-2*m)/e.h);s=scaleSet==='auto'?(STD_SCALES.find(x=>x<=sF*1.0001)||STD_SCALES[STD_SCALES.length-1]):+scaleSet;ctx.scale=s;si=s;info.scale=scaleLabel(s);pos={iso:[(ax0+ax1)/2,(ay0+ay1)/2]}}
+  const place=(ay0,ay1)=>{let pos,s,si;
+  if(isoOnly){const e=ext('iso');const sF=Math.min((ax1-ax0-2*m)/e.w,(ay1-ay0-2*m)/e.h);s=scaleSet==='auto'?(STD_SCALES.find(x=>x<=sF*1.0001)||STD_SCALES[STD_SCALES.length-1]):+scaleSet;si=s;pos={iso:[(ax0+ax1)/2,(ay0+ay1)/2]}}
   else{
   const fw=ext('front').w,fh=ext('front').h,sw_=ext(side).w,th=ext('top').h,iw=S.iso?ext('iso').w:0,ih=S.iso?ext('iso').h:0;
   const AW=ax1-ax0-2*m,AH=ay1-ay0-2*m;
@@ -334,7 +335,6 @@ function buildSheet(forExport,opts){
   // Yerleşim B: izometrik ayrı satırda, tüm görünüşler aynı ölçekte (dikey kağıtta daha iyi)
   const sB=S.iso?Math.min((AW-gapX)/Math.max(fw+sw_,iw),(AH-2*gapY)/(fh+th+ih)):0;
   const useB=scaleSet==='auto'&&S.iso&&std(sB)>=s;if(useB){s=std(sB);si=s}
-  ctx.scale=s;info.scale=scaleLabel(s);
   if(!useB){
     const r1h=S.method==='E'?fh*s:rTopA,r2h=S.method==='E'?rTopA:fh*s;
     const gX=gapFor(gapX,needX,AW-fw*s-c2wA),gY=gapFor(gapY,needY,AH-r1h-r2h);
@@ -353,6 +353,20 @@ function buildSheet(forExport,opts){
     pos=S.method==='E'?{front:[cx1,yA],[side]:[cx2,yA],top:[cx1,yB],iso:[(ax0+ax1)/2,yI]}:{top:[cx1,yA],front:[cx1,yB],[side]:[cx2,yB],iso:[(ax0+ax1)/2,yI]};
   }
   }
+  return {pos,s,si}};
+  /* parça listesi sağ alt köşede: önce liste yok sayılarak yerleştirilir; görünüşler listeye değmiyorsa bu (daha büyük) ölçek kullanılır.
+     değiyorsa izometrik hücresi listenin üstünde kalacak kadar küçültülür; yine değiyorsa liste yüksekliği çıkarılmış alanla yerleştirilir */
+  const bomBox=bom&&layout==='full'?[ax1-Math.min(184,ax1-ax0),ay1,ax1,ay1+bomH+4]:null;
+  let L=place(ay0,bomBox?ay1+bomH+4:ay1);
+  if(bomBox){const hit=k=>{const P=L.pos[k];if(!P||(S.hide||[]).includes('V:'+(k===side?'side':k)))return false;const e=ext(k),sc=k==='iso'?L.si:L.s,w=e.w*sc/2+10,h=e.h*sc/2+10;
+      return P[0]+w>bomBox[0]&&P[0]-w<bomBox[2]&&P[1]+h>bomBox[1]&&P[1]-h<bomBox[3]};
+    if(['front','top',side].some(hit))L=place(ay0,ay1);
+    else if(hit('iso')){
+      // izometrik, üstündeki görünüşle (yan görünüş) liste arasındaki boşluğa sığacak ölçekle ortalanır
+      const e=ext('iso'),up=L.pos[side]&&L.pos[side][0]>bomBox[0]-e.w*L.si/2?L.pos[side][1]+ext(side).h*L.s/2+8:ay0;const room=bomBox[1]-12-up;
+      let k=L.si;while(k>STD_SCALES[STD_SCALES.length-1]&&e.h*k>room)k=STD_SCALES.find(x=>x<k)||k/2;
+      L.si=k;L.pos.iso=[L.pos.iso[0],up+room/2];if(hit('iso')||k<L.s/2.5)L=place(ay0,ay1)}}
+  pos=L.pos;s=L.s;si=L.si;ctx.scale=s;info.scale=scaleLabel(s);
   /* elle taşınan görünüşler: ön görünüş izdüşüm görünüşlerini de taşır; üst yalnızca dikey, yan yalnızca yatay kayar (SolidWorks gibi hizalı) */
   const VO=S.vofs||{},fo=VO.front||[0,0];const shift=(k,dx,dy)=>{if(pos[k])pos[k]=[pos[k][0]+dx,pos[k][1]+dy]};
   if(!isoOnly){shift('front',fo[0],fo[1]);shift('top',fo[0],fo[1]+(VO.top||0));shift(side,fo[0]+(VO.side||0),fo[1])}
@@ -474,7 +488,7 @@ function buildSheet(forExport,opts){
   o.push(datumMarkup(S,ctx));
   o.push(notesMarkup(S,ctx));
   if(bom){
-    if(S.balloons!==false){const bv=ctx.views.iso?'iso':'front';o.push(balloonsMarkup(ctx.views[bv],bom,[ax0,ay0,ax1,ay1]))}
+    if(S.balloons!==false){const bv=ctx.views.iso?'iso':'front';o.push(balloonsMarkup(ctx.views[bv],bom,[ax0,ay0,ax1,ay1],S,ctx))}
     o.push(bomMarkup(bom,layout,W,H,[ax0,ay0,ax1,ay1]));
   }
   o.push(footerMarkup(W,H,layout,info));

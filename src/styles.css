@@ -189,6 +189,7 @@ button:disabled{cursor:default}
 .chk input{width:16px;height:16px;accent-color:var(--accent)}
 .pm-err{display:none;margin-top:10px;padding:8px 10px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-size:13px}
 .pm-err.on{display:block}
+.pm-ok{margin:0 0 10px;padding:7px 10px;border-radius:6px;background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok);font-size:12.5px}
 .note{font-size:12px;color:var(--muted);margin:2px 0 8px}
 .lst{display:grid;gap:3px;margin-bottom:8px}
 .lst div{display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 6px;border-radius:5px;background:var(--panel-2)}
@@ -210,6 +211,7 @@ button:disabled{cursor:default}
 .relbtns b{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;border-radius:3px;background:var(--rel);color:#fff;font-size:10px}
 .sbtn{border:1px solid var(--line);background:var(--field);border-radius:5px;padding:5px 10px;font-size:12.5px}
 .sbtn:hover{border-color:var(--accent)}
+.sbtn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .sbtn.danger:hover{border-color:var(--warn);color:var(--warn)}
 .stat{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--panel-2);font-size:13px;font-weight:500}
 .stat i{width:10px;height:10px;border-radius:50%;flex:none}

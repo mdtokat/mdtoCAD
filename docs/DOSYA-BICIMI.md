@@ -87,31 +87,41 @@ Kenarlar dünya koordinatında saklanır ve her hesaplamada modeldeki kenarla e�
 
 ### Çoğaltma ve aynalama
 ```jsonc
-{ "type":"lpattern", "targets":["x4"], "dir1":"x"|"-x"|"y"|…, "sp1":20, "n1":3, "dir2":"none"|…, "sp2":20, "n2":2 }
-{ "type":"cpattern", "targets":[...], "axis":"x"|"y"|"z", "n":6, "angle":360 }
+{ "type":"lpattern", "targets":["x4"], "dir1":"x"|"-x"|"y"|…|{"d":[x,y,z]}, "sp1":20, "n1":3, "dir2":"none"|…, "sp2":20, "n2":2 }
+{ "type":"cpattern", "targets":[...], "axis":"x"|"y"|"z"|{"p":[x,y,z],"d":[x,y,z],"r":30,"feat":"<özellik id>"}, "n":6, "angle":360 }
 { "type":"mirror",   "targets":[...], "plane":"front"|"top"|"right"|"<düzlem id>"|{ "kind":"face", … } }   // yüzey: çizimin "on" alanıyla aynı biçim
 ```
 
+Doğrusal çoğaltmada `{"d": …}` modelde seçilen düz kenarın yönüdür (dünya koordinatı). Dairesel çoğaltmada nesne biçimindeki eksen modelde seçilen silindir (delik, göbek; `r` yarıçapı ve `feat` onu oluşturan özellik) veya düz kenardır (`r`/`feat` yok); `feat` varsa model her hesaplandığında eksen aynı özelliğin aynı yöndeki ve yarıçaptaki en yakın silindirine kaydırılır (ör. göbeğin konum ölçüsü değişince).
+
 ### `plane` — referans düzlem
 ```jsonc
-{ "type":"plane", "base":"front"|"top"|"right"|"<düzlem id>", "offset":20, "flip":false }
+{ "type":"plane", "base":"front"|"top"|"right"|"<düzlem id>"|{ "kind":"face", … }, "offset":20, "flip":false }
 ```
+Yüzey tabanı çizimin `on` alanıyla aynı biçimdedir; ekstrüzyonun uç yüzü seçildiyse düzlem o yüzle birlikte taşınır, ofset yüzeyin dışına doğrudur.
 
 ## Montaj
 
 ```jsonc
 {
   "id":"A1", "name":"Yatak montajı",
-  "comps": [ { "id":"c1", "part":"P1", "T":[16 sayı, sütun öncelikli 4×4 matris], "fixed":true, "hidden":false } ],
+  "comps": [ { "id":"c1", "part":"P1", "T":[16 sayı, sütun öncelikli 4×4 matris], "fixed":true, "hidden":false },
+             { "id":"c9", "part":"P3", "T":[…], "pat":"k1", "seed":"c3", "k":1 } ],   // bileşen çoğaltmasının kopyası
   "mates": [ { "id":"m1", "name":"Eşmerkezli1",
                "type":"coincident"|"concentric"|"parallel"|"perpendicular"|"distance"|"angle",
                "a": { "comp":"c1", "ref": {"t":"plane","n":[...],"p":[...]} | {"t":"axis","p":[...],"d":[...],"r":13} },
-               "b": { ... }, "flip":false, "val":10, "suppressed":false } ],
+               "b": { ... }, "flip":false, "val":10, "suppressed":false,
+               "lock":true, "lk":{"a":[x,y,z],"b":[x,y,z]},     // eşmerkezli: dönmeyi kilitle
+               "align":true } ],                               // iki düzlem arası mesafe: yüzeyler aynı yöne bakar
+  "pats": [ { "id":"k1", "name":"DaireselÇoğaltma1", "type":"circ"|"lin", "seeds":["c3","c4"],
+              "ref": { "comp":"c1", "ref": {"t":"axis",…} | {"t":"plane",…} }, "n":4, "angle":360, "sp":50, "rev":false } ],
   "explode": { "on":false, "steps":[ {"id":"x1","comps":["c2"],"dir":"y","dist":80} ] },
   "drawing": { /* teknik resim ayarları + asmView, explode, balloons, bom */ }
 }
 ```
-Eşleştirme referansları parçanın kendi koordinatlarındadır.
+Eşleştirme referansları parçanın kendi koordinatlarındadır. `distance` eşleştirmesinde iki eksen seçildiyse `val` eksenler arası mesafedir, eksen ve düzlemde eksenin düzleme uzaklığıdır (`flip` taraf). İki düzlemde `align` yoksa (eski dosyalar) yalnızca paralellik istenir. `lock` kilitli eşmerkezlide `lk` iki bileşende eksene dik birer yöndür (parça koordinatı); bu yönler paralel kalır.
+
+**Bileşen çoğaltma** (`pats`): dairesel (`circ`) çoğaltmanın ekseni, yönü doğrusal (`lin`) çoğaltmanın bir bileşenin silindir ekseni veya düz yüzeyinin normalidir (`ref`, eşleştirme referansı biçiminde); `n` kaynak dahil adettir, `angle` toplam açı (360: eşit aralık), `sp` doğrusal aralık, `rev` yönü ters çevirir. Kopyalar `comps` içinde `pat`/`seed`/`k` alanlarıyla durur; eşleştirme çözücüsünde serbest değildir, her çözümden sonra kaynaklarının konumundan yeniden hesaplanır. Çoğaltması olmayan kopyalar açılırken atılır.
 
 ## Teknik resim ayarları
 
@@ -130,7 +140,8 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır.
   "datums": [ {"view":"front","p":[a,b],"off":[dx,dy],"label":"A"} ],
   "vofs":   { "front":[dx,dy], "top":dy, "side":dx, "iso":[dx,dy] },   // sürüklenen görünüşler (sayfa mm)
   "lbl":    { "<delik gid>":[dx,dy] },                                // elle taşınan otomatik etiketler (daire merkezine göre)
-  "hide":   [ "ow:front", "L:<gid>", "V:top", … ],                    // gizlenen otomatik ölçüler, etiketler, görünüşler
+  "bal":    { "<poz no>":[dx,dy] },                                   // montaj resmi: elle taşınan balonlar (otomatik yerine göre)
+  "hide":   [ "ow:front", "L:<gid>", "V:top", "B:3", … ],             // gizlenen otomatik ölçüler, etiketler, görünüşler, balonlar
   "details":[ {"view":"front","c":[a,b],"r":8,"k":2,"pos":[x,y],"label":"B"} ],
   "surfs":  [ {"view":"top","p":[a,b],"ra":"3,2"} ],
   "notes":  [ {"x":30,"y":200,"text":"…"} ],

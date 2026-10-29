@@ -252,6 +252,19 @@ button:disabled{cursor:default}
 .dlg-foot{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
 .dlg-foot .note{margin:0 auto 0 0}
 .dlg.sm{width:min(480px,100%)}
+.dlg.md{width:min(600px,100%)}
+.set-body{padding:6px 14px 10px;overflow:auto;min-height:0}
+.set-sec{padding:8px 0 4px;border-bottom:1px solid var(--line)}
+.set-sec:last-child{border-bottom:0}
+.set-h{font-weight:600;font-size:13px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin:2px 0 8px}
+.set-row{margin-bottom:6px}
+.set-l{font-size:13px;font-weight:500;margin-bottom:4px}
+.set-row .seg{margin-bottom:3px}
+.set-info{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 14px;font-size:12.5px;margin-bottom:8px}
+.set-info span:nth-child(odd){color:var(--muted)}
+.set-info span:nth-child(even){overflow-wrap:anywhere}
+.set-warn{font-size:12.5px;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:7px 9px;margin-bottom:8px}
+.set-acts{display:flex;gap:6px;margin-bottom:6px}
 .dlg-msg{padding:12px 14px;font-size:13px;line-height:1.5}
 .dlg-msg ul{margin:6px 0 0;padding-left:18px}
 .dlg.sm .dlg-foot{justify-content:flex-end;flex-wrap:wrap}

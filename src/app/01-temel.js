@@ -213,8 +213,8 @@ function prompt_(msg){const p=$('#vpPrompt');if(msg){p.textContent=msg;p.classLi
 
 /* ================= 3B SAHNE ================= */
 const vpEl=$('#viewport');
-const renderer=new T.WebGLRenderer({antialias:true,alpha:true});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));renderer.setClearColor(0x000000,0);
+const renderer=new T.WebGLRenderer({antialias:SETTINGS.antialias,alpha:true});
+renderer.setPixelRatio(pixelRatioOf(SETTINGS));renderer.setClearColor(0x000000,0);
 vpEl.insertBefore(renderer.domElement,vpEl.firstChild);
 const scene=new T.Scene();
 const perspCam=new T.PerspectiveCamera(30,1,0.5,20000);perspCam.position.set(240,190,280);scene.add(perspCam);
@@ -288,6 +288,9 @@ function polysToBuffers(polys,filter){
 }
 function segGeom(segs){const arr=new Float32Array(segs.length*6);segs.forEach((s,i)=>{arr.set(s.a,i*6);arr.set(s.b,i*6+3)});const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(arr,3));return g}
 function showSolid(polys){
+  requestRender();
+  // aynı gövde yeniden gösteriliyorsa (önbellekten gelen sonuç) ağ ve kenarlar yeniden kurulmaz
+  if(polys===shown.polys&&shown.edges){updateSelVisual();applyDisplay();return}
   const {g,tp}=polysToBuffers(polys);
   solidMesh.geometry.dispose();solidMesh.geometry=g;depthMesh.geometry=g;
   const edges=computeEdges(polys,null,false).filter(e=>e.k===1);
@@ -302,9 +305,16 @@ function rebuild(){
   if(old&&old.key!==model.key&&partChanged(state,old,r))saveState();
   Object.assign(model,{polys:r.polys,ann:r.ann,errors:r.errors,frames:r.frames,caps:r.caps,tools:r.tools});
   model.version++;model.box=r.polys.length?bboxPolys(r.polys):null;model.props=r.polys.length?massProps(r.polys):null;
-  model.ms=Math.round(performance.now()-t0);
-  model.dof={};for(const f of state.features)if(f.type==='sketch'){try{model.dof[f.id]=analyzeSketch(f).dof}catch(e){}}
+  model.ms=Math.round(performance.now()-t0);perfRebuildMs=model.ms;
+  model.dof={};for(const f of state.features)if(f.type==='sketch'){const d=sketchDof(f);if(d!==undefined)model.dof[f.id]=d}
   showSolid(sk&&sk.base?sk.base:model.polys);rebuildPlanes();renderSketchDisplays();updateMass();updateStatus();
+}
+/* çizimlerin serbestlik derecesi (ağaçtaki “tanımsız” işareti): çizim değişmedikçe yeniden hesaplanmaz */
+const dofCache=new Map();
+function sketchDof(f){
+  const k=JSON.stringify([f.pts,f.ents,f.cons]);const c=dofCache.get(f.id);if(c&&c.k===k)return c.d;
+  let d;try{d=analyzeSketch(f).dof}catch(e){d=undefined}
+  dofCache.set(f.id,{k,d});if(dofCache.size>400)dofCache.delete(dofCache.keys().next().value);return d;
 }
 /* radyus/pah kenarları: model değişince kenar yeni konumuyla (ve imzasıyla) saklanır; ölçü değişikliğinden sonra da bulunur */
 function syncEdgeRefs(p,r){
@@ -331,6 +341,7 @@ function updateMass(){
   el.innerHTML=`<span>Malzeme</span><span>${esc(m.name)}</span><span>Hacim</span><span>${fmt(v,0)} mm³</span><span>Yüzey alanı</span><span>${fmt(model.props.area,0)} mm²</span><span>Kütle</span><span>${massText(v/1000*m.rho)}</span><span>Boyutlar (X × Y × Z)</span><span>${fmt(b.max[0]-b.min[0],1)} × ${fmt(b.max[1]-b.min[1],1)} × ${fmt(b.max[2]-b.min[2],1)}</span>`;
 }
 function applyDisplay(){
+  requestRender();
   solidMesh.visible=display!=='wire';edgeLines.visible=display!=='shaded';
   if(typeof asmView!=='undefined')for(const v of asmView.groups.values()){v.m.visible=display!=='wire';v.l.visible=display!=='shaded'}
   $$('[data-disp]').forEach(b=>b.classList.toggle('on',b.dataset.disp===display));
@@ -414,9 +425,11 @@ function loop(){
     if(camAnim.z1&&isOrtho()){camera.zoom=camAnim.z0+(camAnim.z1-camAnim.z0)*t;camera.updateProjectionMatrix()}if(t>=1)camAnim=null}
   controls.update();
   const ck=camera.position.toArray().map(v=>v.toFixed(3)).join()+controls.target.toArray().map(v=>v.toFixed(3)).join()+camera.aspect.toFixed(3)+camera.zoom.toPrecision(6);
-  if(ck!==lastCamKey){lastCamKey=ck;if(sk)sk.dirty=true}
-  if(sk&&sk.dirty){sk.dirty=false;renderSketch()}
+  const moved=ck!==lastCamKey;
+  if(moved){lastCamKey=ck;if(sk)sk.dirty=true}
+  if(sk&&sk.dirty){sk.dirty=false;renderSketch();requestRender()}
   if(sk)placeLabels();
+  if(!shouldRender(moved||!!camAnim))return;
   renderer.getSize(tmp2);renderer.setScissorTest(false);renderer.setViewport(0,0,tmp2.x,tmp2.y);renderer.render(scene,camera);
   const sz=Math.min(86,tmp2.x*.22),by=sk?30:4;renderer.setScissorTest(true);renderer.setScissor(tmp2.x-sz-4,by,sz,sz);renderer.setViewport(tmp2.x-sz-4,by,sz,sz);
   const dir=camera.position.clone().sub(controls.target).normalize();triCam.position.copy(dir).multiplyScalar(4);triCam.up.copy(camera.up);triCam.lookAt(0,0,0);
@@ -514,7 +527,7 @@ function isCurvedFacet(same){
   for(const p of shown.polys){if(set.has(p))continue;const d=p.plane.n.dot(n);if(d<lo||d>hi)continue;let c=0;for(const v of p.verts)if(vs_.has(k(v))&&++c>=2)return true}
   return false;
 }
-function updateSelVisual(){
+function updateSelVisual(){requestRender();
   selMesh.geometry.dispose();
   if(sel&&sel.kind==='face'){const fs=new Set(facePolys(sel));selMesh.geometry=polysToBuffers(shown.polys,p=>fs.has(p)).g}
   else if(sel&&sel.kind==='feature')selMesh.geometry=polysToBuffers(shown.polys,p=>p.shared===sel.id).g;

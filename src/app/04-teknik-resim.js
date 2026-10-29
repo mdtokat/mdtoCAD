@@ -62,12 +62,13 @@ function viewData(key,alt){
     let st=0;
     for(let i=1;i<=N;i++){if(i===N||cls[i]!==cls[st]){const t0=st/N,t1=i/N;(cls[st]?vis:hid).push([a1+(a2-a1)*t0,b1+(b2-b1)*t0,a1+(a2-a1)*t1,b1+(b2-b1)*t1,s.pa?s.pa.shared:null]);st=i}}
   }
-  const circ=[],axRaw=[],threads=[];
+  const circ=[],axRaw=[],threads=[],cyls=[];
   for(const an of src.ann){
     const A=[an.A.x,an.A.y,an.A.z],C=[an.C.x,an.C.y,an.C.z];const dd=dot3(A,D);
     if(an.thread){const th=an.thread;if(Math.abs(dd)>.99)threads.push({t:'arc',a:dot3(C,R),b:dot3(C,U),R:th.R});else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*th.t0,C[1]+A[1]*th.t0,C[2]+A[2]*th.t0],P1=[C[0]+A[0]*th.t1,C[1]+A[1]*th.t1,C[2]+A[2]*th.t1];const a0=dot3(P0,R),b0=dot3(P0,U),a1=dot3(P1,R),b1=dot3(P1,U);const L=Math.hypot(a1-a0,b1-b0)||1;const nx=-(b1-b0)/L,ny=(a1-a0)/L;for(const sg of [1,-1])threads.push({t:'line',s:[a0+nx*th.R*sg,b0+ny*th.R*sg,a1+nx*th.R*sg,b1+ny*th.R*sg]})}}
     if(Math.abs(dd)>.99)circ.push({a:dot3(C,R),b:dot3(C,U),r:an.r,gid:an.gid,op:an.op,label:an.label,txt:an.txt,call:an.call});
-    else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*an.t0,C[1]+A[1]*an.t0,C[2]+A[2]*an.t0],P1=[C[0]+A[0]*an.t1,C[1]+A[1]*an.t1,C[2]+A[2]*an.t1];axRaw.push([dot3(P0,R),dot3(P0,U),dot3(P1,R),dot3(P1,U)])}
+    else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*an.t0,C[1]+A[1]*an.t0,C[2]+A[2]*an.t0],P1=[C[0]+A[0]*an.t1,C[1]+A[1]*an.t1,C[2]+A[2]*an.t1];axRaw.push([dot3(P0,R),dot3(P0,U),dot3(P1,R),dot3(P1,U)]);
+      if(an.cyl)cyls.push({a0:dot3(P0,R),b0:dot3(P0,U),a1:dot3(P1,R),b1:dot3(P1,U),r:an.r,id:an.gid+'_'+an.r.toFixed(3)+'_'+Math.round(dot3(C,R)+dot3(C,U)+an.t0)})}
   }
   const mm=new Map();for(const q of circ){const k=Math.round(q.a*100)+'_'+Math.round(q.b*100);const o=mm.get(k);if(!o||o.r<q.r)mm.set(k,{a:q.a,b:q.b,r:q.r})}
   const lines=new Map();
@@ -81,12 +82,20 @@ function viewData(key,alt){
   }
   const axes=[...lines.values()].map(o=>{const px=-o.dy*o.off,py=o.dx*o.off;return [px+o.dx*o.lo,py+o.dy*o.lo,px+o.dx*o.hi,py+o.dy*o.hi]});
   const secPolys=src.sec?src.polys.filter(p=>String(p.shared).startsWith('SEC')).map(p=>({g:String(p.shared),pts:p.verts.map(v=>[v.x*R[0]+v.y*R[1]+v.z*R[2],v.x*U[0]+v.y*U[1]+v.z*U[2]])})):[];
-  const res={vis,hid,bb:{minA:mnA,maxA:mxA,minB:mnB,maxB:mxB},circ,marks:[...mm.values()],axes,threads,secPolys};
+  // merkez işareti kolları parçanın görünüşteki sınırında kalır (kısmi döndürmede, ör. dirsekte, kollar kağıttan taşıyordu)
+  const marks=[...mm.values()].map(q=>({...q,a0:Math.max(q.a-q.r,mnA),a1:Math.min(q.a+q.r,mxA),b0:Math.max(q.b-q.r,mnB),b1:Math.min(q.b+q.r,mxB)}));
+  const res={vis,hid,bb:{minA:mnA,maxA:mxA,minB:mnB,maxB:mxB},circ,marks,axes,threads,secPolys,cyls};
   vcache.m.set(ck,res);if(vcache.m.size>40)vcache.m.delete(vcache.m.keys().next().value);return res;
 }
 
 const SHEET_CSS=`.d-vis{fill:none;stroke:#000;stroke-width:.5;stroke-linecap:round;stroke-linejoin:round}.d-hid{fill:none;stroke:#000;stroke-width:.25;stroke-dasharray:2.2 1.1}.d-cen{fill:none;stroke:#000;stroke-width:.18;stroke-dasharray:7 1.1 .8 1.1}.d-thin{fill:none;stroke:#000;stroke-width:.18}.d-frame{fill:none;stroke:#000;stroke-width:.7}.d-tb{fill:none;stroke:#000;stroke-width:.35}.d-ar{fill:#000;stroke:none}.d-t{font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;fill:#000}.d-l{font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;fill:#555}`;
 const Lp=(x1,y1,x2,y2)=>`M${f2(x1)} ${f2(y1)}L${f2(x2)} ${f2(y2)}`;
+/* merkez işaretleri: kolların uçları 2,5 mm taşar */
+function markSegs(marks,map){const out=[];
+  for(const mk of marks)for(const [p,q] of [[[mk.a0,mk.b],[mk.a1,mk.b]],[[mk.a,mk.b0],[mk.a,mk.b1]]]){
+    if(!(Math.hypot(q[0]-p[0],q[1]-p[1])>1e-6))continue;const A=map(p[0],p[1]),B=map(q[0],q[1]);const l=Math.hypot(B[0]-A[0],B[1]-A[1])||1,ux=(B[0]-A[0])/l,uy=(B[1]-A[1])/l;
+    out.push([A[0]-ux*2.5,A[1]-uy*2.5,B[0]+ux*2.5,B[1]+uy*2.5])}
+  return out}
 function arrow(Q,ux,uy){const bx=Q[0]-ux*3,by=Q[1]-uy*3,px=-uy*.55,py=ux*.55;return `<path class="d-ar" d="M${f2(Q[0])} ${f2(Q[1])}L${f2(bx+px)} ${f2(by+py)}L${f2(bx-px)} ${f2(by-py)}Z"/>`}
 function dimMarkup(P1,P2,Q1,Q2,txt,tol){
   const ext=(P,Q)=>{const dx=Q[0]-P[0],dy=Q[1]-P[1],l=Math.hypot(dx,dy);if(l<1.2)return '';const ux=dx/l,uy=dy/l;return Lp(P[0]+ux,P[1]+uy,Q[0]+ux*2,Q[1]+uy*2)};
@@ -248,7 +257,11 @@ function sheetInfo(paperLabel){
 }
 /* otomatik delik konum ölçüleri: her delik grubu onu gösteren ilk görünüşte (üst, ön, yan sırasıyla) ölçülür */
 function holePlan(vd,order){const plan=new Map();
-  for(const k of order){for(const q of vd[k].circ){if(!q.label)continue;if(!plan.has(q.gid))plan.set(q.gid,{k,list:[]});const g=plan.get(q.gid);if(g.k===k)g.list.push(q)}}
+  for(const k of order){const seen=[];for(const q of vd[k].circ){if(!q.label)continue;
+    // farklı özelliklerin görünüşte üst üste düşen aynı çaplı daireleri (borunun ve flanşın aynı deliği, arka disk ve ön örtü) tek etiket olur;
+    // aynı özelliğin kopyaları (aynalanmış ayak delikleri gibi arka arkaya duranlar) sayılmaya devam eder
+    if(seen.some(o=>o.gid!==q.gid&&Math.abs(o.a-q.a)<0.01&&Math.abs(o.b-q.b)<0.01&&Math.abs(o.r-q.r)<0.01))continue;
+    if(!plan.has(q.gid))plan.set(q.gid,{k,list:[]});const g=plan.get(q.gid);if(g.k===k){g.list.push(q);seen.push(q)}}}
   return plan}
 function planHoles(plan,k){const hs=[];for(const g of plan.values())if(g.k===k)for(const q of g.list)if(q.op==='cut')hs.push(q);return hs}
 /* bir eksendeki delik konumları: simetrik çift merkezden merkeze tek ölçü, diğerleri kenardan; 5'ten fazlaysa ölçülmez */
@@ -366,7 +379,7 @@ function buildSheet(forExport,opts){
     o.push(`<path class="d-vis" d="${segPath(d.vis,v)}"/>`);
     if(S.centers&&k!=='iso'){
       let cp='';
-      for(const mk of d.marks){const [x,y]=v.map(mk.a,mk.b);const r=mk.r*s+2.5;cp+=Lp(x-r,y,x+r,y)+Lp(x,y-r,x,y+r)}
+      for(const q of markSegs(d.marks,v.map))cp+=Lp(...q);
       for(const q of d.axes){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;cp+=Lp(A[0]-ux*3,A[1]-uy*3,B[0]+ux*3,B[1]+uy*3)}
       if(cp)o.push(`<path class="d-cen" d="${cp}"/>`);
     }
@@ -406,6 +419,17 @@ function buildSheet(forExport,opts){
     const vS=ctx.views[side];
     if(vS){const dS=vd[side].bb;const SL=vS.map(dS.minA,dS.minB),SR=vS.map(dS.maxA,dS.minB);
       autoDim('ow:side',SL,SR,[SL[0],SL[1]+9],[SR[0],SR[1]+9],fmt(dS.maxA-dS.minA))}
+    /* döndürmeyle oluşan silindirlerin çapları (mil kademeleri, burç delikleri): eksenin görüldüğü ilk görünüşte profilin içinden;
+       yazı başka bir ölçüye değmeyecek yere (kademenin ortası, sonra kenarlarına yakın) konur, sığmazsa yazılmaz */
+    {const done=new Set();
+      for(const k of ['front','top',side]){const v=ctx.views[k];if(!v||!vd[k].cyls||!vd[k].cyls.length)continue;
+        const lns=[];for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);lns.push([A[0],A[1],B[0],B[1]])}
+        vd[k].cyls.forEach((c,i)=>{if(done.has(c.id))return;done.add(c.id);const key='cd:'+vk2(k)+':'+i;if(hide.has(key))return;
+          const L=Math.hypot(c.a1-c.a0,c.b1-c.b0);if(L*s<5||c.r*2*s<7)return;const ua=(c.a1-c.a0)/L,ub=(c.b1-c.b0)/L;const txt='Ø'+fmt(c.r*2),tw=textWidth(txt,3.5)/2+.8;
+          for(const f of [.5,.35,.65,.2,.8]){const ma=c.a0+(c.a1-c.a0)*f,mb=c.b0+(c.b1-c.b0)*f;const P1=v.map(ma-ub*c.r,mb+ua*c.r),P2=v.map(ma+ub*c.r,mb-ua*c.r);
+            const M=[(P1[0]+P2[0])/2,(P1[1]+P2[1])/2],vert=Math.abs(P1[0]-P2[0])<Math.abs(P1[1]-P2[1]);
+            const B=vert?[M[0]-3.6,M[1]-tw,M[0]+1,M[1]+tw]:[M[0]-tw,M[1]-3.6,M[0]+tw,M[1]+1];
+            if(occ.some(b=>boxOv(B,b)>0)||lns.some(g=>segHitsBox(g[0],g[1],g[2],g[3],B)))continue;autoDim(key,P1,P2,P1,P2,txt);break}})}}
     /* çap ve delik etiketleri: kılavuz çizgisi boş yer bulana kadar döndürülür; elle taşınmışsa o konum kullanılır */
     const geo=[];for(const k of shown){const v=ctx.views[k];for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);geo.push([A[0],A[1],B[0],B[1]])}}
     const score=B=>{let sc=0;for(const b of occ){const a=boxOv(B,b);if(a>0)sc+=6+a}for(const g of geo)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;

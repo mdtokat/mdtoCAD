@@ -31,7 +31,7 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 **Teknik resim** (SolidWorks çizim ortamıyla karşılaştırma: [docs/TEKNIK-RESIM.md](docs/TEKNIK-RESIM.md))
 - Ön, üst, yan ve izometrik görünüşler; gizli çizgiler, eksen çizgileri; ISO E/ISO A izdüşüm.
 - Görünüşler sürüklenerek taşınır; ön görünüş izdüşüm görünüşlerini de taşır, üst/yan görünüş hizasını korur. Görünüş, ölçü ve açıklamalar tıklanarak seçilir, **Delete** ile silinir/gizlenir.
-- Otomatik genel ölçüler, delik konumları ve SolidWorks gibi satır satır delik etiketleri (↧ derinlik, ⌴ fatura, ⌵ havşa); etiketler birbirinin üstüne binmeyecek yere konur, sürüklenebilir.
+- Otomatik genel ölçüler, delik konumları, döndürmeyle oluşan kademelerin çapları (mil) ve SolidWorks gibi satır satır delik etiketleri (↧ derinlik, ⌴ fatura, ⌵ havşa); etiketler birbirinin üstüne binmeyecek yere konur, sürüklenebilir.
 - Akıllı ölçü: iki nokta, kenar uzunluğu, paralel kenar aralığı, noktadan kenara, çap/yarıçap ve açı (tolerans: ±, sapma, geçme).
 - Kesit A-A ön, üst veya yan görünüşte; tam veya yarım kesit (taramalı). Detay görünüşü (tarama ve eksen çizgileriyle), yüzey işareti, **geometrik tolerans** (ISO 1101, 14 sembol) ve **referans (datum) işareti**, notlar, diş gösterimi.
 - Montaj resmi: balonlar ve parça listesi.
@@ -102,6 +102,13 @@ Aşağıdaki üç örnek, eklerdeki teknik resimlerden programın kendi araçlar
 - `bukulmus-braket.tocad.json` — 10 mm kalınlıkta bükülmüş braket (124 × 165, genişlik 50). Dış kenar açık bir çizgi zinciri olarak çizilip R16 / R16,5 / R22 çizim radyuslarıyla yuvarlatılır ve **İnce özellik** ile kalınlaştırılır. Ø38 üst göbek, Ø9/Ø20 faturalı delik (**özel ölçülü Delik Sihirbazı**), Ø38 yan kulaklar (R10 geçişli; **başlangıç ofsetli** ekstrüzyon + Aynala), Ø16 kulak deliği, ayak uçlarında R25 (dikdörtgen + daire çizilip **kesilecek bölge seçilir**), Ø9/Ø18 ayak delikleri.
 - `yatakli-stand.tocad.json` — izometrik resimden yorumlanan yataklı stand: 80 × 80 aralıklı dört göbek ve kollardan oluşan taban (tek çizimde üst üste çizilir, **bölge çözümü** birleştirir), üstü R30 kolon, 20'şer mm kademeli R20 / R15 / R9 üst yatak (Döndürme Kesme), R12 / R7 alt yatak, Ø8 yağ deliği, 9 mm et kalınlıklı U kutu (**İnce özellik**). İzometrik resim bazı ayrıntılarda belirsiz olduğundan ölçüler resimdekilerle (80, 60, 36, 9, 42, R30, R20, R15, R9, R12) uyumlu bir yorumdur.
 - `l-destek.tocad.json` — L destek (30 × 35 taban, 65 yükseklik): yan profil tek çizimde, üst kenarlar R5, Ø27 göbek ile 6 mm kaburga üst üste çizilip tek seferde çıkarılır, Ø16 ve iki Ø10 delik, 10 mm kanal.
+
+Aşağıdaki dört makine parçası `ornekler/makine-parcalari-ciz.mjs` ile aynı şekilde, uygulamanın araçlarıyla çizilir (`npm run ornekler` hepsini yeniden üretir):
+
+- `duz-disli.tocad.json` — düz dişli m = 2, z = 24 (Ø52 baş, Ø43 taban dairesi, genişlik 20). Diş yanakları taban, bölüm ve baş dairesinden geçen 3 noktalı yaylar; taban dairesiyle üst üste çizilen tek diş çizimde dairesel çoğaltılır. Ø40 göbek, Ø25 mil deliği ve 8 × 3,3 kama kanalı (DIN 6885), delik ağızlarında 1 × 45° pah.
+- `flansli-boru.tocad.json` — DN50 boru (Ø60,3 × 3,9 × 300), iki ucunda Ø165 × 18 flanş ve PCD 125 üzerinde 4 × Ø18 delik (EN 1092-1 PN16; flanş orta düzlemde aynalanır), birleşimlerde R3. Aynı projede ikinci parça: R76 yarıçaplı 90° dirsek (halka profil 90° döndürülür).
+- `pompa-carki.tocad.json` — kapalı pompa çarkı: Ø200 arka disk, Ø60 göbek, 6 geriye eğik kanat (tek yay çizimde çoğaltılır, 5 mm İnce özellik), Ø200 / Ø90 göz ön örtü, Ø25 mil deliği ve 8 mm kama kanalı.
+- `kademeli-mil.tocad.json` — Ø25 / Ø35 / Ø40 / Ø50 / Ø40 / Ø30 kademeli mil (305 mm, döndürme): 10 × 5 kama kanalı, DIN 471 segman kanalı, uçlarda 1 × 45° pah, omuzlarda R1, Ø6 pim deliği, uçta M10 diş deliği. Teknik resimde kademe çapları otomatik ölçülür.
 
 ## Proje yapısı
 

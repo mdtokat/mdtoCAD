@@ -1,6 +1,16 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Uygulamada dört makine parçası çizildi: düz dişli (m2 z24, kama kanallı göbek), flanşlı boru DN50 ve 90° dirsek, kapalı pompa çarkı, kademeli mil (kama ve segman kanalı, pah, radyus, diş ve pim deliği). Örnekler `ornekler/makine-parcalari-ciz.mjs` ile üretilir. Bulunan hatalar giderildi (testler: `tests/makine-parcalari.spec.js`):
+- Düzeltme (hız): radyus, delik ve kanal gibi küçük araçlar tüm gövdeyi BSP düzlemleriyle parçalıyordu; her özellikten sonra çokgen sayısı ve süre katlanıyordu (kademeli mil açılırken 30 sn'yi aşıyordu, flanşlı boru 18 sn). Araç kutusuna değmeyen yüzeyler artık işleme girmez: mil 2 sn, flanşlı boru 1,7 sn; hacimler aynı.
+- Düzeltme (hız): delikli profilin (boru halkası) döndürülmesi CSG ile yapılıyordu; 90° dirsek tek özellik için 10–12 sn sürüp 50 bin çokgen üretiyordu. Halka doğrudan döndürülür: 9 ms, 4 bin çokgen.
+- Düzeltme (bölgeler): dairenin üstünde birleşen iki öğe (ör. dişin yanak yayı ve taban çizgisi taban dairesinde) aynı bölme noktasını iki kez veriyor, her tekrar fazladan bir tam daire üretiyordu; dişli çizimi 180 bin köşeye çıkıp 20 sn kilitleniyordu. Ayrıca yüzlerin içinde-dışında testi dairenin farklı parçalanmış çokgeniyle yapıldığından daireye iç teğet üçgen gibi çizimlerde profil bulunamıyordu.
+- Düzeltme (pah/radyus): kama kanallı delik ağzında “Bu eğrisel kenar tanınamadı” hatası veriyordu. Dairesel kenarın çemberi kenarların kendisinden bulunur; yarım daireden kısa yaylarda (diş dibi) yalnızca o yay işlenir.
+- Radyus kesitindeki yay parça sayısı yarıçapa göre seçilir (küçük radyusta gereksiz ince bölme yok).
+- Çizim: konturun çoğu tek bir dairenin yayıysa (kama kanallı delik) o dairenin çapı modele işlenir: teknik resimde Ø etiketi ve eksen çizgileri, montajda eşmerkezli eşleştirme, ağzında radyus/pah.
+- Teknik resim: döndürmeyle oluşan silindirler (mil kademeleri) profilin içinden otomatik çap ölçüsüyle (Ø25, Ø35…) ölçülür; yazı başka ölçülere ve görünüş çizgilerine değmeyecek yere konur. Montaj resminde parçaların çap ölçüsü ve delik etiketi yazılmaz.
+- Düzeltme (teknik resim): farklı özelliklerin görünüşte üst üste düşen aynı daireleri ayrı ayrı etiketleniyordu (borunun ve iki flanşın Ø52,5 deliği “Ø52,5” ve “2× Ø52,5”; çarkın arka diski ve ön örtüsü iki kez Ø200). Tek etiket yazılır; aynı özelliğin arka arkaya duran kopyaları sayılmaya devam eder (2× Ø165).
+- Düzeltme (teknik resim): kısmi döndürmenin (dirsek) merkez işareti dirsek yarıçapı kadar uzanıp kağıt çerçevesinin dışına taşıyordu; kollar görünüşün sınırında kalır.
 - Uygulamanın adı **toCAD** oldu; yeni logo (`docs/logo/`), sekme simgesi (favicon) ve üst çubukta yeni marka. Proje dosyaları artık `*.tocad.json` adıyla kaydedilir (`"app": "tocad"`); eski `*.tezgah.json` dosyaları açılmaya devam eder, tarayıcıdaki otomatik kayıt korunur.
 - Uygulama normal bir kullanıcı gibi fareyle kullanıldı (yeni parça → çizim → ölçü → ekstrüzyon → kesme → radyus → delik → çoğaltma → teknik resim → montaj → patlatma). Bulunan hatalar giderildi (testler: `tests/normal-kullanim.spec.js`):
 - Düzeltme (teknik resim): tümünden geçen diş (kılavuz) deliklerinin diş çizgileri ön/yan görünüşten taşıp alttaki görünüşlerin içine kadar uzanıyordu; diş artık gövde kalınlığı kadar çizilir.

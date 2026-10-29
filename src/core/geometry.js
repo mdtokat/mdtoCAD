@@ -302,7 +302,9 @@ function skArrangement(sk,inner){
   const segs=[];
   const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(64*(t1-t0)/(Math.PI*2)));const out=[pa];for(const t of arcTs(t0,t1,n))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
   for(const e of ents){
-    const sp=splits.get(e).map(p=>({p,t:par(e,p)})).sort((a,b)=>a.t-b.t);
+    // aynı nokta birden çok öğeden gelebilir (ör. çizgi ve yay ucu dairenin üstünde birleşince): tekrarlar atılır,
+    // yoksa dairede iki özdeş bölme noktası arasında tam bir daire daha oluşuyor ve kesişim sayısı patlıyordu
+    const sp=[];for(const s of splits.get(e).map(p=>({p,t:par(e,p)})).sort((a,b)=>a.t-b.t))if(!sp.some(q=>Math.hypot(q.p[0]-s.p[0],q.p[1]-s.p[1])<=tol*2))sp.push(s);
     let chains=[];
     if(e.t==='line'){chains=[[P(e.a),...sp.map(s=>s.p),P(e.b)]]}
     else if(e.t==='arc'){const A=arcInfo(sk,e),c=[A.c.x,A.c.y];const ks=[{p:P(e.a),t:0},...sp,{p:P(e.b),t:A.sw}];for(let k=0;k<ks.length-1;k++)chains.push(arcPts(c,A.r,A.a0+ks[k].t,A.a0+ks[k+1].t,ks[k].p,ks[k+1].p))}
@@ -409,12 +411,16 @@ function sketchRegionShapes(sk,seeds){
   }else mat=c=>c.depth%2===1;
   const M=cycles.map(mat);const bnd=h=>M[cyc[h]]&&!M[cyc[H[h].tw]];
   const used=new Set();const loops=[];
-  for(let i=0;i<H.length;i++){if(used.has(i)||!bnd(i))continue;const pts=[],src=new Set();let h=i,g=0;
-    do{used.add(h);pts.push(V[H[h].o]);src.add(H[h].src);let n=H[h].nx,k=0;while(!bnd(n)&&k++<1e5)n=H[H[n].tw].nx;h=n}while(h!==i&&g++<1e6);
+  for(let i=0;i<H.length;i++){if(used.has(i)||!bnd(i))continue;const pts=[],src=new Set(),len=new Map();let h=i,g=0;
+    do{used.add(h);pts.push(V[H[h].o]);src.add(H[h].src);const a=V[H[h].o],b=V[H[h].d];len.set(H[h].src,(len.get(H[h].src)||0)+Math.hypot(b[0]-a[0],b[1]-a[1]));
+      let n=H[h].nx,k=0;while(!bnd(n)&&k++<1e5)n=H[H[n].tw].nx;h=n}while(h!==i&&g++<1e6);
     // aynı doğru üzerindeki ara noktaları at
     const q=pts.filter((p,k)=>{const a=pts[(k-1+pts.length)%pts.length],b=pts[(k+1)%pts.length];const cr=(p[0]-a[0])*(b[1]-p[1])-(p[1]-a[1])*(b[0]-p[0]);const ln=Math.hypot(p[0]-a[0],p[1]-a[1])*Math.hypot(b[0]-p[0],b[1]-p[1]);return Math.abs(cr)>1e-12*(1+ln)||(p[0]-a[0])*(b[0]-p[0])+(p[1]-a[1])*(b[1]-p[1])<0});
     if(q.length<3)continue;const ar=area2d(q);if(Math.abs(ar)<1e-9*A.ext*A.ext)continue;
     let circle;if(src.size===1){const e=A.ents.find(x=>x.id===[...src][0]);if(e&&e.t==='circle'){const c=skP(sk,e.c);circle={x:c.x,y:c.y,r:e.r}}}
+    // konturun çoğu tek bir dairenin yayıysa (kama kanallı delik, düzlemi açılmış mil) çapı açıklamaya girer:
+    // teknik resimde çap etiketi ve eksen, montajda eşmerkezli eşleştirme, ağzında radyus/pah
+    else for(const id of src){const e=A.ents.find(x=>x.id===id);if(e&&e.t==='circle'&&len.get(id)>=0.75*2*Math.PI*e.r){const c=skP(sk,e.c);circle={x:c.x,y:c.y,r:e.r};break}}
     loops.push({pts:q,area:ar,circle});
   }
   const outers=loops.filter(l=>l.area>0),holes=loops.filter(l=>l.area<0);
@@ -851,7 +857,7 @@ function revolveTool(f,sk,F){
   for(const sh of shapes)for(const loop of [sh.outer,...sh.holes.map(h=>h.pts)]){
     const q=loop.map(loc);for(let i=0;i<q.length;i++){const a=q[i],b=q[(i+1)%q.length];const r=Math.abs(a[0]);
       if(r>1e-6&&Math.abs(Math.abs(a[0])-Math.abs(b[0]))<1e-6&&Math.abs(a[1]-b[1])>1e-6){const k=r.toFixed(4)+'_'+Math.min(a[1],b[1]).toFixed(4);if(cyl.has(k))continue;cyl.add(k);
-        ann.push({C:v3(P3),A:v3(A3),r,t0:Math.min(a[1],b[1]),t1:Math.max(a[1],b[1]),gid:f.id,op:f.op,label:false})}}}
+        ann.push({C:v3(P3),A:v3(A3),r,t0:Math.min(a[1],b[1]),t1:Math.max(a[1],b[1]),gid:f.id,op:f.op,label:false,cyl:true})}}}
   return {polys,ann,cap:null};
 }
 
@@ -925,7 +931,7 @@ function edgeOpBodies(solid,f,anns){
   for(const se of f.edges){
     const e=findEdge(all,se);if(!e)throw new Error('Seçilen kenarlardan biri modelde bulunamadı. Özelliği düzenleyip kenarları yeniden seç.');
     refs.push({a:e.a.slice(),b:e.b.slice(),sig:edgeSig(e)});
-    if(isCurvedEdge(all,e)){const b=curvedEdgeBody(e,f,val,anns||[],done);if(b)(b.convex?sub:add).push(b.polys);continue}
+    if(isCurvedEdge(all,e)){const b=curvedEdgeBody(e,f,val,anns||[],done,all);if(b)(b.convex?sub:add).push(b.polys);continue}
     const E0=e.a,E1=e.b,t=vn(vs(E1,E0)),Ln=vl(vs(E1,E0));
     const n1=pn(e.pa),n2=pn(e.pb),c1=polyCentroid(e.pa),c2=polyCentroid(e.pb);
     const foot=c=>va(E0,vk(t,vd(vs(c,E0),t)));
@@ -966,10 +972,44 @@ function findCircleAnn(anns,e){
   return null;
 }
 /* Dairesel kenarda radyus/pah: kesit profili eksen etrafında döndürülür */
-function curvedEdgeBody(e,f,val,anns,done){
-  const m=findCircleAnn(anns,e);if(!m)throw new Error('Bu eğrisel kenar tanınamadı. Radyus ve pah yalnızca dairesel kenarlarda (delik ağzı, silindir kenarı) çalışır.');
-  const key=m.an.C.x.toFixed(3)+m.an.C.y.toFixed(3)+m.an.C.z.toFixed(3)+'|'+m.an.r.toFixed(3)+'|'+m.te.toFixed(3);if(done.has(key))return null;done.add(key);
+/* Açıklaması olmayan dairesel kenar (ör. kama kanallı delik, diş dibi yayı): çember kenarın ve komşusunun köşelerinden bulunur */
+function fitCircleEdge(all,e){
+  const u=vn(vs(e.b,e.a));
+  for(const o of all){if(o===e)continue;
+    for(const [p,q] of [[o.a,o.b],[o.b,o.a]]){if(!(vl(vs(p,e.a))<1e-4||vl(vs(p,e.b))<1e-4))continue;
+      const w=vn(vs(q,p));const ang=Math.acos(Math.min(1,Math.abs(vd(u,w))))*180/Math.PI;if(!(ang>0.3&&ang<30))continue;
+      // üç noktadan geçen çember
+      const a=e.a,b=e.b,c=q;const ab=vs(b,a),ac=vs(c,a),n=vc(ab,ac),nn=vd(n,n);if(nn<1e-14)continue;
+      const C=va(a,vk(va(vk(vc(n,ab),vd(ac,ac)),vk(vc(ac,n),vd(ab,ab))),1/(2*nn)));
+      return {C,A:vn(n),r:vl(vs(a,C))};
+    }}
+  return null;
+}
+/* Kenarın üzerinde bulunduğu çemberde, kenardan başlayarak uç uca bağlı kenarların kapladığı açı aralığı (tam daire: null) */
+function circleSpan(all,e,C,A,r,B3,X3){
+  const tol=Math.max(2e-3,r*2e-3);const loc=p=>{const w=vs(p,C);const t=vd(w,A);const q=vs(w,vk(A,t));return {t,r:vl(q),ang:Math.atan2(vd(q,X3),vd(q,B3))}};
+  const t0=loc(e.a).t;const on=p=>{const l=loc(p);return Math.abs(l.r-r)<tol&&Math.abs(l.t-t0)<tol};
+  const cs=all.filter(g=>g!==e&&on(g.a)&&on(g.b));const near=(p,q)=>vl(vs(p,q))<1e-4;
+  const wrap=d=>{while(d>Math.PI)d-=Math.PI*2;while(d<=-Math.PI)d+=Math.PI*2;return d};
+  let lo=0,hi=wrap(loc(e.b).ang-loc(e.a).ang);let pLo=e.a,pHi=e.b;if(hi<0){lo=hi;hi=0;pLo=e.b;pHi=e.a}
+  const used=new Set([e]);
+  for(const dir of [1,-1]){let cur=dir>0?pHi:pLo,g=0;
+    while(g++<10000&&hi-lo<Math.PI*2-1e-6){const nx=cs.find(x=>!used.has(x)&&(near(x.a,cur)||near(x.b,cur)));if(!nx)break;used.add(nx);
+      const far=near(nx.a,cur)?nx.b:nx.a;const d=wrap(loc(far).ang-loc(cur).ang);if(d*dir<=0)break;
+      if(dir>0)hi+=d;else lo+=d;cur=far}}
+  return hi-lo>=Math.PI*2-1e-3?null:[lo,hi-lo];
+}
+function curvedEdgeBody(e,f,val,anns,done,all){
+  let m=findCircleAnn(anns,e),fit=null;
+  if(!m&&all){fit=fitCircleEdge(all,e);if(fit)m={an:{C:{x:fit.C[0],y:fit.C[1],z:fit.C[2]},r:fit.r},C:fit.C,A:fit.A,te:0}}
+  if(!m)throw new Error('Bu eğrisel kenar tanınamadı. Radyus ve pah yalnızca dairesel kenarlarda (delik ağzı, silindir kenarı) çalışır.');
   const {C,A,te}=m,r0=m.an.r;
+  // döndürme açısı kenarın bir köşesinden başlar: araç gövdenin 64 parçalı yüzeyleriyle aynı açılara oturur, yüzeyler gereksiz bölünmez
+  const wa=vs(e.a,C),ra=vs(wa,vk(A,vd(wa,A)));const hp=Math.abs(A[0])<0.9?[1,0,0]:[0,1,0];const B3=vl(ra)>1e-9?vn(ra):vn(vc(A,hp));const X3=vc(A,B3);
+  // tam daire olmayan kısa yay (diş dibi gibi): kesici yalnızca kenar zincirinin kapladığı açıda döner. Yarım daireden geniş yayda
+  // (kama kanallı delik, düzlemi açılmış mil) tam döner: önce pah sonra kanal açılmış gibi, kanal köşesinde artık kalmaz
+  let span=fit?circleSpan(all,e,C,A,r0,B3,X3):null;if(span&&span[1]>Math.PI)span=null;
+  const key=m.an.C.x.toFixed(3)+m.an.C.y.toFixed(3)+m.an.C.z.toFixed(3)+'|'+m.an.r.toFixed(3)+'|'+m.te.toFixed(3)+(span?'|'+vd(va(C,va(vk(B3,Math.cos(span[0])*r0),vk(X3,Math.sin(span[0])*r0))),[1,1.1,1.2]).toFixed(3):'');if(done.has(key))return null;done.add(key);
   const nA=pn(e.pa),nB=pn(e.pb);
   const planar=Math.abs(vd(nA,A))>0.99?e.pa:(Math.abs(vd(nB,A))>0.99?e.pb:null);
   if(!planar)throw new Error('Bu dairesel kenarın bir tarafı eksene dik düz bir yüzey olmalı.');
@@ -989,10 +1029,8 @@ function curvedEdgeBody(e,f,val,anns,done){
     const d=val;sec=[P(sr*d-w2[0]*eps,-w2[1]*eps),P(-(w1[0]+w2[0])*eps,-(w1[1]+w2[1])*eps),P(-w1[0]*eps,st*d-w1[1]*eps),P(0,st*d),P(sr*d,0)];
   }
   const pts2=sec.map(([rho,tau])=>[Math.max(0,r0+rho),te+tau]);
-  // döndürme açısı kenarın bir köşesinden başlar: araç gövdenin 64 parçalı yüzeyleriyle aynı açılara oturur, yüzeyler gereksiz bölünmez
-  const wa=vs(e.a,C),ra=vs(wa,vk(A,vd(wa,A)));const hp=Math.abs(A[0])<0.9?[1,0,0]:[0,1,0];const B3=vl(ra)>1e-9?vn(ra):vn(vc(A,hp));const X3=vc(A,B3);
   const M=new T.Matrix4().makeBasis(v3(X3),v3(A),v3(B3)).setPosition(v3(C));
-  return {convex,polys:revolveLoop(pts2,0,Math.PI*2,M,f.id)};
+  return {convex,polys:span?revolveLoop(pts2,span[0],span[1],M,f.id):revolveLoop(pts2,0,Math.PI*2,M,f.id)};
 }
 
 /* ============ Delik Sihirbazı ============ */

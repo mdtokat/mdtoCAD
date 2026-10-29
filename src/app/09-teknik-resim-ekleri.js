@@ -88,7 +88,7 @@ function detailsMarkup(S,ctx,s){
     // kesit görünüşünden alınan detayda tarama, eksen çizgileri de detaya taşınır
     if(v.d.secPolys.length&&S.section&&S.section!=='none')for(const q of hatchSegs(v.d.secPolys,{map:mp},dwSrc().kind==='asm')){const c=clipSegCircle(q[0],q[1],q[2],q[3],dt.pos[0],dt.pos[1],R2);if(c)hat+=Lp(c[0],c[1],c[2],c[3])}
     if(S.centers){const cl=(x1,y1,x2,y2)=>{const c=clipSegCircle(x1,y1,x2,y2,dt.pos[0],dt.pos[1],R2);if(c)cen+=Lp(c[0],c[1],c[2],c[3])};
-      for(const mk of v.d.marks){const [x,y]=mp(mk.a,mk.b);const rr=mk.r*ks+2.5;cl(x-rr,y,x+rr,y);cl(x,y-rr,x,y+rr)}
+      for(const q of markSegs(v.d.marks,mp))cl(...q);
       for(const q of v.d.axes){const A=mp(q[0],q[1]),B=mp(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1;cl(A[0]-dx/l*3,A[1]-dy/l*3,B[0]+dx/l*3,B[1]+dy/l*3)}}
     if(hat)o+=`<path class="d-thin" d="${hat}"/>`;if(hid)o+=`<path class="d-hid" d="${hid}"/>`;if(cen)o+=`<path class="d-cen" d="${cen}"/>`;if(vis)o+=`<path class="d-vis" d="${vis}"/>`;
     o+=`<circle class="d-thin" cx="${f2(dt.pos[0])}" cy="${f2(dt.pos[1])}" r="${f2(R2)}"/><text class="d-t" x="${f2(dt.pos[0])}" y="${f2(dt.pos[1]+R2+6)}" font-size="4" text-anchor="middle">DETAY ${esc(dt.label)} ÖLÇEK ${scaleLabel(ks)}</text>`;

@@ -45,7 +45,7 @@ function partAction(a){
   else if(a==='del'){
     if(project.parts.length<=1){toast('Projede en az bir parça kalmalı.');return}
     if(partUsed(state.id)){toast('Bu parça bir montajda kullanılıyor. Önce montajdan çıkar.');return}
-    const gone=state,idx=project.parts.indexOf(gone);project.parts.splice(idx,1);switchPart(project.parts[Math.max(0,idx-1)].id);
+    verSnapNow(`“${state.partName}” silinmeden önce`);const gone=state,idx=project.parts.indexOf(gone);project.parts.splice(idx,1);switchPart(project.parts[Math.max(0,idx-1)].id);
     hist.undo.push({op:'undelete',part:gone,idx});updUndo();
     toast(`“${gone.partName}” projeden silindi.`,{label:'Geri al',fn:undoStep()});
   }
@@ -364,7 +364,7 @@ function renderAsmTree(){
 function asmTreeClick(e){
   const aa=e.target.closest('[data-aa]');
   // açık panel, montaj değişmeden önce kendi montajında kapatılır (yoksa önizleme/geçmiş diğer montaja uygulanırdı)
-  if(aa){closeAsmPM(true,true);if(aa.dataset.aa==='new')newAsm();else{const a=curAsm();if(!a)return;const i=project.asms.indexOf(a);project.asms.splice(i,1);project.cur.asm=project.asms[0]?project.asms[0].id:null;asmUI.sel=null;asmChanged();toast(`“${a.name}” silindi.`,{label:'Geri al',fn:()=>{project.asms.splice(i,0,a);project.cur.asm=a.id;asmChanged()}})}return}
+  if(aa){closeAsmPM(true,true);if(aa.dataset.aa==='new')newAsm();else{const a=curAsm();if(!a)return;verSnapNow(`“${a.name}” silinmeden önce`);const i=project.asms.indexOf(a);project.asms.splice(i,1);project.cur.asm=project.asms[0]?project.asms[0].id:null;asmUI.sel=null;asmChanged();toast(`“${a.name}” silindi.`,{label:'Geri al',fn:()=>{project.asms.splice(i,0,a);project.cur.asm=a.id;asmChanged()}})}return}
   const ap=e.target.closest('[data-addp]');if(ap){if(!curAsm()){newAsm()}addComp(ap.dataset.addp);return}
   const ct=e.target.closest('[data-comp]');
   if(ct){const id=ct.dataset.comp;const b=e.target.closest('[data-ca]');const c=compById(id);if(!c)return;

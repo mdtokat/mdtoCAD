@@ -531,9 +531,14 @@ function sysBuild(sk,extraCons){
   const un=d=>{const l=Math.hypot(d[0],d[1])||1e-12;return [d[0]/l,d[1]/l]};
   const lpd=(X,e,p)=>{const ax=gx(X,e.a),ay=gy(X,e.a),dx=gx(X,e.b)-ax,dy=gy(X,e.b)-ay,l=Math.hypot(dx,dy)||1e-12;return ((gx(X,p)-ax)*dy-(gy(X,p)-ay)*dx)/l};
   const dpp=(X,p,q)=>Math.hypot(gx(X,q)-gx(X,p),gy(X,q)-gy(X,p));
-  const fs=[];
+  // own[k]: k. artığı üreten kısıt (yayın eşit yarıçapları için null); çelişki tespitinde kullanılır
+  const fs=[],own=[];const mark=c=>{while(own.length<fs.length)own.push(c)};
   for(const e of sk.ents)if(e.t==='arc')fs.push(X=>Math.hypot(gx(X,e.a)-gx(X,e.c),gy(X,e.a)-gy(X,e.c))-Math.hypot(gx(X,e.b)-gx(X,e.c),gy(X,e.b)-gy(X,e.c)));
+  mark(null);
   for(const c of cons){
+    mark(null);
+    // referans (güdümlü) ölçü geometriyi sürmez, yalnızca ölçülen değeri gösterir
+    if(c.driven)continue;
     const e=c.e?E[c.e]:null,e1=c.e1?E[c.e1]:null,e2=c.e2?E[c.e2]:null;
     if((c.e&&!e)||(c.e1&&!e1)||(c.e2&&!e2))continue;
     if(CPK.some(k=>c[k]&&c[k]!=='O'&&!sk.pts[c[k]]))continue;
@@ -577,10 +582,11 @@ function sysBuild(sk,extraCons){
         fs.push(X=>gx(X,c.q)-rp(X)[0],X=>gy(X,c.q)-rp(X)[1]);break}
       case 'dang':fs.push(X=>{let a=un(dir(X,e1)),b=un(dir(X,e2));if(c.r1)a=[-a[0],-a[1]];if(c.r2)b=[-b[0],-b[1]];return AK*(Math.atan2(Math.abs(a[0]*b[1]-a[1]*b[0]),a[0]*b[0]+a[1]*b[1])-c.val*Math.PI/180)});break;
     }
+    mark(c);
   }
   const write=X=>{for(const id in pIdx){sk.pts[id].x=X[pIdx[id]];sk.pts[id].y=X[pIdx[id]+1]}for(const id in rIdx){E[id].r=X[rIdx[id]]}};
   const res=X=>fs.map(f=>f(X));
-  return {X0,fs,res,write,pIdx,rIdx,fixed,gx,gy,n:X0.length};
+  return {X0,fs,own,res,write,pIdx,rIdx,fixed,gx,gy,n:X0.length};
 }
 function linSolve(A,b){
   const n=b.length;const M=A.map((r,i)=>{const q=r.slice();q.push(b[i]);return q});
@@ -626,29 +632,6 @@ function lm(fun,X,iters,rtol){
   }
   return {x,cost,r};
 }
-/* targets: [{p,x,y}] veya [{e,r}] — sürükleme hedefleri (yumuşak) */
-function solveSketch(sk,targets){
-  const S=sysBuild(sk);
-  if(!S.n)return S.fs.every(f=>Math.abs(f([]))<1e-6);
-  let X=S.X0.slice();const X0=S.X0;
-  const soft=[],tgt=new Set();
-  if(targets&&targets.length){
-    for(const t of targets){
-      if(t.p!==undefined&&S.pIdx[t.p]!==undefined){const i=S.pIdx[t.p];tgt.add(i).add(i+1);soft.push(X=>(X[i]-t.x)*0.5,X=>(X[i+1]-t.y)*0.5)}
-      if(t.e!==undefined&&S.rIdx[t.e]!==undefined){const i=S.rIdx[t.e];tgt.add(i);soft.push(X=>(X[i]-t.r)*0.5)}
-    }
-  }
-  // en az hareket: önce her değişkeni bulunduğu yerde tutan zayıf terimlerle çözülür. Tam tanımlanmamış çizimde
-  // etkisi küçük koordinatlar (ör. eğik çizginin uçları) aksi hâlde büyük adımlarla kayıp şekli ters çevirebilir.
-  if(soft.length||S.res(X).some(v=>Math.abs(v)>1e-9)){
-    for(let i=0;i<X.length;i++)if(!tgt.has(i))soft.push(X=>(X[i]-X0[i])*0.01);
-    X=lm(X=>S.res(X).concat(soft.map(f=>f(X))),X,60,1e-4).x;
-  }
-  const r=lm(S.res,X,120);
-  const mx=r.r?r.r.reduce((m,v)=>Math.max(m,Math.abs(v)),0):0;
-  if(mx<2e-6){S.write(r.x);return true}
-  return false;
-}
 function rrefInfo(J,n){
   const m=J.length;const A=J.map(r=>r.slice());let rank=0;const piv=[];
   let scale=0;for(const r of A)for(const v of r)scale=Math.max(scale,Math.abs(v));const tol=Math.max(1e-9,scale*1e-8);
@@ -661,24 +644,216 @@ function rrefInfo(J,n){
   }
   return {A,rank,piv};
 }
+/* ---- Seyrek çözüm: çizim kısıtlarının her biri birkaç değişkene bağlıdır. Jacobian yalnızca bu bağlarla hesaplanır,
+   birbirine bağlı olmayan değişken grupları (alt sistemler) ayrı ayrı çözülür ve normal denklemler seyrek Cholesky ile çözülür.
+   Böylece 150 noktalı bir çizimde de sürükleme ve ölçü değiştirme anlık kalır. ---- */
+/* her artığın okuduğu değişken indisleri: artık bir kez, okunan indisleri kaydeden vekil diziyle çalıştırılır */
+function resDeps(fs,X){
+  let seen=null;const n=X.length;
+  const P=new Proxy(X,{get(t,k){if(seen&&typeof k==='string'){const i=+k;if(i>=0&&i<n&&Number.isInteger(i))seen.add(i)}return t[k]}});
+  return fs.map(f=>{seen=new Set();try{f(P)}catch(e){}const a=Int32Array.from(seen).sort();seen=null;return a});
+}
+/* değişkenleri artıklarla birbirine bağlı bağımsız alt sistemlere ayırır; free: hiçbir değişkene bağlı olmayan artıklar */
+function sysComps(n,deps){
+  const par=new Int32Array(n);for(let i=0;i<n;i++)par[i]=i;
+  const fd=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i]}return i};
+  for(const d of deps)for(let k=1;k<d.length;k++){const a=fd(d[0]),b=fd(d[k]);if(a!==b)par[a]=b}
+  const at=new Map(),comps=[],free=[];
+  for(let i=0;i<n;i++){const r=fd(i);let c=at.get(r);if(!c){c={vars:[],rows:[]};at.set(r,c);comps.push(c)}c.vars.push(i)}
+  deps.forEach((d,k)=>{if(d.length)at.get(fd(d[0])).rows.push(k);else free.push(k)});
+  return {comps,free};
+}
+/* seyrek Cholesky ile M·x = b (M simetrik pozitif tanımlı). nb[a]: a satırının sıfır olmayan sütunları, mv[a]: değerleri;
+   perm: doldurmayı azaltan sıra, iperm tersi. Pozitif tanımlı değilse null */
+function cholSolve(n,nb,mv,b,perm,iperm){
+  const cI=[],cV=[],rK=[],rV=[];for(let j=0;j<n;j++){cI.push([]);cV.push([]);rK.push([]);rV.push([])}
+  const c=new Float64Array(n),mark=new Int32Array(n).fill(-1),dg=new Float64Array(n);
+  for(let j=0;j<n;j++){
+    const pj=perm[j],nbj=nb[pj],mj=mv[pj],list=[];
+    for(let t=0;t<nbj.length;t++){const i=iperm[nbj[t]];if(i<j)continue;c[i]=mj[t];mark[i]=j;list.push(i)}
+    const rk=rK[j],rv=rV[j];
+    for(let s=0;s<rk.length;s++){const ci=cI[rk[s]],cv=cV[rk[s]],l=rv[s];
+      for(let t=0;t<ci.length;t++){const i=ci[t];if(i<j)continue;if(mark[i]!==j){mark[i]=j;list.push(i);c[i]=0}c[i]-=cv[t]*l}}
+    const d=c[j];if(!(d>1e-28))return null;const s=Math.sqrt(d);dg[j]=s;
+    for(const i of list){if(i===j)continue;const v=c[i];if(v!==0){const l=v/s;cI[j].push(i);cV[j].push(l);rK[i].push(j);rV[i].push(l)}}
+  }
+  const y=new Float64Array(n),x=new Float64Array(n);
+  for(let j=0;j<n;j++){let s=b[perm[j]];const rk=rK[j],rv=rV[j];for(let t=0;t<rk.length;t++)s-=rv[t]*y[rk[t]];y[j]=s/dg[j]}
+  for(let j=n-1;j>=0;j--){let s=y[j];const ci=cI[j],cv=cV[j];for(let t=0;t<ci.length;t++)s-=cv[t]*x[ci[t]];x[j]=s/dg[j]}
+  const out=new Float64Array(n);for(let j=0;j<n;j++)out[perm[j]]=x[j];return out;
+}
+/* Levenberg–Marquardt (lm ile aynı adımlar), yalnızca rows artıkları ve vars değişkenleri üzerinde, seyrek Jacobian ile.
+   X tam değişken dizisidir; döndürülen x de öyledir. r: rows sırasıyla artıklar */
+function lmSys(fs,deps,rows,vars,X,iters,rtol){
+  iters=iters||100;const n=vars.length,m=rows.length;let x=X.slice();
+  const evalR=x=>{const r=new Float64Array(m);for(let i=0;i<m;i++)r[i]=fs[rows[i]](x);return r};
+  const sq=r=>{let s=0;for(let i=0;i<r.length;i++)s+=r[i]*r[i];return s};
+  let r=evalR(x),cost=sq(r),lam=1e-3;
+  if(!n)return {x,cost,r};
+  const loc=new Map();vars.forEach((v,i)=>loc.set(v,i));
+  const dl=rows.map(k=>Int32Array.from(deps[k],v=>loc.get(v)));
+  const col=vars.map(()=>[]);dl.forEach((d,ri)=>{for(let p=0;p<d.length;p++)col[d[p]].push(ri,p)});
+  const Jv=dl.map(d=>new Float64Array(d.length));
+  // J^T·J deseni: satır başına komşular ve her artık için (p,q) çiftinin değer konumu
+  const nbS=vars.map((_,i)=>new Set([i]));for(const d of dl)for(const a of d)for(const b of d)nbS[a].add(b);
+  const nb=nbS.map(s=>Int32Array.from(s).sort());const at=nb.map(a=>{const mp=new Map();a.forEach((v,i)=>mp.set(v,i));return mp});
+  const pp=dl.map(d=>{const o=new Int32Array(d.length*d.length);for(let p=0;p<d.length;p++)for(let q=0;q<d.length;q++)o[p*d.length+q]=at[d[p]].get(d[q]);return o});
+  const dpos=nb.map((a,i)=>at[i].get(i));
+  const av=nb.map(a=>new Float64Array(a.length)),mv=nb.map(a=>new Float64Array(a.length));
+  // az bağlı değişkenler önce (doldurmayı azaltır)
+  const perm=Int32Array.from({length:n},(_,i)=>i).sort((a,b)=>nb[a].length-nb[b].length||a-b);
+  const iperm=new Int32Array(n);for(let j=0;j<n;j++)iperm[perm[j]]=j;
+  const g=new Float64Array(n),ng=new Float64Array(n);
+  for(let it=0;it<iters;it++){
+    if(cost<1e-22)break;
+    for(let j=0;j<n;j++){const v=vars[j],xv=x[v],h=1e-6*(1+Math.abs(xv));x[v]=xv+h;const cj=col[j];for(let t=0;t<cj.length;t+=2){const ri=cj[t];Jv[ri][cj[t+1]]=(fs[rows[ri]](x)-r[ri])/h}x[v]=xv}
+    for(const a of av)a.fill(0);g.fill(0);
+    for(let ri=0;ri<m;ri++){const J=Jv[ri],d=dl[ri],o=pp[ri],rk=r[ri],L=d.length;
+      for(let p=0;p<L;p++){const jp=J[p];if(!jp)continue;const a=av[d[p]];g[d[p]]+=jp*rk;for(let q=0;q<L;q++){const jq=J[q];if(jq)a[o[p*L+q]]+=jp*jq}}}
+    for(let i=0;i<n;i++)ng[i]=-g[i];
+    let ok=false;
+    for(let t=0;t<14;t++){
+      for(let i=0;i<n;i++){mv[i].set(av[i]);mv[i][dpos[i]]+=lam*(av[i][dpos[i]]+1e-6)}
+      const d=cholSolve(n,nb,mv,ng,perm,iperm);if(!d){lam*=10;continue}
+      const xn=x.slice();for(let i=0;i<n;i++)xn[vars[i]]+=d[i];
+      const rn=evalR(xn),cn=sq(rn);
+      if(isFinite(cn)&&cn<cost){x=xn;r=rn;const gain=cost-cn;cost=cn;lam=Math.max(lam/4,1e-12);ok=true;if(gain<1e-24||(rtol&&gain<rtol*cost))it=iters;break}
+      lam*=6;
+    }
+    if(!ok)break;
+  }
+  return {x,cost,r};
+}
+/* son başarısız çözümde sağlanamayan kısıtlar (çelişen ölçüleri işaretlemek için) */
+var SOLVE_INFO={bad:[]};
+/* targets: [{p,x,y}] veya [{e,r}] — sürükleme hedefleri (yumuşak) */
+function solveSketch(sk,targets){
+  const S=sysBuild(sk);SOLVE_INFO.bad=[];
+  const badOf=(rows,r)=>{let mx=0;for(const v of r)mx=Math.max(mx,Math.abs(v));const lim=Math.max(2e-6,mx*0.05);const s=new Set();
+    rows.forEach((k,i)=>{if(Math.abs(r[i])>=lim&&S.own[k])s.add(S.own[k].id)});return [...s]};
+  if(!S.n){const r=S.fs.map(f=>f([]));const ok=r.every(v=>Math.abs(v)<1e-6);if(!ok)SOLVE_INFO.bad=badOf(S.fs.map((_,k)=>k),r);return ok}
+  const X0=S.X0;let X=X0.slice();const deps=resDeps(S.fs,X0);const {comps,free}=sysComps(S.n,deps);
+  // sürükleme hedefleri ve “en az hareket” terimleri tek değişkenlidir: alt sistemleri birbirine bağlamaz
+  const tgt=new Map();
+  if(targets&&targets.length)for(const t of targets){
+    if(t.p!==undefined&&S.pIdx[t.p]!==undefined){const i=S.pIdx[t.p];tgt.set(i,t.x);tgt.set(i+1,t.y)}
+    if(t.e!==undefined&&S.rIdx[t.e]!==undefined)tgt.set(S.rIdx[t.e],t.r);
+  }
+  const F=S.fs.slice(),D=deps.slice();
+  const soft=(i,w,v)=>{F.push(X=>(X[i]-v)*w);D.push(Int32Array.of(i));return F.length-1};
+  let ok=true;const bad=new Set();
+  for(const k of free)if(Math.abs(S.fs[k](X))>=2e-6){ok=false;if(S.own[k])bad.add(S.own[k].id)}
+  for(const c of comps){
+    const hasT=c.vars.some(i=>tgt.has(i));let mx=0;for(const k of c.rows)mx=Math.max(mx,Math.abs(S.fs[k](X)));
+    if(!hasT&&mx<1e-10)continue;
+    // en az hareket: önce her değişkeni bulunduğu yerde tutan zayıf terimlerle çözülür. Tam tanımlanmamış çizimde
+    // etkisi küçük koordinatlar (ör. eğik çizginin uçları) aksi hâlde büyük adımlarla kayıp şekli ters çevirebilir.
+    if(hasT||mx>1e-9){const rows=c.rows.slice();for(const i of c.vars)rows.push(tgt.has(i)?soft(i,0.5,tgt.get(i)):soft(i,0.01,X0[i]));
+      X=lmSys(F,D,rows,c.vars,X,60,1e-4).x}
+    const r=lmSys(S.fs,deps,c.rows,c.vars,X,120);X=r.x;
+    let e=0;for(const v of r.r)e=Math.max(e,Math.abs(v));
+    if(!(e<2e-6)){ok=false;for(const id of badOf(c.rows,r.r))bad.add(id)}
+  }
+  if(ok){S.write(X);return true}
+  SOLVE_INFO.bad=[...bad];return false;
+}
+/* sayısal (merkezi farklı) seyrek Jacobian satırları: {i: değişken indisleri, v: türevler} */
+function jacRows(fs,deps,X){
+  const Xp=X.slice();
+  return fs.map((f,k)=>{const d=deps[k],v=new Float64Array(d.length);
+    for(let t=0;t<d.length;t++){const j=d[t],h=1e-5*(1+Math.abs(X[j]));Xp[j]=X[j]+h;const a=f(Xp);Xp[j]=X[j]-h;const b=f(Xp);Xp[j]=X[j];v[t]=(a-b)/(2*h)}
+    return {i:d,v}});
+}
+/* Artımlı satır tabanı (basamak biçimi): eklenen satır öncekilerle indirgenir; kalan sıfır değilse bağımsızdır.
+   Her taban satırı önceki pivotlarda sıfırdır. track: taban satırlarının özgün satırlar cinsinden katsayıları tutulur
+   (bağımlı satırı oluşturan kısıtları, yani çelişenleri bulmak için) */
+function basisNew(n,track){return {n,rows:[],piv:[],co:track?[]:null,scale:0,r:new Float64Array(n)}}
+const basisTol=B=>Math.max(1e-9,B.scale*1e-8);
+function basisLoad(B,row){const r=B.r;r.fill(0);for(let t=0;t<row.i.length;t++)r[row.i[t]]=row.v[t];return r}
+function basisReduce(B,r,co){
+  for(let i=0;i<B.rows.length;i++){const p=B.piv[i],f=r[p];if(f===0)continue;const b=B.rows[i];
+    for(let t=0;t<b.i.length;t++)r[b.i[t]]-=f*b.v[t];r[p]=0;
+    if(co)for(const [k,x] of B.co[i])co.set(k,(co.get(k)||0)-f*x)}
+}
+/* satırı ekler; bağımsızsa true. co: satırın katsayıları (izleniyorsa; eklenmezse indirgenmiş hâli kalır) */
+function basisAdd(B,row,co){
+  for(let t=0;t<row.v.length;t++)B.scale=Math.max(B.scale,Math.abs(row.v[t]));
+  const r=basisLoad(B,row);basisReduce(B,r,co);
+  let mx=0,p=-1;for(let k=0;k<B.n;k++){const a=Math.abs(r[k]);if(a>mx){mx=a;p=k}}
+  if(mx<basisTol(B))return false;
+  const pv=r[p],cut=mx*1e-13,I=[],V=[];for(let k=0;k<B.n;k++){const v=r[k];if(v!==0&&Math.abs(v)>cut){I.push(k);V.push(v/pv)}}
+  B.rows.push({i:Int32Array.from(I),v:Float64Array.from(V)});B.piv.push(p);
+  if(co){const m=new Map();for(const [k,x] of co)m.set(k,x/pv);B.co.push(m)}
+  return true;
+}
+function basisTrunc(B,len,scale){B.rows.length=len;B.piv.length=len;if(B.co)B.co.length=len;B.scale=scale}
+/* belirlenmiş değişkenler: hiçbir sıfır uzayı vektöründe yer almayanlar (rrefInfo ile aynı ölçüt) */
+function basisDet(B){
+  const n=B.n,isP=new Uint8Array(n);for(const p of B.piv)isP[p]=1;
+  const det=new Array(n).fill(true);const free=[];for(let k=0;k<n;k++)if(!isP[k]){free.push(k);det[k]=false}
+  const x=new Float64Array(n);
+  for(const f of free){x.fill(0);x[f]=1;
+    for(let i=B.rows.length-1;i>=0;i--){const b=B.rows[i],p=B.piv[i];let s=0;for(let t=0;t<b.i.length;t++){const k=b.i[t];if(k!==p)s+=b.v[t]*x[k]}x[p]=-s;if(Math.abs(s)>1e-7)det[p]=false}}
+  return det;
+}
+function sysBasis(S,track){
+  const deps=resDeps(S.fs,S.X0);const J=jacRows(S.fs,deps,S.X0);const B=basisNew(S.n,track);
+  for(const row of J)for(let t=0;t<row.v.length;t++)B.scale=Math.max(B.scale,Math.abs(row.v[t]));
+  return {B,J,deps};
+}
 function analyzeSketch(sk){
   const S=sysBuild(sk);const n=S.n;
   if(!n)return {dof:0,ptDef:()=>true,rDef:()=>true};
-  const r0=S.res(S.X0);let rank=0,det=new Array(n).fill(false);
-  if(r0.length){
-    const J=numJacC(S.res,S.X0);const R=rrefInfo(J,n);rank=R.rank;
-    const isP=new Set(R.piv);const free=[];for(let c=0;c<n;c++)if(!isP.has(c))free.push(c);
-    det=new Array(n).fill(true);
-    for(const f of free){det[f]=false;R.piv.forEach((pc,row)=>{if(Math.abs(R.A[row][f])>1e-7)det[pc]=false})}
-  }
+  let rank=0,det=new Array(n).fill(false);
+  if(S.fs.length){const {B,J}=sysBasis(S);for(const row of J)basisAdd(B,row);rank=B.rows.length;det=basisDet(B)}
   return {dof:n-rank,
     ptDef:id=>id==='O'||S.fixed.has(id)||(S.pIdx[id]!==undefined&&det[S.pIdx[id]]&&det[S.pIdx[id]+1]),
     rDef:id=>S.rIdx[id]===undefined||det[S.rIdx[id]]};
 }
 function sketchRank(sk,extra){
-  const S=sysBuild(sk,extra);if(!S.n)return 0;const r0=S.res(S.X0);if(!r0.length)return 0;
-  return rrefInfo(numJacC(S.res,S.X0),S.n).rank;
+  const S=sysBuild(sk,extra);if(!S.n||!S.fs.length)return 0;
+  const {B,J}=sysBasis(S);for(const row of J)basisAdd(B,row);return B.rows.length;
 }
+/* extra kısıtları çizimi aşırı tanımlıyor mu? (en az bir satırı mevcut kısıtlarca zaten belirleniyorsa)
+   {over, add: yeni bağımsız satır sayısı, rows: extra satır sayısı, ids: onu belirleyen (çelişen) mevcut kısıtların kimlikleri} */
+function sketchConflict(sk,extra){
+  const S=sysBuild(sk,extra);const nr=S.fs.length;
+  const isX=k=>!!S.own[k]&&extra.includes(S.own[k]);
+  const xs=[];for(let k=0;k<nr;k++)if(isX(k))xs.push(k);
+  if(!S.n){const ids=[];return {over:xs.length>0,add:0,rows:xs.length,ids}}
+  const {B,J}=sysBasis(S,true);
+  for(let k=0;k<nr;k++)if(!isX(k))basisAdd(B,J[k],new Map([[k,1]]));
+  const ids=new Set();let add=0;
+  for(const k of xs){const co=new Map([[k,1]]);if(basisAdd(B,J[k],co)){add++;continue}
+    let mx=0;for(const [t,x] of co)if(t!==k)mx=Math.max(mx,Math.abs(x));
+    for(const [t,x] of co)if(t!==k&&Math.abs(x)>mx*1e-6&&Math.abs(x)>1e-9&&S.own[t]&&!isX(t)&&S.own[t].id)ids.add(S.own[t].id)}
+  return {over:add<xs.length,add,rows:xs.length,ids:[...ids]};
+}
+/* çizimin kayıtlı konumunda sağlanmayan kısıtlar (ör. dışarıdan yüklenen çelişkili çizim) */
+function sketchUnsat(sk){
+  const S=sysBuild(sk);const X=S.X0,out=new Set();
+  S.fs.forEach((f,k)=>{let v;try{v=f(X)}catch(e){v=NaN}if(!(Math.abs(v)<1e-6)&&S.own[k]&&S.own[k].id)out.add(S.own[k].id)});
+  return [...out];
+}
+/* ölçünün çizimdeki şu anki değeri (referans ölçüler ve çelişki mesajları için) */
+function dimMeasure(sk,c){
+  const E=entMap(sk);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  const lpd=(e,p)=>{const a=P(e.a),b=P(e.b),q=P(p);const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1e-12;return Math.abs(((q[0]-a[0])*dy-(q[1]-a[1])*dx)/l)};
+  switch(c.t){
+    case 'd':{const a=P(c.p),b=P(c.q);return Math.hypot(b[0]-a[0],b[1]-a[1])}
+    case 'dh':return Math.abs(P(c.q)[0]-P(c.p)[0]);
+    case 'dv':return Math.abs(P(c.q)[1]-P(c.p)[1]);
+    case 'dpl':return lpd(E[c.e],c.p);
+    case 'dll':return lpd(E[c.e1],E[c.e2].a);
+    case 'doff':return E[c.e1].t==='line'?lpd(E[c.e1],E[c.e2].a):Math.abs(curveR(sk,E[c.e2])-curveR(sk,E[c.e1]));
+    case 'ddia':return 2*curveR(sk,E[c.e]);
+    case 'drad':return curveR(sk,E[c.e]);
+    case 'dang':{const d=e=>{const a=P(e.a),b=P(e.b);const l=Math.hypot(b[0]-a[0],b[1]-a[1])||1;return [(b[0]-a[0])/l,(b[1]-a[1])/l]};let a=d(E[c.e1]),b=d(E[c.e2]);if(c.r1)a=[-a[0],-a[1]];if(c.r2)b=[-b[0],-b[1]];return Math.atan2(Math.abs(a[0]*b[1]-a[1]*b[0]),a[0]*b[0]+a[1]*b[1])*180/Math.PI}
+  }
+  return 0;
+}
+/* referans ölçülerin değerlerini geometriden günceller */
+function updateDriven(sk){for(const c of sk.cons)if(c.driven){try{const v=dimMeasure(sk,c);if(isFinite(v))c.val=Math.round(v*1e6)/1e6}catch(e){}}}
 
 /* Otomatik tam tanımlama (SolidWorks "Çizimi Tam Tanımla"): geometriyi oynatmadan,
    mevcut değerlerle ilişki ve ölçü ekleyerek serbestlik derecesini sıfıra indirir.
@@ -686,9 +861,8 @@ function sketchRank(sk,extra){
 function autoDefine(sk,opt){
   const S=sysBuild(sk);const n=S.n;if(!n)return [];
   const X=S.X0;
-  // analyzeSketch ile aynı ölçüt: merkezi farklı Jacobian + rrefInfo rankı
-  const grad=f=>{const Xp=X.slice(),row=new Array(n);for(let j=0;j<n;j++){const h=1e-5*(1+Math.abs(X[j]));Xp[j]=X[j]+h;const a=f(Xp);Xp[j]=X[j]-h;const b=f(Xp);Xp[j]=X[j];row[j]=(a-b)/(2*h)}return row};
-  const J=S.fs.map(grad);let rank=J.length?rrefInfo(J,n).rank:0;
+  // analyzeSketch ile aynı ölçüt: merkezi farklı seyrek Jacobian + artımlı satır tabanı
+  const {B,J}=sysBasis(S);for(const row of J)basisAdd(B,row);let rank=B.rows.length;
   if(rank>=n)return [];
   const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
   const used=new Set();for(const e of sk.ents)for(const k of ['a','b','c'])if(e[k])used.add(e[k]);
@@ -703,9 +877,9 @@ function autoDefine(sk,opt){
   const tryAdd=c=>{
     if(rank>=n)return false;
     const S2=sysBuild(sk,[c]);const fs=S2.fs.slice(S.fs.length);if(!fs.length)return false;
-    const rows=fs.map(grad);const r2=rrefInfo(J.concat(rows),n).rank;
-    if(r2<rank+rows.length)return false;
-    J.push(...rows);rank=r2;c.id=nid();out.push(c);return true;
+    const rows=jacRows(fs,resDeps(fs,X),X);const len=B.rows.length,sc=B.scale;
+    for(const row of rows)if(!basisAdd(B,row)){basisTrunc(B,len,sc);return false}
+    rank=B.rows.length;c.id=nid();out.push(c);return true;
   };
   const lines=sk.ents.filter(e=>e.t==='line'),curves=sk.ents.filter(e=>e.t!=='line');
   const R=e=>curveR(sk,e);

@@ -41,10 +41,10 @@ function fixRevolveAxes(f,orig){
 /* çizimde öğe ve tek başına nokta yok */
 const skEmpty=f=>!f.ents.length&&!Object.values(f.pts).some(p=>p.sp);
 function skData(f){return JSON.stringify({pts:f.pts,ents:f.ents,cons:f.cons})}
-function skPush(){sk.hist.push(skData(sk.feat));if(sk.hist.length>100)sk.hist.shift();sk.redo=[];updUndo()}
+function skPush(){sk.hist.push(skData(sk.feat));clearConf();if(sk.hist.length>100)sk.hist.shift();sk.redo=[];updUndo()}
 function skRestore(s){const o=JSON.parse(s);sk.feat.pts=o.pts;sk.feat.ents=o.ents;sk.feat.cons=o.cons}
 // açık ölçü kutuları ve sürükleme geri alınan duruma ait olabilir: kapatılır (yoksa silinen ölçünün kimliğini alan yeni ölçü değişirdi)
-function skHistReset(){sk.sel=[];sk.st={};sk.drag=null;closeDimPop();closeSkInput()}
+function skHistReset(){sk.sel=[];sk.st={};sk.drag=null;sk.dragTg=null;closeDimPop();closeSkInput();clearConf()}
 function sketchUndo(){if(!sk||!sk.hist.length)return;sk.redo.push(skData(sk.feat));skRestore(sk.hist.pop());skHistReset();skChanged();updUndo()}
 function sketchRedo(){if(!sk||!sk.redo.length)return;sk.hist.push(skData(sk.feat));skRestore(sk.redo.pop());skHistReset();skChanged();updUndo()}
 
@@ -86,7 +86,7 @@ function exitSketch(accept){
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
       if(msg)toast(msg);
       if(!wasNew&&snapshot()===hist.undo[hist.undo.length-1])drop()}}
-  sk=null;closeDimPop();closeSkInput();solidTone();
+  clearConf();sk=null;closeDimPop();closeSkInput();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);setOrtho(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
   cmTab='features';afterChange();
@@ -97,7 +97,7 @@ function exitSketch(accept){
 }
 $('#confirm').addEventListener('click',e=>{const b=e.target.closest('[data-cf]');if(!b)return;exitSketch(b.dataset.cf==='ok')});
 
-function analyze(){try{sk.an=analyzeSketch(sk.feat)}catch(e){sk.an=null}try{sk.issues=skIssues(sk.feat);sk.xpts=skXpts(sk.feat)}catch(e){sk.issues=null;sk.xpts=[]}}
+function analyze(){updateDriven(sk.feat);try{sk.an=analyzeSketch(sk.feat)}catch(e){sk.an=null}try{sk.unsat=sketchUnsat(sk.feat)}catch(e){sk.unsat=[]}sk.ok=!sk.unsat.length;try{sk.issues=skIssues(sk.feat);sk.xpts=skXpts(sk.feat)}catch(e){sk.issues=null;sk.xpts=[]}}
 /* Profil sorunları: boşta uçlar, üçten fazla öğenin birleştiği noktalar, kesişmeler (yapı geometrisi hariç).
    Kesişen ve üst üste binen şekiller bölge çözümüyle birleştiği için profil çıkarılabiliyorsa (ok) yalnızca boşta uçlar bildirilir. */
 function skIssues(f){
@@ -149,7 +149,7 @@ function autoDefineSketch(silent){
   toast(`${nd} ölçü ve ${added.length-nd} ilişki eklendi; çizim tam tanımlı. Ölçüye çift tıklayarak veya soldaki listeden değiştirebilirsin.`,{label:'Geri al',fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
   return added.length;
 }
-function skChanged(){analyze();sk.dirty=true;renderSketchPM();updSbar();renderRibbon()}
+function skChanged(){analyze();sk.dirty=true;renderSketchPM();updSbar();renderRibbon();saveState()}
 function cleanupOrphans(f){
   const ids=new Set(f.ents.map(e=>e.id));
   f.cons=f.cons.filter(c=>!(c.e&&!ids.has(c.e))&&!(c.e1&&!ids.has(c.e1))&&!(c.e2&&!ids.has(c.e2)));
@@ -162,7 +162,7 @@ function cleanupOrphans(f){
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
 function setTool(t){
-  if(!sk)return;endChainIfAny();sk.tool=t;sk.filArc=null;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();closeSkInput();
+  if(!sk)return;endChainIfAny();sk.tool=t;sk.filArc=null;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();closeSkInput();closeConflict();
   renderRibbon();renderSketchPM();sk.dirty=true;updSbar();
 }
 function endChainIfAny(){
@@ -277,6 +277,7 @@ function finishOp(added){
 /* ---------- işaretçi olayları ---------- */
 function skEv(e){const q=skLocalXY(e.clientX,e.clientY);const px=skPx(e.clientX,e.clientY);return {q,px,tol:px*9}}
 function skPointerDown(e){
+  if(confEl)closeConflict();
   if(e.button!==0&&e.pointerType==='mouse')return;
   const {q,tol}=skEv(e);if(!q)return;
   if(!sk.tool){const h=skHit(q,tol);if(h&&!(h.k==='pt'&&h.id==='O')){sk.drag={h,q0:q,moved:false,orig:clone({pts:sk.feat.pts,ents:sk.feat.ents})}}}
@@ -293,7 +294,8 @@ function skPointerMove(e){
       else{const en=f.ents.find(x=>x.id===d.h.id);const op=d.orig.pts;
         if(en.t==='circle'){const c=P2(en.c);tg=[{e:en.id,r:Math.max(px,Math.hypot(q[0]-c[0],q[1]-c[1]))}]}
         else for(const k of ['a','b','c'])if(en[k]&&op[en[k]])tg.push({p:en[k],x:op[en[k]].x+dx,y:op[en[k]].y+dy});}
-      solveSketch(f,tg);sk.dirty=true;
+      // çözüm kare başına bir kez yapılır (flushDrag): hızlı fare hareketinde olay kuyruğu birikmez
+      sk.dragTg=tg;sk.dirty=true;
     }
     return;
   }
@@ -308,8 +310,9 @@ function skPointerMove(e){
   if(sk.tool==='arc'&&sk.st.c&&sk.st.a){const c=P2(sk.st.c);const ang=Math.atan2(q[1]-c[1],q[0]-c[0]);if(sk.st.last!==undefined){let d=ang-sk.st.last;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;sk.st.acc=(sk.st.acc||0)+d}sk.st.last=ang}
   sk.dirty=true;
 }
+function flushDrag(){if(sk&&sk.dragTg){const tg=sk.dragTg;sk.dragTg=null;solveSketch(sk.feat,tg)}}
 function skPointerUp(e,d){
-  const drag=sk.drag;sk.drag=null;
+  flushDrag();const drag=sk.drag;sk.drag=null;
   // sürükleyerek budama yapıldıysa bırakılan yerde ayrıca tıklama budaması yapılmaz
   const pt=sk.ptrim;sk.ptrim=null;if(pt&&pt.n){sk.dirty=true;return}
   if(drag&&drag.moved){if(drag.h.k==='pt'){const ev=skEv(e);if(ev.q)dropPoint(drag.h.id,ev.tol)}skChanged();return}
@@ -529,22 +532,7 @@ function sketchFillet(pid){
 }
 
 /* ---------- akıllı ölçülendirme ---------- */
-function measure(c){
-  const f=sk?sk.feat:null;const E=entMap(f);const P=P2;
-  const lpd=(e,p)=>{const a=P(e.a),b=P(e.b),q=P(p);const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1e-12;return Math.abs(((q[0]-a[0])*dy-(q[1]-a[1])*dx)/l)};
-  switch(c.t){
-    case 'd':{const a=P(c.p),b=P(c.q);return Math.hypot(b[0]-a[0],b[1]-a[1])}
-    case 'dh':return Math.abs(P(c.q)[0]-P(c.p)[0]);
-    case 'dv':return Math.abs(P(c.q)[1]-P(c.p)[1]);
-    case 'dpl':return lpd(E[c.e],c.p);
-    case 'dll':return lpd(E[c.e1],E[c.e2].a);
-    case 'doff':return E[c.e1].t==='line'?lpd(E[c.e1],E[c.e2].a):Math.abs(curveR(f,E[c.e2])-curveR(f,E[c.e1]));
-    case 'ddia':return 2*curveR(f,E[c.e]);
-    case 'drad':return curveR(f,E[c.e]);
-    case 'dang':{const d=e=>{const a=P(e.a),b=P(e.b);const l=Math.hypot(b[0]-a[0],b[1]-a[1])||1;return [(b[0]-a[0])/l,(b[1]-a[1])/l]};let a=d(E[c.e1]),b=d(E[c.e2]);if(c.r1)a=[-a[0],-a[1]];if(c.r2)b=[-b[0],-b[1]];return Math.atan2(Math.abs(a[0]*b[1]-a[1]*b[0]),a[0]*b[0]+a[1]*b[1])*180/Math.PI}
-  }
-  return 0;
-}
+function measure(c){return dimMeasure(sk.feat,c)}
 function lineIntersect(e1,e2){const a=P2(e1.a),b=P2(e1.b),c=P2(e2.a),d=P2(e2.b);const r=[b[0]-a[0],b[1]-a[1]],s=[d[0]-c[0],d[1]-c[1]];const den=r[0]*s[1]-r[1]*s[0];if(Math.abs(den)<1e-12)return null;const t=((c[0]-a[0])*s[1]-(c[1]-a[1])*s[0])/den;return [a[0]+r[0]*t,a[1]+r[1]*t]}
 function dimCandidate(q){
   const st=sk.st,f=sk.feat,E=entMap(f);const picks=st.picks||[];if(!picks.length)return null;
@@ -589,8 +577,9 @@ function skDimClick(q,px,tol){
   delete c.line;c.lp=[q[0],q[1]];c.val=measure(c);
   const f=sk.feat;
   if(c.val<1e-9&&c.t!=='dang'){toast('Sıfır uzunlukta ölçü verilemez.');st.picks=[];return}
-  const r0=sketchRank(f),r1=sketchRank(f,[c]);
-  if(r1<=r0){toast('Bu ölçü çizimi aşırı tanımlar. Önce çakışan ilişkiyi veya ölçüyü sil.');st.picks=[];sk.dirty=true;return}
+  // çizimi aşırı tanımlayan ölçü eklenmez: onu zaten belirleyen ölçü/ilişkiler sarı gösterilir, referans ölçü seçeneği sunulur
+  const cf=sketchConflict(f,[c]);
+  if(cf.over){st.picks=[];c.val=Math.round(c.val*1e4)/1e4;openConflict(c,cf);return}
   skPush();c.id=newId(f,'c');c.val=Math.round(c.val*1e4)/1e4;f.cons.push(c);solveSketch(f);
   st.picks=[];skChanged();
   requestAnimationFrame(()=>openDimPop(c.id));
@@ -600,21 +589,45 @@ function skDimClick(q,px,tol){
 let dimPopEl=null;
 function closeDimPop(){if(dimPopEl){dimPopEl.remove();dimPopEl=null}}
 function openDimPop(cid){
-  closeDimPop();if(!sk)return;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
+  closeDimPop();if(!sk||confEl)return;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
+  if(c.driven){toast('Bu bir referans ölçü: değeri geometriden gelir.',{label:'Sürücü yap',fn:()=>setDriven(cid,false)});return}
   const s=skToScreen(c.lp[0],c.lp[1]);const el=document.createElement('div');el.className='pop';
   el.innerHTML=`<input inputmode="decimal" value="${String(Math.round(c.val*1e4)/1e4).replace('.',',')}" aria-label="Ölçü değeri" title="Dört işlem kullanılabilir, ör. 800/2 veya 5+(20+2)*3"><button class="ok" aria-label="Uygula">${IC.ok}</button><button aria-label="Kapat">${IC.x}</button>`;
   const r=vpEl.getBoundingClientRect();el.style.left=Math.max(4,Math.min(r.width-180,s[0]+10))+'px';el.style.top=Math.max(4,Math.min(r.height-50,s[1]+10))+'px';
   vpEl.appendChild(el);dimPopEl=el;const inp=el.querySelector('input');inp.focus();inp.select();
-  const apply=()=>{const v=num(inp.value);if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){inp.style.borderColor='var(--warn)';return}setDimVal(c.id,v);closeDimPop()};
+  const apply=()=>{const v=num(inp.value);if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){inp.style.borderColor='var(--warn)';return}
+    if(Math.abs(v-c.val)<1e-12||setDimVal(c.id,v)){closeDimPop();return}if(!dimPopEl){openDimPop(c.id);if(dimPopEl){const i=dimPopEl.querySelector('input');i.value=String(v).replace('.',',');i.style.borderColor='var(--warn)';i.select()}}else{inp.style.borderColor='var(--warn)';inp.select()}};
   el.querySelector('.ok').onclick=apply;el.querySelectorAll('button')[1].onclick=closeDimPop;
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();apply()}if(e.key==='Escape'){e.stopPropagation();closeDimPop()}});
 }
+/* çizgi yönleri ve yay açıklıkları: ölçü değişikliğinde şeklin ters dönüp dönmediğini anlamak için */
+function skShape(f){const o={};for(const e of f.ents){if(e.t==='line'){const a=skP(f,e.a),b=skP(f,e.b);o[e.id]=[b.x-a.x,b.y-a.y]}else if(e.t==='arc')o[e.id]=arcInfo(f,e).sw}return o}
+function skFlipped(A,B){for(const id in A){const a=A[id],b=B[id];if(b===undefined)continue;
+  if(Array.isArray(a)){if(Math.hypot(...a)>1e-9&&Math.hypot(...b)>1e-9&&a[0]*b[0]+a[1]*b[1]<0)return true}else if(Math.abs(a-b)>Math.PI/2)return true}return false}
+/* ölçü değeri değiştirilir; çözülemiyorsa değer kademeli olarak yaklaştırılır (büyük değişikliklerde şekil ters dönmesin, çözüm bulunsun).
+   Yine çözülemiyorsa eski değer kalır, çelişen ölçü ve ilişkiler sarı gösterilir. false: değer uygulanamadı */
 function setDimVal(cid,v){
-  const f=sk.feat;const c=f.cons.find(x=>x.id===cid);if(!c)return;skPush();const old=c.val;c.val=v;
-  if(!solveSketch(f)){c.val=old;solveSketch(f);sk.hist.pop();toast('Çizim bu değerle çözülemiyor.')}
+  const f=sk.feat;const c=f.cons.find(x=>x.id===cid);if(!c)return false;
+  if(c.driven){toast('Bu bir referans ölçü: değeri geometriden gelir. Değiştirmek için önce sürücü ölçü yap.',{label:'Sürücü yap',fn:()=>setDriven(cid,false)});return false}
+  skPush();const old=c.val;c.val=v;const shape0=skShape(f);
+  let ok=solveSketch(f);
+  // doğrudan çözüm şekli ters çevirdiyse (çizgi yön değiştirdi, yay diğer tarafa geçti) kademeli çözüm denenir
+  const direct=ok&&skFlipped(shape0,skShape(f))?skData(f):null;
+  if(!ok||direct){const snap=sk.hist[sk.hist.length-1];let good=false;
+    for(const n of [4,16]){skRestore(snap);const c2=f.cons.find(x=>x.id===cid);let k=true;
+      for(let i=1;i<=n&&k;i++){c2.val=old+(v-old)*i/n;k=solveSketch(f)}
+      if(k&&!(direct&&skFlipped(shape0,skShape(f)))){good=true;break}}
+    if(good)ok=true;else if(direct){skRestore(direct);ok=true}else ok=false}
+  if(!ok){
+    const bad=SOLVE_INFO.bad.filter(id=>id!==cid);skRestore(sk.hist.pop());updUndo();skChanged();
+    setConf([cid,...bad]);
+    const c0=f.cons.find(x=>x.id===cid);
+    toast(`${dimText(Object.assign({},c0,{val:v}))} uygulanamadı: ${bad.length?'sarı işaretli ölçü ve ilişkilerle çelişiyor':'çizim bu değerle çözülemiyor'}. Değer ${dimText(c0)} olarak kaldı.`);
+    return false;
+  }
   // yeni çizimde ilk (tek) ölçü girilince görünüm çizimin gerçek boyutuna göre ayarlanır
-  else if(sk.isNew&&f.cons.filter(x=>DIMT.has(x.t)).length===1)fitSketch();
-  skChanged();
+  if(sk.isNew&&f.cons.filter(x=>DIMT.has(x.t)&&!x.driven).length===1)fitSketch();
+  skChanged();return true;
 }
 /* çizim öğelerinin yerel sınır kutusu (orijin dahil) */
 function skBox(f){let x0=0,y0=0,x1=0,y1=0;for(const e of f.ents)for(const p of tessEnt(f,e,36)){if(p[0]<x0)x0=p[0];if(p[0]>x1)x1=p[0];if(p[1]<y0)y0=p[1];if(p[1]>y1)y1=p[1]}return {x0,y0,x1,y1}}
@@ -647,7 +660,7 @@ function placeLabels(){
 }
 
 /* ---------- çizim görüntüsü ---------- */
-function skColors(){const d=isDark();return {def:d?0xE8EDF2:0x10151C,und:d?0x6FA8FF:0x1A64E0,sel:0xF08A1A,hov:0xF0A845,prev:d?0x9CC3FF:0x3A7BE8,origin:0xD0453A,snap:0xF08A1A,ref:d?0xC79BF2:REFCOL}}
+function skColors(){const d=isDark();return {def:d?0xE8EDF2:0x10151C,und:d?0x6FA8FF:0x1A64E0,conf:d?0xFFD23F:0xD9A400,drv:d?0x8E99A6:0x6B7682,sel:0xF08A1A,hov:0xF0A845,prev:d?0x9CC3FF:0x3A7BE8,origin:0xD0453A,snap:0xF08A1A,ref:d?0xC79BF2:REFCOL}}
 const hex=c=>new T.Color(c);
 function dimGeo(f,c,px){
   const E=entMap(f);const P=id=>{const p=skP(f,id);return [p.x,p.y]};const segs=[];
@@ -704,12 +717,13 @@ function relAnchors(f,c,px){
 function entColor(e,C){
   const s=sk.sel.some(x=>x.k==='ent'&&x.id===e.id);if(s)return C.sel;if(sk.hover==='ent:'+e.id)return C.hov;
   if(e.ref)return C.ref;
+  if(sk.confEnts&&sk.confEnts.has(e.id))return C.conf;
   const a=sk.an;if(!a)return C.und;
   const def=e.t==='line'?a.ptDef(e.a)&&a.ptDef(e.b):e.t==='circle'?a.ptDef(e.c)&&a.rDef(e.id):a.ptDef(e.c)&&a.ptDef(e.a)&&a.ptDef(e.b);
   return def?C.def:C.und;
 }
 function renderSketch(){
-  if(!sk)return;
+  if(!sk)return;updateDriven(sk.feat);
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose()}
   const f=sk.feat,C=skColors();const r=vpEl.getBoundingClientRect();
   const px=skPx(r.left+r.width/2,r.top+r.height/2);sk.px=px;
@@ -729,16 +743,19 @@ function renderSketch(){
   const labels=[];
   for(const c of f.cons){
     if(DIMT.has(c.t)){
-      const g=dimGeo(f,c,px);const s=sk.sel.some(x=>x.k==='con'&&x.id===c.id)||sk.hl===c.id;const col=s?C.sel:C.def;
+      const g=dimGeo(f,c,px);const s=sk.sel.some(x=>x.k==='con'&&x.id===c.id)||sk.hl===c.id;const cf=isConf(c.id);const col=s?C.sel:cf?C.conf:c.driven?C.drv:C.def;
       for(const q of g.segs)pushSeg(sol,solC,[q[0],q[1]],[q[2],q[3]],col);
-      labels.push({x:c.lp[0],y:c.lp[1],cls:'dlab'+(s?' sel':''),cid:c.id,html:esc(g.text)});
+      labels.push({x:c.lp[0],y:c.lp[1],cls:'dlab'+(s?' sel':cf?' conf':'')+(c.driven?' drv':''),cid:c.id,html:esc(c.driven?'('+g.text+')':g.text)});
     }else if(sk.opts.rels||sk.sel.length){
       const s=sk.sel.some(x=>x.k==='con'&&x.id===c.id);
       const involved=sk.sel.some(x=>(x.k==='ent'&&(c.e===x.id||c.e1===x.id||c.e2===x.id))||(x.k==='pt'&&(c.p===x.id||c.q===x.id)));
-      if((!sk.opts.rels||quietRel(f,c))&&!involved&&!s)continue;
-      for(const a of relAnchors(f,c,px))labels.push({x:a[0],y:a[1],cls:'rlab'+(s?' sel':''),cid:c.id,html:esc((REL[c.t]||['',''])[1])});
+      const cf=isConf(c.id);
+      if((!sk.opts.rels||quietRel(f,c))&&!involved&&!s&&!cf)continue;
+      for(const a of relAnchors(f,c,px))labels.push({x:a[0],y:a[1],cls:'rlab'+(s?' sel':cf?' conf':''),cid:c.id,html:esc((REL[c.t]||['',''])[1])});
     }
   }
+  // eklenmek istenen ve çelişen ölçü (çelişki penceresi açıkken)
+  if(sk.confPend){const c=sk.confPend;const g=dimGeo(f,c,px);for(const q2 of g.segs)pushSeg(sol,solC,[q2[0],q2[1]],[q2[2],q2[3]],C.conf);labels.push({x:c.lp[0],y:c.lp[1],cls:'dlab conf pend',cid:'',html:esc(g.text)})}
   // araç önizlemesi
   const st=sk.st,q=sk.cursor;
   if(q&&sk.tool&&sk.tool!=='smartdim'&&sk.tool!=='sfillet'){
@@ -828,7 +845,7 @@ function renderSketchDisplays(){
 /* ---------- çizim PropertyManager ---------- */
 function itemName(h){
   if(h.k==='pt')return h.id==='O'?'Orijin':(sk.feat.pts[h.id]&&sk.feat.pts[h.id].sp?'Çizim noktası':'Nokta');
-  if(h.k==='con'){const c=sk.feat.cons.find(x=>x.id===h.id);if(!c)return '?';return DIMT.has(c.t)?'Ölçü '+fmt(c.val,3):(REL[c.t]||[c.t])[0]}
+  if(h.k==='con'){const c=sk.feat.cons.find(x=>x.id===h.id);if(!c)return '?';return DIMT.has(c.t)?(c.driven?'Referans ölçü ('+fmt(c.val,3)+')':'Ölçü '+fmt(c.val,3)):(REL[c.t]||[c.t])[0]}
   const e=sk.feat.ents.find(x=>x.id===h.id);if(!e)return '?';if(e.ref)return e.t==='line'?'Referans kenar':e.t==='circle'?'Referans daire':'Referans yay';return e.t==='line'?(e.cons?'Merkez/yapı çizgisi':'Çizgi'):e.t==='circle'?(e.cons?'Yapı dairesi':'Daire'):'Yay';
 }
 function selGroups(){
@@ -855,8 +872,9 @@ function renderSketchPM(){
   const el=$('#pm');if(!sk)return;const f=sk.feat;
   const dof=sk.an?sk.an.dof:null;
   const stc=sk.ok===false?'over':(dof===0?'full':'under');
-  const stt=stc==='over'?'Çözülemedi (aşırı tanımlı)':(dof===0?'Tam tanımlı':`Tam tanımlanmamış (${dof} serbestlik derecesi)`);
+  const stt=stc==='over'?'Aşırı tanımlı: çelişen ölçü/ilişkiler var':(dof===0?'Tam tanımlı':`Tam tanımlanmamış (${dof} serbestlik derecesi)`);
   let b=`<div class="grp"><div class="stat ${stc}"><i></i>${stt}</div><p class="note" style="margin-top:6px">Mavi öğeler henüz tanımlanmamış, siyahlar tam tanımlı. Ölçü ve ilişki ekleyerek çizimi tam tanımla.</p></div>`;
+  if(sk.unsat&&sk.unsat.length)b+=`<div class="grp"><p class="note confnote">Sarı işaretli ${sk.unsat.length} ölçü/ilişki birbiriyle çelişiyor ve aynı anda sağlanamıyor. Birini sil, değerini değiştir veya referans ölçü yap.</p></div>`;
   if(sk.issues&&sk.issues.n&&showIssues())b+=`<div class="grp"><p class="note warnnote">${esc(issueText(sk.issues)+' '+issueHint(sk.issues))}</p></div>`;
   if(sk.op)b+=skOpBody();
   if(sk.tool){
@@ -874,14 +892,15 @@ function renderSketchPM(){
     const av=availRels();
     if(av.length)b+=grp('İlişki ekle',`<div class="relbtns">${av.map(t=>`<button data-rel="${t}"><b>${esc(REL[t][1])}</b>${esc(REL[t][0])}</button>`).join('')}</div>`);
     let ops=`<div class="relbtns">`;if(Ls.length||Cs.length)ops+=`<button data-skop="cons">${IC.construction.replace('<svg','<svg width="14" height="14"')} Yapı geometrisi</button>`;
-    if(Cn.length===1){const c=f.cons.find(x=>x.id===Cn[0]);if(c&&DIMT.has(c.t))ops+=`<button data-skop="editdim">Değeri düzenle</button>`}
+    if(Cn.length===1){const c=f.cons.find(x=>x.id===Cn[0]);if(c&&DIMT.has(c.t)){if(!c.driven)ops+=`<button data-skop="editdim">Değeri düzenle</button>`;if(c.t!=='doff')ops+=`<button data-skop="drv">${c.driven?'Sürücü ölçü yap':'Referans ölçü yap'}</button>`}}
     ops+=`<button data-skop="del" class="danger">Sil</button></div>`;b+=grp('İşlemler',ops);
   }else if(!sk.tool){
     b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Çizim düzleme dik ve perspektifsiz (2B) görünür. Fare: orta veya sağ tuş kaydır, tekerlek yakınlaştır, F ekrana sığdır. Bir öğeye çift tıklamak bağlı zinciri seçer. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p><p class="note">Arkadaki modelin bir kenarına veya başka bir çizimin öğesine tıklayınca o kenar referans olarak (mor, kesikli) seçilir; çizdiğin öğelerle birlikte seçip çakışık, paralel, teğet gibi ilişkiler ver ya da ölçülendir. Kullanılmayan referanslar çizimden çıkınca silinir.</p>`);
   }
   const dims=f.cons.filter(c=>DIMT.has(c.t));
   const dnm=dims.map(dimName),dup=n=>dnm.filter(x=>x===n).length>1;
-  if(dims.length)b+=grp(`Ölçüler (${dims.length})`,`<div class="dimlist">${dims.map((c,i)=>`<label class="dimrow${sk.sel.some(h=>h.k==='con'&&h.id===c.id)||sk.hl===c.id?' on':''}" data-dimrow="${c.id}" title="${esc(dnm[i]+' – '+dimWhere(c))}"><span>${esc(dnm[i])}${dup(dnm[i])?` <small>${esc(dimWhere(c))}</small>`:''}</span><input inputmode="decimal" autocomplete="off" data-dimin="${c.id}" value="${esc(String(Math.round(c.val*1e4)/1e4).replace('.',','))}"><em>${c.t==='dang'?'°':'mm'}</em></label>`).join('')}</div><p class="note">Değeri yazıp Enter'a bas; çizim yeni ölçüye göre güncellenir. Satırın üzerine gelince ölçü çizimde turuncu görünür.</p>`);
+  const hasDrv=dims.some(c=>c.driven);
+  if(dims.length)b+=grp(`Ölçüler (${dims.length})`,`<div class="dimlist">${dims.map((c,i)=>`<label class="dimrow${sk.sel.some(h=>h.k==='con'&&h.id===c.id)||sk.hl===c.id?' on':''}${isConf(c.id)?' conf':''}${c.driven?' drv':''}" data-dimrow="${c.id}" title="${esc(dnm[i]+' – '+dimWhere(c)+(c.driven?' (referans ölçü)':''))}"><span>${esc(dnm[i])}${dup(dnm[i])?` <small>${esc(dimWhere(c))}</small>`:''}</span>${c.driven?`<input readonly tabindex="-1" aria-label="Referans ölçü" value="(${esc(fmt(c.val,3))})">`:`<input inputmode="decimal" autocomplete="off" data-dimin="${c.id}" value="${esc(String(Math.round(c.val*1e4)/1e4).replace('.',','))}">`}<em>${c.t==='dang'?'°':'mm'}</em>${c.t!=='doff'?`<button type="button" class="drvbtn" data-drv="${c.id}" title="${c.driven?'Sürücü ölçü yap':'Referans ölçü yap (geometriyi sürmez)'}" aria-label="${c.driven?'Sürücü ölçü yap':'Referans ölçü yap'}">${c.driven?'↺':'( )'}</button>`:''}</label>`).join('')}</div><p class="note">Değeri yazıp Enter'a bas; çizim yeni ölçüye göre güncellenir. Satırın üzerine gelince ölçü çizimde turuncu görünür.${hasDrv?' Parantez içindeki referans ölçüler geometriyi sürmez, değerleri çizimden gelir.':''}</p>`);
   else if(f.ents.length)b+=grp('Ölçüler',`<p class="note">Bu çizimde ölçü yok. Şeritten <b>Tam Tanımla</b> ile ölçüleri otomatik ekle veya Akıllı Ölçülendirme ile kendin ver.</p>`);
   b+=grp('Seçenekler',`<label class="chk"><input type="checkbox" data-opt="grid" ${sk.opts.grid?'checked':''}> Izgaraya yakala</label><label class="chk"><input type="checkbox" data-opt="rels" ${sk.opts.rels?'checked':''}> İlişki simgelerini göster</label><label class="chk"><input type="checkbox" data-opt="autodef" ${autoDefOn()?'checked':''}> Çizime girerken ve çıkarken eksik ölçüleri otomatik ekle</label>`);
   el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${esc(f.name)}</div><div class="pm-sub">Çizim düzenleniyor</div></div><div class="pm-actions"><button class="ok" data-skx="ok" title="Çizimden çık" aria-label="Çizimden çık">${IC.ok}</button><button data-skx="cancel" title="Değişiklikleri at" aria-label="Değişiklikleri at">${IC.x}</button></div></div><div class="pm-body">${b}</div>`;
@@ -892,7 +911,8 @@ function skPmClick(e){
   const u=e.target.closest('[data-unsel]');if(u){sk.sel.splice(+u.dataset.unsel,1);skChanged();return}
   const dc=e.target.closest('[data-delcon]');if(dc){skPush();sk.feat.cons=sk.feat.cons.filter(c=>c.id!==dc.dataset.delcon);solveSketch(sk.feat);skChanged();return}
   const r=e.target.closest('[data-rel]');if(r){addRelation(r.dataset.rel);return}
-  const o=e.target.closest('[data-skop]');if(o){const k=o.dataset.skop;if(k==='cons')toggleConstruction();else if(k==='del')deleteSel();else if(k==='editdim'){const h=sk.sel.find(h=>h.k==='con');if(h)openDimPop(h.id)}}
+  const dv=e.target.closest('[data-drv]');if(dv){e.preventDefault();const c=sk.feat.cons.find(x=>x.id===dv.dataset.drv);if(c)setDriven(c.id,!c.driven);return}
+  const o=e.target.closest('[data-skop]');if(o){const k=o.dataset.skop;if(k==='cons')toggleConstruction();else if(k==='del')deleteSel();else if(k==='editdim'){const h=sk.sel.find(h=>h.k==='con');if(h)openDimPop(h.id)}else if(k==='drv'){const h=sk.sel.find(h=>h.k==='con');const c=h&&sk.feat.cons.find(x=>x.id===h.id);if(c)setDriven(c.id,!c.driven)}}
 }
 /* Ölçüler listesinde satırın üzerine gelince veya odaklanınca ölçüyü çizimde vurgula */
 function setDimHl(cid){if(!sk||sk.hl===cid)return;sk.hl=cid;sk.dirty=true;$$('#pm .dimrow').forEach(r=>r.classList.toggle('on',r.dataset.dimrow===cid||sk.sel.some(h=>h.k==='con'&&h.id===r.dataset.dimrow)))}
@@ -901,7 +921,7 @@ for(const [ev,on] of [['mouseover',1],['focusin',1],['mouseout',0],['focusout',0
 function skPmInput(e){if(skOpInput(e))return;const t=e.target;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.opts[t.dataset.k]=v;sk.dirty=true}}
 function skPmChange(e){
   if(skOpInput(e))return;const t=e.target;
-  if(t.dataset.dimin){const v=num(t.value);const c=sk.feat.cons.find(x=>x.id===t.dataset.dimin);if(!c)return;if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){t.classList.add('bad');return}if(Math.abs(v-c.val)>1e-9)setDimVal(c.id,v);return}
+  if(t.dataset.dimin){const v=num(t.value);const c=sk.feat.cons.find(x=>x.id===t.dataset.dimin);if(!c)return;if(!(isFinite(v)&&(v>0||(c.t==='dang'&&v>=0)))){t.classList.add('bad');return}if(Math.abs(v-c.val)>1e-9&&!setDimVal(c.id,v)){const t2=$(`#pm [data-dimin="${c.id}"]`);if(t2){t2.value=String(v).replace('.',',');t2.classList.add('bad')}}return}
   if(t.dataset.opt==='autodef'){setAutoDef(t.checked);if(t.checked)autoDefineSketch(true);return}
   if(t.dataset.opt){sk.opts[t.dataset.opt]=t.checked;sk.dirty=true}
 }
@@ -956,10 +976,13 @@ function addRelation(t){
   else if(t==='fix'){const ps=new Set(P);for(const e of [...Ls,...Cs])for(const k of ['a','b','c'])if(e[k])ps.add(e[k]);ps.delete('O');for(const p of ps)if(!f.cons.some(c=>c.t==='fix'&&c.p===p))add({t:'fix',p})}
   // aşırı tanımlama denetimi
   if(news.length&&t!=='fix'){
-    const base=f.cons.filter(c=>!news.includes(c));const tmp={...f,cons:base};const r0=sketchRank(tmp);const r1=sketchRank(f);
-    if(r1===r0){skRestore(sk.hist.pop());toast('Bu ilişki çizimi aşırı tanımlar veya zaten mevcut.');skChanged();return}
+    const base=f.cons.filter(c=>!news.includes(c));const tmp={...f,cons:base};const cf=sketchConflict(tmp,news);
+    if(cf.add===0){skRestore(sk.hist.pop());updUndo();skChanged();
+      if(cf.ids.length){setConf(cf.ids,news);toast(`${(REL[t]||[t])[0]} ilişkisi çizimi aşırı tanımlar: sarı işaretli ${cf.ids.length} ölçü/ilişki bunu zaten belirliyor. Gerekirse önce birini sil veya ölçüyü referans yap.`)}
+      else toast('Bu ilişki zaten mevcut.');return}
   }
-  if(!solveSketch(f)){skRestore(sk.hist.pop());toast('İlişki uygulanamadı: çizim çözülemiyor.');skChanged();return}
+  if(!solveSketch(f)){const bad=SOLVE_INFO.bad.filter(id=>!news.some(c=>c.id===id));skRestore(sk.hist.pop());updUndo();skChanged();setConf(bad,news);
+    toast(`${(REL[t]||[t])[0]} ilişkisi uygulanamadı: ${bad.length?'sarı işaretli ölçü ve ilişkilerle çelişiyor':'çizim çözülemiyor'}.`);return}
   sk.sel=[];skChanged();
 }
 function deleteSel(){

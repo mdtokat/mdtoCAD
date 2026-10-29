@@ -25,7 +25,8 @@ export async function openApp(page, { keep = false } = {}) {
   // keep: her test kendi kökeninde (file:// deposu tarayıcı bağlamları arasında paylaşılır; kapanan sayfanın kaydı karışmasın)
   const url = keep ? `http://tz-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.test/index.html` : APP_URL;
   if (keep) await page.route(url, route => route.fulfill({ body: readFileSync(fileURLToPath(APP_URL), 'utf8'), contentType: 'text/html' }));
-  else await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+  // otomatik kayıt: tarayıcı deposu ve veritabanı yedeği (sürümler) temizlenir
+  else await page.addInitScript(() => { try { localStorage.clear(); indexedDB.deleteDatabase('tocad'); } catch (e) {} });
   await page.goto(url);
   await page.waitForFunction(() => window.__tz && window.__tz.model && window.__tz.model.polys.length > 0);
   return errors;

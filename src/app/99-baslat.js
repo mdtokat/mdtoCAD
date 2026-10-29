@@ -33,6 +33,8 @@ function showProject(o){
 function setProject(o,msg){
   if(sk)exitSketch(true);closePM(true);cancelPick();closeAsmPM(true,true);
   const prev=JSON.stringify(project,cleanR),old=project;
+  // yerine geçecek proje açılmadan önce şu anki proje sürüm olarak saklanır (Dosya → Önceki sürümler)
+  verSnap(prev,Date.now(),'Başka proje açılmadan önce');
   try{showProject(normProject(o))}
   catch(err){try{showProject(old)}catch(e){}throw err}
   // geçmişler kimlikle tutulur: aynı dosyayı yeniden açınca eski adımlar yeni projeye uygulanmasın
@@ -43,7 +45,9 @@ menu.addEventListener('click',e=>{
   const b=e.target.closest('[data-m]');if(!b)return;menu.classList.remove('on');const m=b.dataset.m;
   if(m==='new')setProject(emptyProject(),'Yeni proje açıldı. Bir düzlem seçip Çizim ile başla.');
   if(m==='demo')setProject(demoProject(),'Örnek proje yüklendi: 3 parça ve 1 montaj.');
-  if(m==='save')saveFile(fileSafe(state.partName)+'-proje.tocad.json',JSON.stringify({app:'tocad',...project,version:3},cleanR));
+  if(m==='save')saveProjectFile(false);
+  if(m==='saveas')saveProjectFile(true);
+  if(m==='versions')openRecovery();
   if(m==='open'||m==='importpart'){fileMode=m;$('#fileInput').accept=m==='open'?'.json,application/json':'.json,.stl,application/json';$('#fileInput').click()}
   if(m==='exportpart')saveFile(fileSafe(state.partName)+'.parca.json',JSON.stringify({app:'tocad',kind:'part',version:3,part:state},cleanR));
   if(m==='stlpart')exportPartSTL();
@@ -93,16 +97,20 @@ document.addEventListener('keydown',e=>{
   const ae=document.activeElement;const typing=ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName);
   if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}
   if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}
+  // Ctrl+S: projeyi dosyaya kaydet (Ctrl+Shift+S: farklı kaydet)
+  if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='s'){e.preventDefault();if(typing)ae.blur();saveProjectFile(e.shiftKey);return}
   if(e.key==='Escape'){
     menu.classList.remove('on');
     if(askOpen()){closeAsk();return}
     if($('#pdfDlg').classList.contains('on')){closePdfDialog();return}
     if(settingsOpen()){closeSettings();return}
+    if(confEl){closeConflict();return}
     if(dimPopEl){closeDimPop();return}
     if(skInEl){closeSkInput();return}
     if(meas){closeMeasure();return}
     if(activeTab==='drawing'){if(dwTool){setDwTool(null);return}if(dimMode){if(dimSt.stage!==0){dimSt={stage:0,p1:null,p2:null};updateDimTip();drawOverlay(null)}else setDimMode(false)}else if(dwSel)dwSelect(null);return}
     if(activeTab==='asm'){if(asmUI.pm){closeAsmPM();return}if(asmUI.tool){asmCmd(asmUI.tool==='move'?'amove':'arotate');return}if(asmUI.sel){asmUI.sel=null;asmHighlight();renderAsmTree()}return}
+    if(sk&&(sk.conf||sk.confEnts)){clearConf();renderSketchPM();return}
     if(sk){const busy=Object.keys(sk.st).some(k=>sk.st[k]&&!(Array.isArray(sk.st[k])&&!sk.st[k].length));if(busy){endChainIfAny();sk.dirty=true}else if(sk.tool)setTool(null);else if(sk.sel.length){sk.sel=[];skChanged()}return}
     if(pickMode){cancelPick();renderTree();return}
     if(pm){closePM();return}
@@ -140,4 +148,5 @@ catch(err){console.error(err);try{const s=localStorage.getItem(LS_KEY);if(s)loca
 updUndo();applyDisplay();
 fitCamera(VIEWDIRS.iso,false);
 loop();
-window.__tz={get state(){return state},SETTINGS,setSetting,setProfile,openSettings,RB_CACHE,get camera(){return camera},get camBusy(){return !!camAnim},controls,refAt,extPick,parseScale,fitCamera,previewMate,openPatPM,commitPat,applyPats,hatchStyles,solidMesh,previewGroup,get project(){return project},get asmUI(){return asmUI},get asmView(){return asmView},sketchesGroup,get shown(){return shown},curAsm,solveAsm,pickEdge,click3D,openHolePM,openMeasure,get meas(){return meas},setSkOp,applySkOp,trimAt,setExplode,openExplodePM,openInterfPM,openAsmDrawing,dwSrc,asmDof,openMatePM,addComp,asmPick,setMateType,commitMate,exportAsmSTL,stlBinary,makeZip,parseSTL,importSTL,switchPart,model,get sk(){return sk},get pm(){return pm},cmd,startSketch,editSketch,exitSketch,autoDefine,setTool,toolClick:(x,y)=>toolClick([x,y],sk.px||0.3,(sk.px||0.3)*9),openSkInput,applySkInput,sketchProfiles,sketchFaces,regionClick,setTab,openPM,commitPM,getCtx:()=>dctx,dwS:()=>dwS(),renderDrawing,dimClick,setDimMode,setDwTool,dwToolClick,dwSelect,dwDeleteSel,dwHitAt,dwDragMove,dwDragEnd,exportDXFString,buildDXF,get dwSel(){return dwSel},get dimSt(){return dimSt},openPdfDialog,makePdf,buildPdf,svgToPdfOps,build3DPage,buildSheet,pdfOpt,solveSketch,analyzeSketch,setDimVal,addRelation,selectItems:(a)=>{sk.sel=a;skChanged()},rebuildModel,scr:(x,y)=>{camera.updateMatrixWorld();const s=skToScreen(x,y);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]},scrW:(p)=>{camera.updateMatrixWorld();const s=toScreen(p);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]}};
+recoverCheck();
+window.__tz={get state(){return state},SETTINGS,setSetting,setProfile,openSettings,RB_CACHE,get camera(){return camera},get camBusy(){return !!camAnim},controls,refAt,extPick,parseScale,fitCamera,previewMate,openPatPM,commitPat,applyPats,hatchStyles,solidMesh,previewGroup,get project(){return project},get asmUI(){return asmUI},get asmView(){return asmView},sketchesGroup,get shown(){return shown},curAsm,solveAsm,pickEdge,click3D,openHolePM,openMeasure,get meas(){return meas},setSkOp,applySkOp,trimAt,setExplode,openExplodePM,openInterfPM,openAsmDrawing,dwSrc,asmDof,openMatePM,addComp,asmPick,setMateType,commitMate,exportAsmSTL,stlBinary,makeZip,parseSTL,importSTL,switchPart,model,get sk(){return sk},get pm(){return pm},cmd,startSketch,editSketch,exitSketch,autoDefine,setTool,toolClick:(x,y)=>toolClick([x,y],sk.px||0.3,(sk.px||0.3)*9),openSkInput,applySkInput,sketchProfiles,sketchFaces,regionClick,setTab,openPM,commitPM,getCtx:()=>dctx,dwS:()=>dwS(),renderDrawing,dimClick,setDimMode,setDwTool,dwToolClick,dwSelect,dwDeleteSel,dwHitAt,dwDragMove,dwDragEnd,exportDXFString,buildDXF,get dwSel(){return dwSel},get dimSt(){return dimSt},openPdfDialog,makePdf,buildPdf,svgToPdfOps,build3DPage,buildSheet,pdfOpt,solveSketch,analyzeSketch,sketchConflict,sketchUnsat,SOLVE_INFO,setDriven,get confEl(){return confEl},setDimVal,addRelation,selectItems:(a)=>{sk.sel=a;skChanged()},rebuildModel,writeState,flushState,openRecovery,verSnapNow,recoverCheck,idbDo,saveProjectFile,get lsOk(){return lsOk},scr:(x,y)=>{camera.updateMatrixWorld();const s=skToScreen(x,y);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]},scrW:(p)=>{camera.updateMatrixWorld();const s=toScreen(p);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]}};

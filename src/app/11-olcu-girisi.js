@@ -32,7 +32,7 @@ function openSkInput(first){
   return true;
 }
 /* ölçüyü yalnızca çizimi aşırı tanımlamıyorsa ekler */
-function addDrivingDim(c){const f=sk.feat;if(!(sketchRank(f,[c])>sketchRank(f)))return false;c.id=newId(f,'c');c.val=Math.round(c.val*1e4)/1e4;f.cons.push(c);return true}
+function addDrivingDim(c){const f=sk.feat;if(sketchConflict(f,[c]).over){sk.skippedDims=(sk.skippedDims||0)+1;return false}c.id=newId(f,'c');c.val=Math.round(c.val*1e4)/1e4;f.cons.push(c);return true}
 function applySkInput(v){
   if(!sk||!sk.tool)return;
   // yazılan değer ızgaraya yuvarlanmasın (ör. 30° açılı çizginin ucu)
@@ -72,6 +72,8 @@ function applySkInput0(v){
     const e=f.ents.slice(n0).find(x=>x.t==='circle');
     if(e)addDrivingDim({t:'ddia',e:e.id,val:v.D,lp:[C[0]+(v.D/2+px*24)*Math.SQRT1_2,C[1]+(v.D/2+px*24)*Math.SQRT1_2]});
   }
+  const sd=sk.skippedDims||0;sk.skippedDims=0;
+  if(sd)toast(sd===1?'Yazılan ölçülerden biri eklenmedi: o boyut mevcut ölçü/ilişkilerle zaten belirleniyor.':`Yazılan ${sd} ölçü eklenmedi: mevcut ölçü/ilişkilerle zaten belirleniyor.`);
   if(f.ents.length>n0){solveSketch(f);skChanged();if(sk.isNew&&f.cons.filter(x=>DIMT.has(x.t)).length<=2)fitSketch()}
 }
 TOOLHELP.line+=' İlk noktadan sonra rakam yazarsan uzunluk (ve istersen açı) girilir; uzunluk ölçü olarak eklenir.';

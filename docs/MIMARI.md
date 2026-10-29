@@ -17,13 +17,13 @@ Uygulama modülleri tek bir `(function(){ ... })()` kapsamında birleşir. Çeki
 | Bölüm | İçerik |
 |---|---|
 | Vektör yardımcıları | `va, vs, vk, vd, vc, vl, vn` (dizi tabanlı 3B vektör), `num()` (virgül/nokta, dört işlem ve parantez: `800/2`, `5+(20+2)*3`) |
-| CSG | csg.js yaklaşımıyla BSP ağacı: `Vec`, `Plane`, `Poly`, `BSP`, `csgUnion`, `csgSubtract`. Gövdeler `Poly` dizileridir; `poly.shared` onu oluşturan özelliğin kimliğidir (seçim ve kesit için). Gövdenin araç kutusuna değmeyen çokgenleri (`splitByBox`) kırpılmaz ve sonuca bölünmeden geçer; aracın çokgenleri tüm gövdenin BSP'siyle sınıflandırılır |
+| CSG | csg.js yaklaşımıyla BSP ağacı: `Vec`, `Plane`, `Poly`, `BSP`, `csgUnion`, `csgSubtract`. Gövdeler dışbükey `Poly` dizileridir; `poly.shared` onu oluşturan özelliğin kimliğidir (seçim ve kesit için). Gövdenin araç kutusuna değmeyen çokgenleri (`splitByBox`) kırpılmaz ve sonuca bölünmeden geçer; aracın çokgenleri (kendi BSP'sinde bölünmeden) tüm gövdenin BSP'siyle sınıflandırılır. Bölünen çokgenin bütün parçaları kalırsa `rejoin` çokgenin kendisini geri koyar; `mergeCoplanar` aynı düzlemdeki komşu çokgenleri dışbükey kaldıkça birleştirir. `Plane.split` önce çokgenin sınır küresine (`bsphere`) bakar |
 | Çerçeveler | Standart düzlemler `STD.front/top/right` (u, v, n eksenleri, u×v=n), `faceFrame`, `frameMatrix` |
 | Çizim geometrisi | `sketchProfiles(sk, regions)`: profil şekilleri (dış kontur + delikler). `skArrangement` öğeleri kesişim ve dokunma noktalarında böler (`entIntersect`), düzlemsel grafın yüzlerini (bölgeler) bulur; `skContours` kapalı konturları çıkarır, birbirini kesen konturlar bir grup olur ve bir bölgeyi çevreleyen grup sayısı tekse bölge malzemedir. `sketchRegionShapes` malzeme bölgelerinin sınırlarını izler, `sketchFaces` arayüzde seçim için bölgeleri verir. `thinProfiles` İnce özellik için zincirleri gönye birleşimli şeritlere çevirir |
 | Kısıt çözücü | `sysBuild` (değişkenler: nokta x,y ve daire yarıçapları; artıklar: ilişkiler ve ölçüler), Levenberg–Marquardt `lm`, `solveSketch` (sürükleme hedefleriyle iki aşamalı), `analyzeSketch` (Jacobian rütbesi → serbestlik derecesi ve tanımlı öğeler), `sketchRank` (aşırı tanımlama denetimi), `autoDefine` (otomatik tam tanımlama: aday ilişki/ölçüleri öncelik sırasıyla dener, rankı artıranları ekler; `placeDimLabels` etiketleri çakışmayacak yere koyar). Ofset (`doff`/`offd`) ve çizim çoğaltma (`tr`/`rot`) da kısıt olarak çözülür |
 | Özellik gövdeleri | `extrudeTool`, `revolveTool`/`revolveLoop` (kısmi açı ve kapaklar), `holeTool`/`holeSpec` (ISO tabloları `HOLE_STD`), `edgeOpBodies` + `curvedEdgeBody` (radyus/pah), `patternMatrices` |
 | Kenarlar | `computeEdges(polys, D, detail)`: aynı doğru üzerindeki kenarları gruplar, T-birleşimlerini aralıklara bölerek çözer; özellik kenarı (açı > 20°) ve görünüşe bağlı siluet kenarlarını döndürür |
-| Yeniden oluşturma | `rebuildModel(features, upto)`: özellik listesini baştan hesaplar; `{polys, ann, errors, frames, caps, tools}` döndürür |
+| Yeniden oluşturma | `rebuildModel(features, upto)`: özellik listesini hesaplar; `{polys, ann, errors, frames, caps, tools}` döndürür. `RB_CACHE` her özellikten sonraki ara durumu, o özelliğe kadarki ağacın hash zinciriyle saklar; eşleşen en uzun baştaki kısım atlanır (bütçe çokgen sayısıyla, en eskisi atılır; `rbCacheSet`, `rbCacheClear`). `CURVE_SEG` tam dairenin parça sayısıdır (daire, yay, döndürme, delik, dairesel radyus) ve önbellek anahtarına girer |
 
 ### Özellik ağacının hesaplanması
 
@@ -42,6 +42,7 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 
 | Dosya | Sorumluluk |
 |---|---|
+| `00-ayarlar.js` | Performans ve grafik ayarları (`SETTINGS`, `localStorage` anahtarı `tocad-ayarlar-v1`), profiller, Ayarlar penceresi, akıllı ekran yenileme (`requestRender`, `shouldRender`). Diğer modüllerden önce yüklenir: görüntüleyici ve çekirdek ayarları ilk hesaptan önce uygulanır |
 | `01-temel.js` | Yardımcılar, ikonlar, sabitler (malzemeler, kağıtlar), örnek özellikler, proje durumu ve kaydetme (`localStorage`, anahtar `tezgah-cad-v3`), geçmiş, three.js sahnesi, kamera, `rebuild()`, 3B seçim |
 | `02-ozellikler.js` | FeatureManager ağacı, CommandManager şeridi, görünüm araç çubuğu, PropertyManager formları, özellik önizlemesi |
 | `03-cizim.js` | Çizim oturumu (`sk`), araçlar ve yakalama, akıllı ölçülendirme, ölçü düzenleme kutusu, ilişkiler, çizim görüntüsü (3B çizgiler + HTML etiketler) |

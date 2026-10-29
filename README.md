@@ -42,6 +42,9 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - A4–A0, yatay/dikey; ölçek listeden veya elle (ör. 1:2,5, 3:1); antetli, **antetsiz (çerçeveli)**, “parça adı ve ölçek” veya “yalnızca parça” düzenleri (Teknik Resim şeridinde ve PDF penceresinde).
 - PDF (vektörel 2B, ölçekli 3B görüntü), **DXF** (katmanlı, AutoCAD R12), SVG ve PNG çıktısı.
 
+**Ayarlar ve performans**
+- Üst çubuktaki ⚙ ile **Ayarlar**: Kalite / Dengeli / Hızlı profilleri, piksel oranı, kenar yumuşatma, ekran yenileme, eğri çözünürlüğü, yeniden hesaplama önbelleği, önizleme gecikmesi, teknik resim gizli çizgi hassasiyeti; hesap süresi, önbellek ve ekran kartı bilgisi. Ayrıntılar: [docs/PERFORMANS.md](docs/PERFORMANS.md).
+
 ## Hızlı başlangıç
 
 Gereken tek şey [Node.js](https://nodejs.org) 18 veya üstü.

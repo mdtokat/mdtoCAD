@@ -372,9 +372,9 @@ pmEl.addEventListener('change',e=>{
 
 /* önizleme */
 let prevT=0;
-function schedulePreview(ms=120){clearTimeout(prevT);prevT=setTimeout(updatePreview,ms)}
-function clearPreview(){for(const c of [...previewGroup.children]){previewGroup.remove(c);c.traverse(o=>{if(o.geometry)o.geometry.dispose()})}}
-function addPreview(polys,cut){if(!polys.length)return;const {g}=polysToBuffers(polys);previewGroup.add(new T.Mesh(g,cut?matPrevCut:matPrevAdd));previewGroup.add(new T.LineSegments(segGeom(computeEdges(polys,null).filter(e=>e.k===1)),cut?matPrevEdgeC:matPrevEdgeA))}
+function schedulePreview(ms=SETTINGS.previewDelay){clearTimeout(prevT);prevT=setTimeout(updatePreview,ms)}
+function clearPreview(){requestRender();for(const c of [...previewGroup.children]){previewGroup.remove(c);c.traverse(o=>{if(o.geometry)o.geometry.dispose()})}}
+function addPreview(polys,cut){if(!polys.length)return;requestRender();const {g}=polysToBuffers(polys);previewGroup.add(new T.Mesh(g,cut?matPrevCut:matPrevAdd));previewGroup.add(new T.LineSegments(segGeom(computeEdges(polys,null).filter(e=>e.k===1)),cut?matPrevEdgeC:matPrevEdgeA))}
 /* tümünden geçen kesme araçları gövdenin çok ötesine uzanır: önizlemede gövde kutusuna (biraz payla) kırpılır */
 function clipToBody(ps,solid){
   if(!ps.length||!solid||!solid.length)return ps;const b=bboxPolys(solid);const sz=[0,1,2].map(k=>b.max[k]-b.min[k]),pad=Math.max(0.5,Math.max(...sz)*0.02);

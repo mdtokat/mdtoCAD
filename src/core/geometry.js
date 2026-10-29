@@ -47,8 +47,12 @@ class Plane{
   clone(){return new Plane(this.n,this.w)}
   flip(){this.n=this.n.neg();this.w=-this.w}
   split(poly,cf,cb,f,b){
+    // çokgenin sınır küresi düzlemin tek tarafındaysa köşelere bakmadan ayrılır (kırpmadaki testlerin çoğu böyle biter)
+    const n=this.n,nx=n.x,ny=n.y,nz=n.z,w=this.w,s=poly.bs||(poly.bs=bsphere(poly.verts)),dc=nx*s[0]+ny*s[1]+nz*s[2]-w;
+    if(dc>s[3]+CSG_EPS){f.push(poly);return}
+    if(dc<-s[3]-CSG_EPS){b.push(poly);return}
     const vs_=poly.verts,L=vs_.length,types=new Array(L);let pt=0;
-    for(let i=0;i<L;i++){const t=this.n.dot(vs_[i])-this.w;const ty=t<-CSG_EPS?2:(t>CSG_EPS?1:0);pt|=ty;types[i]=ty}
+    for(let i=0;i<L;i++){const v=vs_[i],t=nx*v.x+ny*v.y+nz*v.z-w;const ty=t<-CSG_EPS?2:(t>CSG_EPS?1:0);pt|=ty;types[i]=ty}
     if(pt===0){(this.n.dot(poly.plane.n)>0?cf:cb).push(poly)}
     else if(pt===1)f.push(poly);
     else if(pt===2)b.push(poly);
@@ -60,10 +64,21 @@ class Plane{
         if(ti!==1)B.push(vi);
         if((ti|tj)===3){const t=(this.w-this.n.dot(vi))/this.n.dot(vj.minus(vi));const v=vi.lerp(vj,t);F.push(v);B.push(v)}
       }
-      if(F.length>=3)f.push(new Poly(F,poly.shared,poly.plane.clone()));
-      if(B.length>=3)b.push(new Poly(B,poly.shared,poly.plane.clone()));
+      // parçalar bölünen çokgeni (par) hatırlar: işlem sonunda tüm parçaları kalan çokgen yeniden birleştirilir (rejoin)
+      let k=0;
+      if(F.length>=3){const q=new Poly(F,poly.shared,poly.plane.clone());q.par=poly;f.push(q);k++}
+      if(B.length>=3){const q=new Poly(B,poly.shared,poly.plane.clone());q.par=poly;b.push(q);k++}
+      poly.nk=k;
     }
   }
+}
+/* sınır küresi [x, y, z, r]: kutunun merkezi ve en uzak köşeye uzaklık */
+function bsphere(vs_){
+  let x0=Infinity,y0=Infinity,z0=Infinity,x1=-Infinity,y1=-Infinity,z1=-Infinity;
+  for(const v of vs_){if(v.x<x0)x0=v.x;if(v.x>x1)x1=v.x;if(v.y<y0)y0=v.y;if(v.y>y1)y1=v.y;if(v.z<z0)z0=v.z;if(v.z>z1)z1=v.z}
+  const cx=(x0+x1)/2,cy=(y0+y1)/2,cz=(z0+z1)/2;let r=0;
+  for(const v of vs_){const d=(v.x-cx)*(v.x-cx)+(v.y-cy)*(v.y-cy)+(v.z-cz)*(v.z-cz);if(d>r)r=d}
+  return [cx,cy,cz,Math.sqrt(r)*(1+1e-12)];
 }
 function newell(p){
   let x=0,y=0,z=0;const L=p.length;
@@ -72,8 +87,8 @@ function newell(p){
   const n=new Vec(x/l,y/l,z/l);return new Plane(n,n.dot(p[0]));
 }
 class Poly{
-  constructor(verts,shared,plane){this.verts=verts;this.shared=shared;this.plane=plane||newell(verts)}
-  clone(){return new Poly(this.verts.slice(),this.shared,this.plane.clone())}
+  constructor(verts,shared,plane){this.verts=verts;this.shared=shared;this.plane=plane||newell(verts);this.par=null;this.nk=0;this.bs=null}
+  clone(){const q=new Poly(this.verts.slice(),this.shared,this.plane.clone());q.bs=this.bs;return q}
   flip(){this.verts.reverse();this.plane.flip()}
 }
 class BSP{
@@ -85,6 +100,63 @@ class BSP{
   build(polys){if(!polys.length)return;if(!this.plane)this.plane=polys[0].plane.clone();const f=[],b=[];for(const p of polys)this.plane.split(p,this.polys,this.polys,f,b);if(f.length){if(!this.front)this.front=new BSP();this.front.build(f)}if(b.length){if(!this.back)this.back=new BSP();this.back.build(b)}}
 }
 const clonePolys=ps=>ps.map(p=>p.clone());
+const flipAll=ps=>{for(const p of ps)p.flip();return ps};
+/* CSG sonrası: bir çokgenin bölünen parçalarının hepsi sonuçta kaldıysa parçalar yerine çokgenin kendisi konur (aşağıdan yukarı).
+   BSP düzlemleri gövdeyi gereksiz yere parçalıyordu: her radyus/delik çokgen sayısını katlıyor, sonraki işlemler yavaşlıyordu. */
+function rejoin(list){
+  const res=[],pend=new Map(),st=[];
+  for(const p of list)(p.par?st:res).push(p);
+  while(st.length){
+    const p=st.pop(),P=p.par;let arr=pend.get(P);if(!arr)pend.set(P,arr=[]);arr.push(p);
+    if(arr.length<P.nk)continue;
+    pend.delete(P);const fl=arr[0].plane.n.dot(P.plane.n)<0;
+    if(arr.some(c=>(c.plane.n.dot(P.plane.n)<0)!==fl)){for(const c of arr)res.push(c);continue}
+    const q=new Poly(P.verts.slice(),P.shared,P.plane.clone());if(fl)q.flip();q.par=P.par;(q.par?st:res).push(q);
+  }
+  for(const arr of pend.values())for(const c of arr)res.push(c);
+  for(const p of res)p.par=null;
+  return res;
+}
+/* Aynı düzlemde ve aynı özellikten gelen komşu çokgenler, birleşimleri dışbükey kaldıkça tek çokgende toplanır
+   (üçgenlenmiş kapak tek çokgen, yan yüzeyin iki üçgeni tek dörtgen olur). Çokgen sayısı azaldıkça BSP kurulumu ve kırpma hızlanır. */
+const mvk=v=>Math.round(v.x*1e5)+','+Math.round(v.y*1e5)+','+Math.round(v.z*1e5);
+function mergeCoplanar(ps){
+  if(ps.length<2)return ps;
+  const groups=new Map(),out=[];
+  for(const p of ps){const n=p.plane.n;const k=p.shared+'|'+Math.round(n.x*1e5)+','+Math.round(n.y*1e5)+','+Math.round(n.z*1e5)+','+Math.round(p.plane.w*1e3);
+    let g=groups.get(k);if(!g)groups.set(k,g=[]);g.push(p)}
+  for(const g of groups.values()){
+    if(g.length===1){out.push(g[0]);continue}
+    const n=g[0].plane.n;const loops=g.map(p=>({v:p.verts,k:p.verts.map(mvk),alive:true,p}));
+    const edges=new Map();
+    const reg=L=>{for(let i=0;i<L.k.length;i++)edges.set(L.k[i]+'>'+L.k[(i+1)%L.k.length],L)};
+    loops.forEach(reg);
+    // dışbükey ve basit: her köşede sola dönüş (doğrusal olabilir, geri dönüş olamaz) ve dönüşlerin toplamı tam bir tur
+    const convex=(v)=>{const m=v.length;let tot=0;for(let i=0;i<m;i++){const a=v[(i+m-1)%m],b=v[i],c=v[(i+1)%m];
+      const ex=b.x-a.x,ey=b.y-a.y,ez=b.z-a.z,fx=c.x-b.x,fy=c.y-b.y,fz=c.z-b.z;
+      const t=Math.atan2((ey*fz-ez*fy)*n.x+(ez*fx-ex*fz)*n.y+(ex*fy-ey*fx)*n.z,ex*fx+ey*fy+ez*fz);
+      if(t<-1e-7||t>Math.PI-1e-6)return false;tot+=t}return Math.abs(tot-2*Math.PI)<1e-6};
+    let changed=true;
+    while(changed){changed=false;
+      for(const L of loops){if(!L.alive)continue;
+        for(let i=0;i<L.k.length&&L.alive;i++){
+          const a=L.k[i],b=L.k[(i+1)%L.k.length];const Q=edges.get(b+'>'+a);if(!Q||Q===L||!Q.alive)continue;
+          // L: ...a,b... ; Q: ...b,a...  → b'den a'ya L, a'dan b'ye Q (ortak kenar hariç)
+          const m=L.k.length,q=Q.k.length,j=Q.k.indexOf(a);if(j<0||Q.k[(j+q-1)%q]!==b)continue;
+          const nv=[],nk=[];
+          for(let t=0;t<m;t++){const x=(i+1+t)%m;nv.push(L.v[x]);nk.push(L.k[x]);if(x===i)break}
+          for(let t=1;t<q-1;t++){const x=(j+t)%q;nv.push(Q.v[x]);nk.push(Q.k[x])}
+          if(new Set(nk).size!==nk.length||!convex(nv))continue;
+          for(let t=0;t<L.k.length;t++)edges.delete(L.k[t]+'>'+L.k[(t+1)%L.k.length]);
+          for(let t=0;t<Q.k.length;t++)edges.delete(Q.k[t]+'>'+Q.k[(t+1)%Q.k.length]);
+          Q.alive=false;L.v=nv;L.k=nk;L.p=null;reg(L);changed=true;i=-1;
+        }
+      }
+    }
+    for(const L of loops)if(L.alive){if(L.p)out.push(L.p);else{const pl=newell(L.v);if(pl)out.push(new Poly(L.v,g[0].shared,pl))}}
+  }
+  return out;
+}
 function bboxPolys(ps){
   const mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];
   for(const p of ps)for(const v of p.verts){if(v.x<mn[0])mn[0]=v.x;if(v.y<mn[1])mn[1]=v.y;if(v.z<mn[2])mn[2]=v.z;if(v.x>mx[0])mx[0]=v.x;if(v.y>mx[1])mx[1]=v.y;if(v.z>mx[2])mx[2]=v.z}
@@ -107,17 +179,18 @@ function csgUnion(a,b){
   const bb=bboxPolys(b);if(!boxHit(bboxPolys(a),bb))return a.concat(clonePolys(b));
   const [ai,ao]=splitByBox(a,bb);
   const B=new BSP(clonePolys(b));const ak=B.clipPolygons(clonePolys(ai));
-  const A=new BSP(clonePolys(a));B.clipTo(A);B.invert();B.clipTo(A);B.invert();
-  return ao.concat(ak,B.all());
+  // aracın çokgenleri, kendi BSP'sinde bölünmüş parçaları yerine bölünmemiş hâlleriyle kırpılır (B.clipTo(A) ile aynı sonuç, 5-6 kat az parça)
+  const A=new BSP(clonePolys(a));const bk=flipAll(A.clipPolygons(flipAll(A.clipPolygons(clonePolys(b)))));
+  return ao.concat(mergeCoplanar(rejoin(ak.concat(bk))));
 }
 function csgSubtract(a,b){
   if(!a.length||!b.length)return a;
   const bb=bboxPolys(b);if(!boxHit(bboxPolys(a),bb))return a;
   const [ai,ao]=splitByBox(a,bb);
-  const B=new BSP(clonePolys(b));const fl=ps=>{for(const p of ps)p.flip();return ps};
+  const B=new BSP(clonePolys(b));const fl=flipAll;
   const ak=fl(B.clipPolygons(fl(clonePolys(ai))));
-  const A=new BSP(clonePolys(a));A.invert();B.clipTo(A);B.invert();B.clipTo(A);B.invert();
-  return ao.concat(ak,fl(B.all()));
+  const A=new BSP(clonePolys(a));A.invert();const bk=fl(A.clipPolygons(fl(A.clipPolygons(clonePolys(b)))));
+  return ao.concat(mergeCoplanar(rejoin(ak.concat(fl(bk)))));
 }
 function geomToPolys(g,shared){
   const gg=g.index?g.toNonIndexed():g;const a=gg.attributes.position.array;const out=[];let vol=0;
@@ -127,7 +200,7 @@ function geomToPolys(g,shared){
     const u=n.times(1/l);vol+=A.dot(B.cross(C));out.push(new Poly([A,B,C],shared,new Plane(u,u.dot(A))));
   }
   if(vol<0)out.forEach(p=>p.flip());
-  if(gg!==g)gg.dispose();g.dispose();return out;
+  if(gg!==g)gg.dispose();g.dispose();return mergeCoplanar(out);
 }
 function transformPolys(ps,M,shared){
   const e=M.elements,det=M.determinant();
@@ -158,6 +231,8 @@ function frameMatrix(F){return new T.Matrix4().makeBasis(v3(F.u),v3(F.v),v3(F.n)
 function fpt(F,x,y,z){z=z||0;return [F.o[0]+F.u[0]*x+F.v[0]*y+F.n[0]*z,F.o[1]+F.u[1]*x+F.v[1]*y+F.n[1]*z,F.o[2]+F.u[2]*x+F.v[2]*y+F.n[2]*z]}
 
 /* ============ Çizim (sketch) geometrisi ============ */
+/* tam dairenin parça sayısı (daire, yay, döndürme, delik, dairesel radyus). Ayarlardan düşürülebilir: daha az çokgen, daha hızlı CSG */
+var CURVE_SEG=64;
 function skP(sk,id){if(id==='O')return {x:0,y:0};return sk.pts[id]}
 function entMap(sk){const m={};for(const e of sk.ents)m[e.id]=e;return m}
 function curveR(sk,e){if(e.t==='circle')return e.r;const c=skP(sk,e.c),a=skP(sk,e.a);return Math.hypot(a.x-c.x,a.y-c.y)}
@@ -168,7 +243,7 @@ function arcInfo(sk,e){
   return {c,a0,sw,r:Math.hypot(a.x-c.x,a.y-c.y)};
 }
 function tessEnt(sk,e,full){
-  full=full||64;
+  full=full||CURVE_SEG;
   if(e.t==='line'){const a=skP(sk,e.a),b=skP(sk,e.b);return [[a.x,a.y],[b.x,b.y]]}
   if(e.t==='circle'){const c=skP(sk,e.c);const out=[];for(let i=0;i<=full;i++){const t=i/full*Math.PI*2;out.push([c.x+e.r*Math.cos(t),c.y+e.r*Math.sin(t)])}return out}
   const A=arcInfo(sk,e);const n=Math.max(2,Math.ceil(full*A.sw/(Math.PI*2)));
@@ -300,7 +375,7 @@ function skArrangement(sk,inner){
     if(hit)touch.push([e.id,o.id])}
   // 2) öğeleri parçalara bölüp çokgen kenarlarına çevir (yaylar yaklaşık 64 parçalı tam daire inceliğinde)
   const segs=[],ptsOf=new Map();
-  const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(64*(t1-t0)/(Math.PI*2)));const out=[pa];for(const t of arcTs(t0,t1,n))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
+  const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(CURVE_SEG*(t1-t0)/(Math.PI*2)));const out=[pa];for(const t of arcTs(t0,t1,n))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
   for(const e of ents){
     // aynı nokta birden çok öğeden gelebilir (ör. çizgi ve yay ucu dairenin üstünde birleşince): tekrarlar atılır,
     // yoksa dairede iki özdeş bölme noktası arasında tam bir daire daha oluşuyor ve kesişim sayısı patlıyordu
@@ -817,7 +892,7 @@ function extrudeTool(f,sk,F,L,solid){
 function revolveLoop(pts2,phi0,phiLen,M,shared,holes){
   if(area2d(pts2)<0)pts2=pts2.slice().reverse();
   const hs=(holes||[]).map(h=>area2d(h)>0?h.slice().reverse():h);
-  const full=Math.abs(phiLen)>=Math.PI*2-1e-9;const N=Math.max(3,Math.ceil(64*Math.abs(phiLen)/(Math.PI*2)));
+  const full=Math.abs(phiLen)>=Math.PI*2-1e-9;const N=Math.max(3,Math.ceil(CURVE_SEG*Math.abs(phiLen)/(Math.PI*2)));
   const e=M.elements;const tw=p=>new Vec(e[0]*p[0]+e[4]*p[1]+e[8]*p[2]+e[12],e[1]*p[0]+e[5]*p[1]+e[9]*p[2]+e[13],e[2]*p[0]+e[6]*p[1]+e[10]*p[2]+e[14]);
   const P=(q,ph)=>[q[0]*Math.sin(ph),q[1],q[0]*Math.cos(ph)];
   const out=[];
@@ -837,7 +912,7 @@ function revolveLoop(pts2,phi0,phiLen,M,shared,holes){
     const sg=phiLen>0?1:-1;
     for(const [ph,side] of [[phi0,-1],[phi0+phiLen,1]]){const td=[Math.cos(ph),0,-Math.sin(ph)];const ex=vk(td,side*sg);for(const t of idx)tri(P(all[t[0]],ph),P(all[t[1]],ph),P(all[t[2]],ph),ex)}
   }
-  return out;
+  return mergeCoplanar(out);
 }
 function revolveTool(f,sk,F){
   const E=entMap(sk);const ax=E[f.axis];
@@ -938,7 +1013,7 @@ function edgeOpBodies(solid,f,anns){
   if(!f.edges||!f.edges.length)throw new Error('Kenar seçilmedi.');
   const refs=[];
   for(const se of f.edges){
-    const e=findEdge(all,se);if(!e)throw new Error('Seçilen kenarlardan biri modelde bulunamadı. Özelliği düzenleyip kenarları yeniden seç.');
+    const e=findEdge(all,se)||matchCircleEdge(all,se,anns||[]);if(!e)throw new Error('Seçilen kenarlardan biri modelde bulunamadı. Özelliği düzenleyip kenarları yeniden seç.');
     refs.push({a:e.a.slice(),b:e.b.slice(),sig:edgeSig(e)});
     if(isCurvedEdge(all,e)){const b=curvedEdgeBody(e,f,val,anns||[],done,all);if(b)(b.convex?sub:add).push(b.polys);continue}
     const E0=e.a,E1=e.b,t=vn(vs(E1,E0)),Ln=vl(vs(E1,E0));
@@ -979,6 +1054,16 @@ function findCircleAnn(anns,e){
     if(Math.abs(ra-an.r)<tol&&Math.abs(rb-an.r)<tol&&Math.abs(ta-tb)<tol)return {an,C,A,te:(ta+tb)/2};
   }
   return null;
+}
+/* saklanan kenar bir çemberin parçasıysa (delik ağzı, mil omzu) ve konumla bulunamadıysa (ör. eğri çözünürlüğü değişti, kenar
+   parçaları başka açılara düştü) aynı çember üzerinde, aynı özelliklerin yüzeyleri arasındaki en yakın kenar alınır */
+function matchCircleEdge(all,se,anns){
+  const m=findCircleAnn(anns,se);if(!m)return null;
+  const f=se.sig&&se.sig.f,mid=vk(va(se.a,se.b),.5);let best=null,bd=Infinity;
+  for(const e of all){if(!e.pa||!e.pb)continue;const c=findCircleAnn([m.an],e);if(!c||Math.abs(c.te-m.te)>Math.max(2e-3,m.an.r*2e-3))continue;
+    if(f&&!((e.pa.shared===f[0]&&e.pb.shared===f[1])||(e.pa.shared===f[1]&&e.pb.shared===f[0])))continue;
+    const d=vl(vs(vk(va(e.a,e.b),.5),mid));if(d<bd){bd=d;best=e}}
+  return best;
 }
 /* Dairesel kenarda radyus/pah: kesit profili eksen etrafında döndürülür */
 /* Açıklaması olmayan dairesel kenar (ör. kama kanallı delik, diş dibi yayı): çember kenarın ve komşusunun köşelerinden bulunur */
@@ -1158,12 +1243,49 @@ function clipAnn(a,box,polys){
   if(a.thread){const t0=Math.max(a.thread.t0,l2),t1=Math.min(a.thread.t1,h2);a.thread=t1-t0>1e-6?{...a.thread,t0,t1}:null}
   return a;
 }
+/* ============ Yeniden oluşturma önbelleği ============
+   Her özellikten sonraki ara durum (gövde, açıklamalar, çerçeveler…) o özelliğe kadarki ağacın anahtarıyla saklanır.
+   Yeniden oluşturmada anahtarı eşleşen en uzun baştaki kısım atlanır: yalnızca değişen özellik ve sonrası hesaplanır
+   (çizimden değişiklik yapmadan çıkmak, sona özellik eklemek, son özelliği düzenlemek neredeyse anında biter).
+   Çokgenler CSG'de değiştirilmez (kırpma kopyalarla çalışır), bu yüzden ara gövdeler paylaşılabilir.
+   Bütçe çokgen sayısıyladır (yaklaşık 400 bayt/çokgen); en uzun süredir kullanılmayan ara durumlar atılır. */
+var RB_CACHE={on:true,budget:300000,map:new Map(),polys:0,hits:0,misses:0,salt:''};
+function rbCacheSet(o){if('on' in o)RB_CACHE.on=!!o.on;if(o.budget>0)RB_CACHE.budget=o.budget;if(!RB_CACHE.on)rbCacheClear();else rbCacheTrim()}
+function rbCacheClear(){RB_CACHE.map.clear();RB_CACHE.polys=0}
+function rbCacheTrim(){const C=RB_CACHE;for(const [k,e] of C.map){if(C.polys<=C.budget)break;C.map.delete(k);C.polys-=e.own}}
+function rbHash(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (h2>>>0).toString(36)+(h1>>>0).toString(36)}
 function rebuildModel(features,upto){
   const list=upto==null?features:features.slice(0,upto);
-  const ctx={frames:{},caps:{},tools:{},errors:{},edgeRefs:{}};let solid=[];const ann=[];
+  const ctx={frames:{},caps:{},tools:{},errors:{},edgeRefs:{}};let solid=[];let ann=[];
   const byId={};list.forEach(f=>byId[f.id]=f);
-  for(const f of list){
-    if(f.suppressed)continue;
+  // anahtar zinciri: özellik + henüz geçmemiş olup başvurduğu çizim/hedefler (sıra dışı başvuru önbelleği bayatlatmasın)
+  const C=RB_CACHE,keys=[];let start=0,prevSolid=null;
+  if(C.on){
+    const seen=new Set();let key='v1'+C.salt;
+    for(const f of list){let t=JSON.stringify(f);for(const id of [f.sketch,...(Array.isArray(f.targets)?f.targets:[])])if(id&&!seen.has(id)&&byId[id])t+=JSON.stringify(byId[id]);
+      seen.add(f.id);key=rbHash(key+'|'+t);keys.push(key)}
+    for(let i=list.length-1;i>=0;i--){const e=C.map.get(keys[i]);if(!e)continue;
+      C.map.delete(keys[i]);C.map.set(keys[i],e);C.hits++;start=i+1;solid=e.solid;prevSolid=e.solid;ann=e.ann.slice();
+      for(const k of ['frames','caps','tools','errors','edgeRefs'])ctx[k]={...e[k]};break}
+    if(start<list.length)C.misses++;
+  }
+  for(let i=start;i<list.length;i++){
+    const f=list[i];
+    solid=rbStep(f,ctx,byId,ann,solid);
+    if(C.on){const own=solid!==prevSolid?solid.length:0;prevSolid=solid;
+      const old=C.map.get(keys[i]);if(old){C.polys-=old.own;C.map.delete(keys[i])}
+      C.map.set(keys[i],{solid,ann:ann.slice(),own,frames:{...ctx.frames},caps:{...ctx.caps},tools:{...ctx.tools},errors:{...ctx.errors},edgeRefs:{...ctx.edgeRefs}});C.polys+=own}
+  }
+  if(C.on)rbCacheTrim();
+  let anns=[];
+  if(solid.length){const box=bboxPolys(solid);anns=ann.map(a=>clipAnn({...a,C:a.C.clone(),A:a.A.clone()},box,solid)).filter(Boolean)}
+  return {polys:solid,ann:anns,errors:{...ctx.errors},frames:{...ctx.frames},caps:{...ctx.caps},tools:{...ctx.tools},edgeRefs:{...ctx.edgeRefs}};
+}
+/* tek özelliğin hesabı: ctx ve açıklamalar yerinde güncellenir, yeni gövde döndürülür */
+function rbStep(f,ctx,byId,ann,solid){
+    if(f.suppressed)return solid;
     try{
       if(f.type==='plane'){
         // taban: standart/referans düzlem veya modelin düz yüzeyi (yüzeyi oluşturan özellik değişince düzlem de taşınır)
@@ -1203,8 +1325,5 @@ function rebuildModel(features,upto){
         for(const b of r.add)solid=csgUnion(solid,b);
       }
     }catch(e){ctx.errors[f.id]=e&&e.message?e.message:String(e)}
-  }
-  let anns=[];
-  if(solid.length){const box=bboxPolys(solid);anns=ann.map(a=>clipAnn({...a,C:a.C.clone(),A:a.A.clone()},box,solid)).filter(Boolean)}
-  return {polys:solid,ann:anns,errors:ctx.errors,frames:ctx.frames,caps:ctx.caps,tools:ctx.tools,edgeRefs:ctx.edgeRefs};
+    return solid;
 }

@@ -25,6 +25,7 @@
     <div class="top-actions">
       <button class="ibtn" id="undoBtn" title="Geri al (Ctrl+Z)" aria-label="Geri al"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4.5 11.5 9 16"/><path d="M5 11.5h9a5 5 0 0 1 0 10h-2"/></svg></button>
       <button class="ibtn" id="redoBtn" title="Yinele (Ctrl+Y)" aria-label="Yinele"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l4.5 4.5L15 16"/><path d="M19 11.5h-9a5 5 0 0 0 0 10h2"/></svg></button>
+      <button class="ibtn" id="setBtn" title="Ayarlar: performans ve grafik" aria-label="Ayarlar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg></button>
       <button class="ibtn" id="fileBtn" aria-haspopup="true">Dosya <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 10 5 5 5-5"/></svg></button>
       <div class="menu" id="fileMenu">
         <button data-m="new">Yeni boş proje</button>
@@ -39,6 +40,8 @@
         <hr>
         <button data-m="pdf2">PDF olarak al: 2B teknik resim</button>
         <button data-m="pdf3">PDF olarak al: 3B görünüş</button>
+        <hr>
+        <button data-m="settings">Ayarlar (performans ve grafik)</button>
       </div>
       <input type="file" id="fileInput" accept=".json,.stl,application/json" hidden>
     </div>
@@ -84,6 +87,13 @@
       <div class="dlg-prev"><div class="prev-box" id="pdfPrev"></div><div class="note" id="pdfInfo"></div></div>
     </div>
     <div class="dlg-foot"><span class="note" id="pdfMsg"></span><button class="sbtn" data-pdf="close">İptal</button><button class="sbtn primary" data-pdf="go" id="pdfGo">PDF indir</button></div>
+  </div>
+</div>
+<div class="dlg-back" id="setDlg" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+  <div class="dlg md">
+    <div class="dlg-head"><div class="pm-title" id="setTitle">Ayarlar</div><button class="ibtn" data-set-close aria-label="Kapat">✕</button></div>
+    <div class="set-body" id="setBody"></div>
+    <div class="dlg-foot"><span class="note">Ayarlar bu tarayıcıda saklanır; proje dosyasına yazılmaz.</span><button class="sbtn primary" data-set-close>Tamam</button></div>
   </div>
 </div>
 <div class="dlg-back" id="askDlg" role="alertdialog" aria-modal="true" aria-labelledby="askTitle">

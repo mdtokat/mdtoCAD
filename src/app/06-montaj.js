@@ -127,6 +127,7 @@ function partData(p){
 function compName(a,c){const p=partById(c.part);const same=a.comps.filter(x=>x.part===c.part);return (p?p.partName:'?')+'<'+(same.indexOf(c)+1)+'>'}
 function compById(id){const a=curAsm();return a?a.comps.find(c=>c.id===id):null}
 function buildAsmView(){
+  requestRender();
   for(const ch of [...asmRoot.children]){if(ch===interfGroup)continue;asmRoot.remove(ch);ch.traverse(o=>{if(o.userData.own&&o.geometry)o.geometry.dispose();if(o.material&&o.material!==matEdge&&o.material!==matSel&&o.material!==matSelEdge&&o.material.dispose)o.material.dispose()})}
   asmView.groups=new Map();const a=curAsm();if(!a){asmView.box=null;asmView.dof={};return}
   asmUI.exf=a.explode&&a.explode.on?(asmUI.exf||1):0;
@@ -142,7 +143,7 @@ function buildAsmView(){
   asmView.dof=asmDof(a);
   asmBoxCalc();asmHighlight();
 }
-function updateAsmPoses(){const a=curAsm();if(!a)return;for(const c of a.comps){const v=asmView.groups.get(c.id);if(v){v.g.matrix.copy(dispM(a,c));v.g.matrixWorldNeedsUpdate=true}}asmBoxCalc()}
+function updateAsmPoses(){requestRender();const a=curAsm();if(!a)return;for(const c of a.comps){const v=asmView.groups.get(c.id);if(v){v.g.matrix.copy(dispM(a,c));v.g.matrixWorldNeedsUpdate=true}}asmBoxCalc()}
 function asmBoxCalc(){
   const a=curAsm();let mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity],any=false;
   if(a)for(const c of a.comps){const v=asmView.groups.get(c.id);if(!v||!v.d.box||c.hidden)continue;const b=v.d.box;const M=dispM(a,c);

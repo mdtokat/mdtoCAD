@@ -7,7 +7,9 @@ const VIEWS={
   right:{D:[-1,0,0],R:[0,0,-1],U:[0,1,0],name:'Sağdan görünüş'},
   iso:(()=>{const s3=Math.sqrt(3),s6=Math.sqrt(6),s2=Math.SQRT2;return {D:[-1/s3,-1/s3,-1/s3],U:[-1/s6,2/s6,-1/s6],R:[1/s2,0,-1/s2],name:'İzometrik'}})()
 };
-const RES=1024;let depthRT=null,depthBuf=null;let vcache={version:-1};
+let RES=SETTINGS.dwRes;let depthRT=null,depthBuf=null;let vcache={version:-1};
+/* gizli çizgi derinlik arabelleğinin çözünürlüğü (Ayarlar); değişince görünüşler yeniden hesaplanır */
+function setDepthRes(n,force){if(n===RES&&!force)return;RES=n;if(depthRT){depthRT.dispose();depthRT=null;depthBuf=null}vcache={version:-1}}
 const dot3=(p,q)=>p[0]*q[0]+p[1]*q[1]+p[2]*q[2];
 function renderDepth(D,U,c,rad){
   if(!depthRT){depthRT=new T.WebGLRenderTarget(RES,RES,{minFilter:T.NearestFilter,magFilter:T.NearestFilter,depthBuffer:true});depthBuf=new Uint8Array(RES*RES*4)}

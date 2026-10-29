@@ -1,6 +1,12 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- **Performans:** basit bir radyuslu milde bile her işlemde 5–12 sn süren ve tarayıcıda “Sayfa yanıt vermiyor” uyarısına varan donmalar giderildi; aynı milde işlemler 0,2–0,5 sn sürer (çalışma ve ölçümler: [docs/PERFORMANS.md](docs/PERFORMANS.md)).
+  - CSG artık gövdeyi gereksiz parçalamıyor: bütün parçaları kalan bölünmüş çokgenler yeniden birleştirilir, aynı düzlemdeki komşu çokgenler dışbükey kaldıkça birleşir, araç kendi BSP'sinde bölünmeden kırpılır. Milde çokgen sayısı 34 170 → 3 217, tam hesap 11,9 → 1,7 sn; hacim, alan ve kenarlar aynı.
+  - **Yeniden hesaplama önbelleği:** yalnızca değişen özellik ve sonrası hesaplanır; çizimden değiştirmeden çıkmak, panel açıp kapamak, geri al/yinele önbellekten gelir.
+  - Görünüm boştayken sürekli yeniden çizilmiyor (akıllı ekran yenileme); çizim analizi değişmeyen çizimlerde tekrarlanmıyor.
+- **Ayarlar** penceresi (üst çubukta ⚙, Dosya → Ayarlar): Kalite / Dengeli / Hızlı profilleri; piksel oranı, kenar yumuşatma, ekran yenileme, eğri çözünürlüğü (64 / 48 / 32), önbellek boyutu, canlı önizleme gecikmesi, teknik resim gizli çizgi hassasiyeti. Performans bilgisi bölümü hesap süresini, önbellek kullanımını ve ekran kartını gösterir; tarayıcıda donanım hızlandırması kapalıysa uyarır. Ayarlar tarayıcıda saklanır, projeye yazılmaz.
+- Radyus/pah: dairesel kenar konumla bulunamazsa (ör. eğri çözünürlüğü değişti) aynı çember üzerindeki kenarla eşleştirilir.
 - Çizim: yüzeyde veya düzlemde çizim açılınca görünüm **2B** kalır — düzleme dik, **perspektifsiz** (ortografik kamera) ve döndürülemez (orta ve sağ tuş kaydırır; yön düğmeleri çizim düzlemine dik bakar). Önceden perspektif yüzünden yakınlaştırınca orijin ve çizim arkadaki modele göre kaymış görünüyordu. Çizimden çıkınca aynı görünüm perspektif olarak devam eder.
 - Çizim: **dış referanslar** — arkadaki modelin kenarına (daireler tek parça, yandan görünen kenar parçaları tek çizgi olarak) veya başka bir çizimin öğesine tıklayınca sabit bir referans öğesi (mor, kesikli) eklenip seçilir; çizilen öğelerle çakışık, paralel, dik, doğrusal, teğet, eşit, eşmerkezli ilişkiler ve Akıllı Ölçülendirme verilebilir. Hiçbir ilişkide kullanılmayan referanslar çizimden çıkınca silinir (yeni `ents[].ref`).
 - Çizim: **Nokta** aracı (P) — tek başına, bir öğenin üstünde veya kesişimde çizim noktası; ölçülendirilir, ilişki verilir, otomatik tam tanımlamaya katılır (yeni `pts[].sp`).

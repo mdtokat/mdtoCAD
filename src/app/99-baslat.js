@@ -23,13 +23,20 @@ const menu=$('#fileMenu');
 $('#fileBtn').onclick=e=>{e.stopPropagation();menu.classList.toggle('on')};
 document.addEventListener('click',e=>{if(!e.target.closest('#fileMenu'))menu.classList.remove('on')});
 let fileMode='open';
-function setProject(o,msg){
-  const prev=JSON.stringify(project,cleanR);
-  if(sk)exitSketch(false);closePM(true);cancelPick();closeAsmPM(true,true);
-  project=normProject(o);state=project.parts.find(p=>p.id===project.cur.part)||project.parts[0];project.cur.part=state.id;
-  histMap.clear();asmHists.clear();pcache.clear();hist=histFor(state.id);sel=null;asmUI.sel=null;
-  rebuild();if(activeTab==='asm')buildAsmView();renderTree();renderRibbon();renderPM();updateStatus();updateMass();updUndo();saveState();fitCamera(VIEWDIRS.iso,false);
+function showProject(o){
+  project=o;state=project.parts.find(p=>p.id===project.cur.part)||project.parts[0];project.cur.part=state.id;
+  pcache.clear();hist=histFor(state.id);sel=null;asmUI.sel=null;
+  rebuild();if(activeTab==='asm')buildAsmView();renderTree();renderRibbon();renderPM();updateStatus();updateMass();updUndo();fitCamera(VIEWDIRS.iso,false);
   if(activeTab==='drawing')renderDrawing(true);
+}
+/* açık çizim önce kabul edilir (çalışma “Geri al” ile dönülebilecek projede kalır); yeni proje gösterilemezse önceki geri gelir */
+function setProject(o,msg){
+  if(sk)exitSketch(true);closePM(true);cancelPick();closeAsmPM(true,true);
+  const prev=JSON.stringify(project,cleanR),old=project;
+  try{showProject(normProject(o))}
+  catch(err){try{showProject(old)}catch(e){}throw err}
+  // geçmişler kimlikle tutulur: aynı dosyayı yeniden açınca eski adımlar yeni projeye uygulanmasın
+  histMap.clear();asmHists.clear();dwHists.clear();hist=histFor(state.id);updUndo();saveState();
   toast(msg,{label:'Geri al',fn:()=>setProject(JSON.parse(prev),'Önceki proje geri yüklendi.')});
 }
 menu.addEventListener('click',e=>{
@@ -110,9 +117,14 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(sk)
 (async()=>{try{if(window.claude&&typeof window.claude.use==='function'){dlCap=await window.claude.use('downloads')}}catch(e){dlCap=null}
   if(activeTab==='drawing')renderDrawRibbon()})();
 
-/* başlat */
+/* başlat: kaydedilmiş proje gösterilemezse (bozuk kayıt) ayrı anahtarda saklanır ve örnek proje açılır */
 renderHud();renderRibbon();resize();
-rebuild();renderTree();renderPM();updUndo();applyDisplay();
+try{rebuild();renderTree();renderPM()}
+catch(err){console.error(err);try{const s=localStorage.getItem(LS_KEY);if(s)localStorage.setItem(LS_KEY+'-bozuk',s)}catch(e){}
+  project=demoProject();state=project.parts.find(p=>p.id===project.cur.part)||project.parts[0];hist=histFor(state.id);
+  rebuild();renderTree();renderPM();saveState();
+  toast(`Kaydedilmiş proje açılamadı; örnek proje yüklendi. Önceki kayıt tarayıcıda “${LS_KEY}-bozuk” adıyla saklandı.`)}
+updUndo();applyDisplay();
 fitCamera(VIEWDIRS.iso,false);
 loop();
 window.__tz={get state(){return state},solidMesh,get project(){return project},get asmUI(){return asmUI},get asmView(){return asmView},sketchesGroup,get shown(){return shown},curAsm,solveAsm,pickEdge,click3D,openHolePM,openMeasure,get meas(){return meas},setSkOp,applySkOp,trimAt,setExplode,openExplodePM,openInterfPM,openAsmDrawing,dwSrc,asmDof,openMatePM,addComp,asmPick,setMateType,commitMate,exportAsmSTL,stlBinary,makeZip,parseSTL,importSTL,switchPart,model,get sk(){return sk},get pm(){return pm},cmd,startSketch,editSketch,exitSketch,autoDefine,setTool,toolClick:(x,y)=>toolClick([x,y],sk.px||0.3,(sk.px||0.3)*9),openSkInput,applySkInput,sketchProfiles,sketchFaces,regionClick,setTab,openPM,commitPM,getCtx:()=>dctx,dwS:()=>dwS(),renderDrawing,dimClick,setDimMode,setDwTool,dwToolClick,dwSelect,dwDeleteSel,dwHitAt,dwDragMove,dwDragEnd,exportDXFString,buildDXF,get dwSel(){return dwSel},get dimSt(){return dimSt},openPdfDialog,makePdf,buildPdf,svgToPdfOps,build3DPage,buildSheet,pdfOpt,solveSketch,analyzeSketch,setDimVal,addRelation,selectItems:(a)=>{sk.sel=a;skChanged()},rebuildModel,scr:(x,y)=>{const s=skToScreen(x,y);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]},scrW:(p)=>{const s=toScreen(p);const r=renderer.domElement.getBoundingClientRect();return [s[0]+r.left,s[1]+r.top]}};

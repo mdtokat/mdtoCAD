@@ -69,7 +69,7 @@ $('#tree').addEventListener('click',e=>{
     // bağlı öğeler (yüzeyine çizilen çizimler, onları kullanan özellikler…) de birlikte bastırılır/geri getirilir; yoksa hata verirlerdi
     pushHist();const on=!f.suppressed;const ids=new Set([f.id]);if(f.sketch)ids.add(f.sketch);
     const deps=dependents(ids);for(const g of [f,...(f.sketch?[byId(f.sketch)]:[]),...deps])if(g)g.suppressed=on;
-    afterChange();if(deps.length)toast(`“${f.name}” ve bağlı ${deps.length} öğe ${on?'bastırıldı':'geri getirildi'}.`,{label:'Geri al',fn:undo})}
+    afterChange();if(deps.length)toast(`“${f.name}” ve bağlı ${deps.length} öğe ${on?'bastırıldı':'geri getirildi'}.`,{label:'Geri al',fn:undoStep()})}
   else if(act==='del')deleteFeature(f);
 });
 /* silinen öğeler olmadan hesaplanamayacak özellikler (ağaç sırasıyla, zincirleme): yüzeyine/düzlemine çizilen çizimler,
@@ -95,7 +95,7 @@ function deleteFeature(f){
     for(const g of state.features)if(Array.isArray(g.targets))g.targets=g.targets.filter(x=>!all.has(x));
     sel=null;afterChange();
     const extra=withDeps&&deps.length?` Bağlı ${deps.length} öğe de silindi.`:'';
-    toast((dep?`“${f.name}” ve ona bağlı “${dep.name}” silindi.`:f.sketch?`“${f.name}” silindi; “${(byId(f.sketch)||{}).name||'çizim'}” ağaçta kaldı.`:`“${f.name}” silindi.`)+extra,{label:'Geri al',fn:undo});
+    toast((dep?`“${f.name}” ve ona bağlı “${dep.name}” silindi.`:f.sketch?`“${f.name}” silindi; “${(byId(f.sketch)||{}).name||'çizim'}” ağaçta kaldı.`:`“${f.name}” silindi.`)+extra,{label:'Geri al',fn:undoStep()});
   };
   if(!deps.length){run(false);return}
   ask('Silmeyi onayla',`<b>${esc(f.name)}</b>${dep?` ve <b>${esc(dep.name)}</b>`:''} silinirse şu öğeler hesaplanamaz:<ul>${deps.slice(0,8).map(g=>`<li>${esc(g.name)}</li>`).join('')}${deps.length>8?`<li>… ve ${deps.length-8} öğe daha</li>`:''}</ul>`,
@@ -109,8 +109,8 @@ $('#tree').addEventListener('dblclick',e=>{
 $('#tree').addEventListener('change',e=>{
   if(activeTab==='asm'){asmTreeChange(e);return}
   if(e.target.id==='partSel'){switchPart(e.target.value);return}
-  if(e.target.id==='partNameIn'){state.partName=e.target.value.trim()||'Parça1';saveState();renderTree();if(activeTab==='drawing')renderDrawing()}
-  if(e.target.id==='matSel'){state.material=e.target.value;updateMass();saveState()}
+  if(e.target.id==='partNameIn'){const v=e.target.value.trim()||'Parça1';if(v!==state.partName)metaChange(()=>state.partName=v);renderTree();if(activeTab==='drawing')renderDrawing()}
+  if(e.target.id==='matSel'){metaChange(()=>state.material=e.target.value);updateMass();if(activeTab==='drawing')renderDrawing()}
 });
 
 /* ================= KOMUT YÖNETİCİSİ (CommandManager) ================= */

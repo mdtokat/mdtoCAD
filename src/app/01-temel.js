@@ -116,8 +116,32 @@ function demoFeatures(){
 }
 function defaultDrawing(){return {paper:'A3',orient:'landscape',method:'E',scale:'auto',hidden:true,centers:true,autodims:true,iso:true,dno:'TZ-0001',drawn:'',checked:'',company:'',dims:[]}}
 function newPart(name){return {id:uid('P'),partName:name||'Parça1',material:'steel',features:[],drawing:defaultDrawing()}}
-function normPart(p){p.drawing=Object.assign(defaultDrawing(),p.drawing||{});if(!Array.isArray(p.drawing.dims))p.drawing.dims=[];if(!MATERIALS[p.material])p.material='steel';if(!p.id)p.id=uid('P');if(!Array.isArray(p.features))p.features=[];if(!p.partName)p.partName='Parça';return p}
-function normProject(o){o.version=3;o.parts=(o.parts||[]).map(normPart);o.asms=(o.asms||[]).map(a=>({id:a.id||uid('A'),name:a.name||'Montaj1',comps:a.comps||[],mates:a.mates||[]}));o.cur=o.cur||{};if(!o.parts.length)o.parts.push(newPart('Parça1'));if(!o.parts.some(p=>p.id===o.cur.part))o.cur.part=o.parts[0].id;if(o.asms.length&&!o.asms.some(a=>a.id===o.cur.asm))o.cur.asm=o.asms[0].id;return o}
+/* dosyadan/depodan gelen veri onarılır: bilinmeyen veya bozuk özellikler atılır, çizimin eksik alanları tamamlanır
+   (yoksa tek bir bozuk öğe ağacı ve sahneyi çizen kodu durdurur) */
+const FEAT_TYPES=new Set(['sketch','plane','extrude','revolve','hole','fillet','chamfer','lpattern','cpattern','mirror']);
+const isObj=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
+function normFeature(f,ids){
+  if(!f.id||ids.has(f.id))f.id=uid(f.type==='sketch'?'s':'f');ids.add(f.id);
+  if(typeof f.name!=='string'||!f.name)f.name=f.id;
+  if(f.type==='sketch'){
+    if(!isObj(f.on))f.on={kind:'std',key:'front'};
+    if(!isObj(f.pts))f.pts={};for(const k in f.pts)if(!isObj(f.pts[k])||!isFinite(f.pts[k].x)||!isFinite(f.pts[k].y))delete f.pts[k];
+    f.ents=(Array.isArray(f.ents)?f.ents:[]).filter(isObj);f.cons=(Array.isArray(f.cons)?f.cons:[]).filter(isObj);
+  }else for(const k of ['targets','edges','pts'])if(k in f&&!Array.isArray(f[k]))f[k]=[];
+  return f;
+}
+function normDrawing(d){for(const k of ['dims','notes','surfs','details','gdts','datums','hide'])if(k==='dims'?!Array.isArray(d.dims):(k in d&&!Array.isArray(d[k])))d[k]=[];return d}
+function normPart(p){
+  p.drawing=normDrawing(Object.assign(defaultDrawing(),isObj(p.drawing)?p.drawing:{}));
+  if(!MATERIALS[p.material])p.material='steel';if(!p.id)p.id=uid('P');if(!p.partName)p.partName='Parça';
+  const ids=new Set();p.features=(Array.isArray(p.features)?p.features:[]).filter(f=>isObj(f)&&FEAT_TYPES.has(f.type)).map(f=>normFeature(f,ids));
+  return p;
+}
+/* montajın resim ayarları (drawing) ve patlatma adımları (explode) da korunur */
+function normAsm(a){const o={...a,id:a.id||uid('A'),name:a.name||'Montaj1',comps:(Array.isArray(a.comps)?a.comps:[]).filter(c=>isObj(c)&&c.id).map(c=>Array.isArray(c.T)&&c.T.length===16&&c.T.every(isFinite)?c:{...c,T:[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]}),mates:(Array.isArray(a.mates)?a.mates:[]).filter(m=>isObj(m)&&isObj(m.a)&&isObj(m.b))};
+  if(o.drawing!==undefined){if(isObj(o.drawing))normDrawing(o.drawing);else delete o.drawing}if(o.explode!==undefined&&!(isObj(o.explode)&&Array.isArray(o.explode.steps)))delete o.explode;return o}
+function normProject(o){o.version=3;const pid=new Set();o.parts=(Array.isArray(o.parts)?o.parts:[]).filter(isObj).map(normPart);for(const p of o.parts){if(pid.has(p.id))p.id=uid('P');pid.add(p.id)}
+  o.asms=(Array.isArray(o.asms)?o.asms:[]).filter(isObj).map(normAsm);if(!isObj(o.cur))o.cur={};if(!o.parts.length)o.parts.push(newPart('Parça1'));if(!o.parts.some(p=>p.id===o.cur.part))o.cur.part=o.parts[0].id;if(o.asms.length&&!o.asms.some(a=>a.id===o.cur.asm))o.cur.asm=o.asms[0].id;return o}
 function emptyProject(){const p=newPart('Parça1');return normProject({parts:[p],asms:[],cur:{part:p.id}})}
 const LS_KEY='tezgah-cad-v3',LS_OLD='tezgah-cad-v2';
 function loadProject(){
@@ -129,7 +153,18 @@ function loadProject(){
 }
 const cleanR=(k,v)=>k.startsWith('_')?undefined:v;
 let saveT=0,saveWarned=false;
-function saveState(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify(project,cleanR))}catch(e){if(!saveWarned){saveWarned=true;toast('Tarayıcı depolama alanı doldu. Projeyi Dosya menüsünden .json olarak kaydet.')}}},300)}
+function writeState(){saveT=0;try{localStorage.setItem(LS_KEY,JSON.stringify(project,cleanR))}catch(e){if(!saveWarned){saveWarned=true;toast('Tarayıcı depolama alanı doldu. Projeyi Dosya menüsünden .json olarak kaydet.')}}}
+function saveState(){clearTimeout(saveT);saveT=setTimeout(writeState,300)}
+/* sayfa kapanırken/yenilenirken: bekleyen kayıt hemen yazılır; açık çizimin o anki hâli de kaydedilir
+   (yeni ve boş çizim hariç), böylece yeniden açınca çizime devam edilebilir */
+function flushState(){
+  const empty=!!sk&&sk.isNew&&!sk.feat.ents.length;
+  if(!saveT&&!(sk&&!empty))return;clearTimeout(saveT);
+  const i=empty?state.features.indexOf(sk.feat):-1;if(i>=0)state.features.splice(i,1);
+  try{writeState()}finally{if(i>=0)state.features.splice(i,0,sk.feat)}
+}
+addEventListener('pagehide',flushState);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushState()});
 let project=loadProject()||demoProject();
 let state=project.parts.find(p=>p.id===project.cur.part)||project.parts[0];
 
@@ -143,6 +178,15 @@ function restoreSnap(s){const o=JSON.parse(s);state.features=o.features;state.pa
 function pushHist(){hist.undo.push(snapshot());if(hist.undo.length>80)hist.undo.shift();hist.redo=[];updUndo()}
 function undo(){if(activeTab==='drawing')return dwUndo();if(activeTab==='asm')return asmUndo();if(sk)return sketchUndo();if(!hist.undo.length)return;closePM(true);hist.redo.push(snapshot());restoreSnap(hist.undo.pop());afterChange();updUndo()}
 function redo(){if(activeTab==='drawing')return dwRedo();if(activeTab==='asm')return asmRedo();if(sk)return sketchRedo();if(!hist.redo.length)return;closePM(true);hist.undo.push(snapshot());restoreSnap(hist.redo.pop());afterChange();updUndo()}
+/* parça adı/malzeme değişikliği kendi geri alma adımıdır; yoksa sonraki bir adımı geri almak onu da sessizce geri alırdı.
+   çizim açıkken çizimin başlangıç anlık görüntüsüne işlenir (çizimi iptal etmek veya geri almak değişikliği geri almaz) */
+function metaChange(fn){
+  if(!sk){pushHist();fn();saveState();return}
+  fn();const i=hist.undo.length-1;if(i>=0){const o=JSON.parse(hist.undo[i]);o.partName=state.partName;o.material=state.material;hist.undo[i]=JSON.stringify(o)}
+  saveState();
+}
+/* bildirimdeki “Geri al”: yalnızca o adımı geri alır; bu arada parça/sekme değiştiyse veya yeni adım eklendiyse başka bir geçmişi geri almaz */
+function undoStep(){const h=hist,n=h.undo.length,top=h.undo[n-1];return ()=>{if(hist!==h||h.undo.length!==n||h.undo[n-1]!==top||sk||activeTab!=='model')return;undo()}}
 function updUndo(){if(activeTab==='drawing'&&typeof dwHistFor==='function'){const h=dwHistFor();$('#undoBtn').disabled=!h.undo.length;$('#redoBtn').disabled=!h.redo.length;return}if(activeTab==='asm'){const h=asmHistFor();$('#undoBtn').disabled=!h||!h.undo.length;$('#redoBtn').disabled=!h||!h.redo.length;return}$('#undoBtn').disabled=sk?!sk.hist.length:!hist.undo.length;$('#redoBtn').disabled=sk?!sk.redo.length:!hist.redo.length}
 
 let toastT=0;

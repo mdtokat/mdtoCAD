@@ -15,7 +15,8 @@ function dwDoc(){
 function dwS(doc){
   doc=doc||dwDoc();
   if(doc.kind==='asm'){const a=doc.a;if(!a.drawing)a.drawing=Object.assign(defaultDrawing(),{dno:'TZ-M001',asmView:'std',explode:false,balloons:true,bom:true,autodims:true});
-    a.drawing=Object.assign(defaultDrawing(),a.drawing);if(!Array.isArray(a.drawing.dims))a.drawing.dims=[];return a.drawing}
+    // eksik ayarlar yerinde tamamlanır: nesne her çağrıda yenilenirse ekleme sırasında geçmişe yazmak (pushDwHist) eklenen notu eski nesnede bırakırdı
+    const D=defaultDrawing();for(const k in D)if(!(k in a.drawing))a.drawing[k]=D[k];if(!Array.isArray(a.drawing.dims))a.drawing.dims=[];return a.drawing}
   return doc.p.drawing;
 }
 /* teknik resim geri al/yinele: belge (parça veya montaj) başına, resim ayarlarının tamamı */

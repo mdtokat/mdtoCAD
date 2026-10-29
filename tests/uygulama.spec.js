@@ -597,7 +597,8 @@ test('bölgeler: kesişen şekiller birleşir, kolların çevrelediği boşluk d
   expect(v).toEqual({ n: 1, holes: 5 }); // dış kontur + iç boşluk + dört delik
   // bölge seçimi: yalnızca dairenin dikdörtgen dışında kalan parçası
   await newSketch(page);
-  await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(40, 20); T.setTool('circle'); T.toolClick(35, 10); T.toolClick(43, 10); T.setTool(null); T.exitSketch(true); T.cmd('extrude'); });
+  // yarıçap noktası hiçbir öğeye yakın değil: (43, 10) sağ kenarın orta noktasına 3 mm'dir ve yakın görünümde ona yakalanıp daireyi küçültebiliyordu
+  await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('rect'); T.toolClick(0, 0); T.toolClick(40, 20); T.setTool('circle'); T.toolClick(35, 10); T.toolClick(27, 10); T.setTool(null); T.exitSketch(true); T.cmd('extrude'); });
   // ekran konumu ve tıklama aynı anda: kamera animasyonu arada konumu kaydıramaz
   await page.evaluate(() => { const [x, y] = __tz.scrW([42, 10, 0]); __tz.click3D({ clientX: x, clientY: y, button: 0 }); });
   const r = await page.evaluate(() => { const T = __tz; const reg = T.pm.draft.regions; const s = T.state.features[0]; const c = s.ents.find(e => e.t === 'circle');

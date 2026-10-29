@@ -89,7 +89,7 @@ Kenarlar dünya koordinatında saklanır ve her hesaplamada modeldeki kenarla e�
 ```jsonc
 { "type":"lpattern", "targets":["x4"], "dir1":"x"|"-x"|"y"|…, "sp1":20, "n1":3, "dir2":"none"|…, "sp2":20, "n2":2 }
 { "type":"cpattern", "targets":[...], "axis":"x"|"y"|"z", "n":6, "angle":360 }
-{ "type":"mirror",   "targets":[...], "plane":"front"|"top"|"right"|"<düzlem id>" }
+{ "type":"mirror",   "targets":[...], "plane":"front"|"top"|"right"|"<düzlem id>"|{ "kind":"face", … } }   // yüzey: çizimin "on" alanıyla aynı biçim
 ```
 
 ### `plane` — referans düzlem

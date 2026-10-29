@@ -231,7 +231,7 @@ async function makePdf_(){
 async function exportPdf(){
   const go=$('#pdfGo');go.disabled=true;$('#pdfMsg').textContent='PDF hazırlanıyor…';
   await new Promise(r=>setTimeout(r,30));
-  try{const {blob,fn}=await makePdf();$('#pdfMsg').textContent='';await saveFile(fn,blob)}
+  try{const {blob,fn}=await makePdf();$('#pdfMsg').textContent='';if(await saveFile(fn,blob))closePdfDialog()}
   catch(e){console.error(e);$('#pdfMsg').textContent='';toast('PDF oluşturulamadı: '+(e.message||e))}
   go.disabled=false;
 }

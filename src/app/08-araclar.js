@@ -61,7 +61,7 @@ function holePmClick(e){
 function holePmInput(e){const t=e.target;if(!t.dataset.hp)return false;const [i,k]=t.dataset.hp.split(':').map(Number);const v=num(t.value);if(!isFinite(v)){t.classList.add('bad');return true}t.classList.remove('bad');pm.draft.pts[i][k]=v;schedulePreview();return true}
 function holePreview(f,B){
   if(!f.on||!f.pts.length)return;
-  const F=sketchFrame({on:f.on},{frames:B.frames||model.frames,caps:B.caps||model.caps});const r=holeTool(f,F,reachFor(B.polys,F));
+  const F=sketchFrame({on:f.on},{frames:B.frames||model.frames,caps:B.caps||model.caps});const r=holeTool(f,F,reachAlong(B.polys,F,-1));
   for(const t of r.tools)addPreview(t,true);
   const arr=[];for(const q of f.pts)arr.push(...fpt(F,q[0],q[1],0.05));
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(arr,3));

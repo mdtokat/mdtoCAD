@@ -1,6 +1,22 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- Uygulama normal bir kullanıcı gibi fareyle kullanıldı (yeni parça → çizim → ölçü → ekstrüzyon → kesme → radyus → delik → çoğaltma → teknik resim → montaj → patlatma). Bulunan hatalar giderildi (testler: `tests/normal-kullanim.spec.js`):
+- Düzeltme (teknik resim): tümünden geçen diş (kılavuz) deliklerinin diş çizgileri ön/yan görünüşten taşıp alttaki görünüşlerin içine kadar uzanıyordu; diş artık gövde kalınlığı kadar çizilir.
+- Düzeltme (çizim): Seç aracıyla sürüklenen nokta başka bir noktanın veya orijinin üstüne bırakılınca birleşmiyordu (çakışık olmadan 0,07 mm yanında kalıyor, orijin artık seçilemiyordu). Artık birleşir; bir çizginin/yayın üstüne bırakılınca onun üzerinde kalır.
+- Düzeltme (çizim): çizgi aracında eksen (merkez çizgisi) gibi bir öğenin üstüne tıklanınca dikey/yatay yakalama kayboluyordu; döndürme profilini eksende kapatan çizgi hafif eğik çıkıyordu. Öğe üstündeki nokta dikey/yatay hizada kalır.
+- Düzeltme (çizim radyusu): radyus uygulanan köşeye bağlı ölçüler (ör. dikdörtgenin 40 mm yüksekliği, orijin köşesi) siliniyor, çizim tanımsız kalıyordu. Köşe, SolidWorks gibi sanal köşe noktası olarak kalır; ölçüler korunur.
+- Düzeltme (montaj resmi): deliğe oturan pim gibi iç içe bileşenlerde gövdenin balonu deliğin ağzını, yani pimi gösteriyordu. Balon ucu başka bileşenin kenarına yakın olmayan bir kenara konur.
+- Düzeltme (teknik resim): delik konum ölçüleri dört–beş sıra olunca izometrik görünüşe değiyordu; izometrik, ölçek küçülmeden sağa kayar, kağıtta yer varsa görünüş aralıkları açılır.
+- Düzeltme (otomatik patlatma): tüm bileşenler sabit mesafe kaydırıldığı için uzun mil yatağın içinde kalıyordu; her bileşen eşleştiği parçadan tamamen ayrılacak kadar kaydırılır.
+- Pah/Radyus paneli dairesel kenarı “1 mm” yerine “dairesel Ø20” olarak gösterir.
+- Düzeltme (montaj): eşleştirme panelinde mesafe/açı yazıp hemen Enter'a basınca sayfa hatası oluşuyordu (gecikmeli önizleme kapanmış panele yazıyordu) ve yeni değer önizlenmeden onaylanabiliyordu. Türü değiştirilen otomatik adlı eşleştirme yeni türün adını alır (Çakışık1 → Mesafe1).
+- Teknik resim: dairesel çoğaltılmış (bir merkezden eşit uzaklıktaki) delikler, kenardan Kartezyen ölçüler yerine eksen çizgisiyle çizilen **delik dairesi** ve çapıyla (ör. Ø80) ölçülür.
+- PDF penceresi, PDF indirilince kapanır.
+- Düzeltme (önizleme): “Tümünden geç” kesme ve delik önizlemesi parçanın çok ötesine uzanıyordu; artık gövdenin bittiği yerde durur. Çoğaltma/aynalama önizlemesindeki kesme araçları da gövde kutusuna kırpılır (sonuç değişmez).
+- Aynala: ayna düzlemi olarak modelin düz bir yüzeyi de seçilebilir (ekranda yüzeye tıkla veya yüzeyi seçip Aynala'ya bas); uç yüzeyler onları oluşturan ekstrüzyonla birlikte taşınır (yeni `plane: {kind:"face", …}`).
+- Geri al/Yinele: yeni parça oluşturma, parça çoğaltma ve parça silme artık Geri al (Ctrl+Z) ve Yinele (Ctrl+Y) ile geri alınır; önceden yalnızca silme, bildirimdeki düğmeyle geri alınabiliyordu.
+- Düzeltme (arayüz): görünümün üstündeki mavi yönerge şeridi (ör. “Deliğin açılacağı düz yüzeye tıkla…”) ve teknik resimdeki ipucu kutusu altlarındaki modele/sayfaya yapılan tıklamaları yutuyordu; dik duran milin üst yüzeyine delik konumu eklenemiyordu.
 - Uygulama olağandışı kullanımla test edildi (geri al/yinele sıraları, silme, kaydedip yeniden açıp çizime devam etme, bozuk dosya). Bulunan hatalar giderildi (testler: `tests/olagandisi.spec.js`):
 - Düzeltme (montaj resmi): eklenen notlar, yüzey işaretleri, geometrik toleranslar, referanslar ve detay görünüşleri hemen kayboluyordu; kağıt boyutu, yönlendirme, ölçek, kesit ve görünüş sürüklemeleri de kaydedilmiyordu. Montaj resminin ayar nesnesi her okunuşta yenileniyor, değişiklik eskisine yazılıyordu.
 - Düzeltme (kaydet/aç): montajın resim ayarları ve patlatma adımları proje yeniden açılınca (sayfa yenileme dahil) siliniyordu.

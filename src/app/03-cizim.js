@@ -212,7 +212,10 @@ function skSnap(q,tol,from,exclude,fromId){
   if(best)return best;bd=tol;
   for(const e of f.ents)if(e.t==='line'&&!(exclude&&(exclude.has(e.a)||exclude.has(e.b)))){const a=P2(e.a),b=P2(e.b);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(Math.hypot(m[0]-q[0],m[1]-q[1])<tol)return {x:m[0],y:m[1],rel:{t:'mid',e:e.id}}}
   bd=tol*0.8;
-  for(const e of f.ents){if(exclude&&(exclude.has(e.a)||exclude.has(e.b)))continue;const [d,p]=entDist(e,q);if(d<bd){bd=d;best={x:p[0],y:p[1],rel:{t:e.t==='line'?'pol':'poc',e:e.id}}}}
+  let ent=null;
+  for(const e of f.ents){if(exclude&&(exclude.has(e.a)||exclude.has(e.b)))continue;const [d,p]=entDist(e,q);if(d<bd){bd=d;ent=e;best={x:p[0],y:p[1],rel:{t:e.t==='line'?'pol':'poc',e:e.id}}}}
+  // öğe üstünde yatay/dikey çıkarım da korunur (ör. döndürme profili eksene dik inerek kapanır)
+  if(best&&from){const h=hvOnEnt(ent,q,from,tol);if(h)return {...h,rel:best.rel}}
   if(best)return best;
   let x=q[0],y=q[1];
   // ızgara: çizgilere yakınken (≈5 px) yakala, aradaki değerleri adımın onda birine yuvarla
@@ -232,6 +235,17 @@ function skSnap(q,tol,from,exclude,fromId){
       const off=Math.abs(v[0]*d[1]-v[1]*d[0]);if(off<tol*0.7){x=from[0]+d[0]*k;y=from[1]+d[1]*k;return {x,y,inf:{t,e:e.id}}}}
   }
   return {x,y,hv};
+}
+/* başlangıç noktasından geçen yatay/dikey doğrunun öğeyi imlece yakın kestiği nokta */
+function hvOnEnt(e,q,from,tol){
+  const f=sk.feat;let best=null,bd=tol;
+  for(const [k,hv] of [[0,'v'],[1,'h']]){
+    const c0=from[k],o=1-k;if(Math.abs(q[k]-c0)>=tol)continue;const ys=[];
+    if(e.t==='line'){const a=P2(e.a),b=P2(e.b);const den=b[k]-a[k];if(Math.abs(den)<1e-9)continue;const t=(c0-a[k])/den;if(t<-1e-9||t>1+1e-9)continue;ys.push(a[o]+t*(b[o]-a[o]))}
+    else{const c=P2(e.c),r=curveR(f,e),d=c0-c[k];if(Math.abs(d)>r)continue;const s=Math.sqrt(r*r-d*d);ys.push(c[o]+s,c[o]-s)}
+    for(const y of ys){const p=k===0?[c0,y]:[y,c0];if(entDist(e,p)[0]>1e-6*(1+Math.abs(p[0])+Math.abs(p[1])))continue;const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={x:p[0],y:p[1],hv}}}
+  }
+  return best;
 }
 /* ızgara yakalaması noktayı merkezin üstüne çekiyorsa (çok küçük daire) yakalamayı bırak */
 function unsnapNear(s,q,c,px){if(s.pid||s.rels||s.rel)return s;if(Math.hypot(s.x-c[0],s.y-c[1])<px*3&&Math.hypot(q[0]-c[0],q[1]-c[1])>=px*3)return {x:Math.round(q[0]*1000)/1000,y:Math.round(q[1]*1000)/1000};return s}
@@ -287,12 +301,29 @@ function skPointerMove(e){
 }
 function skPointerUp(e,d){
   const drag=sk.drag;sk.drag=null;
-  if(drag&&drag.moved){skChanged();return}
+  if(drag&&drag.moved){if(drag.h.k==='pt'){const ev=skEv(e);if(ev.q)dropPoint(drag.h.id,ev.tol)}skChanged();return}
   if(!d||Math.hypot(e.clientX-d.x,e.clientY-d.y)>6)return;
   if(e.button!==0&&e.pointerType==='mouse')return;
   const ev=skEv(e);if(!ev.q)return;
   if(!sk.tool){const h=skHit(ev.q,ev.tol);if(h)toggleSel(h);else{sk.sel=[];skChanged()}return}
   toolClick(ev.q,ev.px,ev.tol);
+}
+/* sürüklenen nokta başka bir noktanın (orijin dahil) üstüne bırakılınca onunla birleşir; bir öğenin üstüne bırakılınca üzerinde kalır */
+function dropPoint(id,tol){
+  const f=sk.feat;if(!f.pts[id])return;const p=P2(id);
+  const own=f.ents.filter(e=>e.a===id||e.b===id||e.c===id);const near=new Set([id]);for(const e of own)for(const k of ['a','b','c'])if(e[k])near.add(e[k]);
+  let best=null,bd=tol;
+  for(const o of ['O',...Object.keys(f.pts)]){if(near.has(o))continue;const q=P2(o);const d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(d<bd){bd=d;best=o}}
+  const prev=skData(f);
+  if(best){mergePts(f,best,id);sk.sel=sk.sel.filter(h=>h.id!==id)}
+  else{
+    let en=null;bd=tol*0.8;
+    for(const e of f.ents){if(own.includes(e)||f.cons.some(c=>(c.t==='pol'||c.t==='poc')&&c.p===id&&c.e===e.id))continue;const [d]=entDist(e,p);if(d<bd){bd=d;en=e}}
+    if(!en)return;
+    const r0=sketchRank(f);const c={t:en.t==='line'?'pol':'poc',p:id,e:en.id,id:newId(f,'c')};f.cons.push(c);
+    if(sketchRank(f)===r0){f.cons.pop();return}
+  }
+  if(!solveSketch(f)){skRestore(prev);toast('Nokta oraya bağlanamadı: çizim çözülemiyor.')}
 }
 function skDblClick(e){
   if(sk.tool==='line'||sk.tool==='centerline'||sk.tool==='tarc'){endChainIfAny();sk.dirty=true;return}
@@ -467,16 +498,16 @@ function sketchFillet(pid){
   const a1=Math.atan2(T1[1]-C[1],T1[0]-C[0]);let sw=Math.atan2(T2[1]-C[1],T2[0]-C[0])-a1;while(sw<0)sw+=Math.PI*2;
   const mid=a1+sw/2,toP=[P[0]-C[0],P[1]-C[1]];const fw=Math.cos(mid)*toP[0]+Math.sin(mid)*toP[1]>0;
   const arc=addEnt(fw?{t:'arc',c:cc,a:t1,b:t2}:{t:'arc',c:cc,a:t2,b:t1});
-  const removed=f.cons.filter(c=>CPK.some(k=>c[k]===pid)).length;
-  f.cons=f.cons.filter(c=>!CPK.some(k=>c[k]===pid));
-  if(pid!=='O'&&!f.ents.some(e=>e.a===pid||e.b===pid||e.c===pid))delete f.pts[pid];
+  // köşeye bağlı ölçü ve ilişkiler korunur: köşe, iki öğenin uzantılarının kesiştiği sanal köşe noktası olarak kalır (SolidWorks gibi)
+  if(pid==='O'||f.cons.some(c=>CPK.some(k=>c[k]===pid))){for(const e of es)addCon({t:e.t==='line'?'pol':'poc',p:pid,e:e.id})}
+  else if(!f.ents.some(e=>e.a===pid||e.b===pid||e.c===pid))delete f.pts[pid];
   for(const e of es){if(e.t==='line')addCon({t:'tan',e1:e.id,e2:arc.id});else{const c=P2(e.c);const dd=Math.hypot(C[0]-c[0],C[1]-c[1]);addCon({t:'tan',e1:e.id,e2:arc.id,int:Math.abs(dd-Math.abs(curveR(f,e)-r))<Math.abs(dd-(curveR(f,e)+r))})}}
   const ul=Math.hypot(...toP)||1,lo=r+(sk.px?sk.px*30:r*0.6);
   // aynı araçla aynı yarıçapta eklenen sonraki radyuslar ilkine eşit bağlanır (tek ölçü hepsini sürer)
   const first=sk.filArc&&f.ents.find(e=>e.id===sk.filArc);
   if(first&&Math.abs(curveR(f,first)-r)<1e-9)addCon({t:'eq',e1:first.id,e2:arc.id});
   else{addCon({t:'drad',e:arc.id,val:r,lp:[C[0]+toP[0]/ul*lo,C[1]+toP[1]/ul*lo]});sk.filArc=arc.id}
-  if(finishOp([])&&removed)toast(`Köşedeki ${removed} ilişki/ölçü kaldırıldı.`);
+  finishOp([]);
 }
 
 /* ---------- akıllı ölçülendirme ---------- */

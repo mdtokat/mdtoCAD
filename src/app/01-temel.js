@@ -176,8 +176,8 @@ let hist=histFor(state.id);
 const snapshot=()=>JSON.stringify({features:state.features,partName:state.partName,material:state.material},cleanR);
 function restoreSnap(s){const o=JSON.parse(s);state.features=o.features;state.partName=o.partName;state.material=o.material}
 function pushHist(){hist.undo.push(snapshot());if(hist.undo.length>80)hist.undo.shift();hist.redo=[];updUndo()}
-function undo(){if(activeTab==='drawing')return dwUndo();if(activeTab==='asm')return asmUndo();if(sk)return sketchUndo();if(!hist.undo.length)return;closePM(true);hist.redo.push(snapshot());restoreSnap(hist.undo.pop());afterChange();updUndo()}
-function redo(){if(activeTab==='drawing')return dwRedo();if(activeTab==='asm')return asmRedo();if(sk)return sketchRedo();if(!hist.redo.length)return;closePM(true);hist.undo.push(snapshot());restoreSnap(hist.redo.pop());afterChange();updUndo()}
+function undo(){if(activeTab==='drawing')return dwUndo();if(activeTab==='asm')return asmUndo();if(sk)return sketchUndo();if(!hist.undo.length)return;closePM(true);const top=hist.undo[hist.undo.length-1];if(top&&typeof top==='object'){partHistOp(top,true);return}hist.redo.push(snapshot());restoreSnap(hist.undo.pop());afterChange();updUndo()}
+function redo(){if(activeTab==='drawing')return dwRedo();if(activeTab==='asm')return asmRedo();if(sk)return sketchRedo();if(!hist.redo.length)return;closePM(true);const top=hist.redo[hist.redo.length-1];if(top&&typeof top==='object'){partHistOp(top,false);return}hist.undo.push(snapshot());restoreSnap(hist.redo.pop());afterChange();updUndo()}
 /* parça adı/malzeme değişikliği kendi geri alma adımıdır; yoksa sonraki bir adımı geri almak onu da sessizce geri alırdı.
    çizim açıkken çizimin başlangıç anlık görüntüsüne işlenir (çizimi iptal etmek veya geri almak değişikliği geri almaz) */
 function metaChange(fn){
@@ -448,7 +448,7 @@ function pickFace(e){
 }
 function pickPlane(e){
   ray.setFromCamera(ndc(e),camera);const ms=planeObjs.filter(o=>o.visible).map(o=>o.children[0]);
-  const h=ray.intersectObjects(ms)[0];return h?{kind:'plane',key:h.object.userData.planeKey}:null;
+  const h=ray.intersectObjects(ms)[0];return h?{kind:'plane',key:h.object.userData.planeKey,dist:h.distance}:null;
 }
 function faceRef(f){
   // Seçilen yüzeyi, onu oluşturan ekstrüzyonun uç yüzüne bağla (model değişince çizim de taşınır)
@@ -528,7 +528,14 @@ function click3D(e){
     updateSelVisual();renderPM();schedulePreview();return;
   }
   if(pm&&(pm.type==='extrude'||pm.type==='revolve')){if(!pm.draft.thin)regionClick(e);return}
-  if(pm&&(pm.type==='mirror'||pm.type==='plane')){const pl=pickPlane(e);if(pl){if(pm.type==='mirror')pm.draft.plane=pl.key;else pm.draft.base=pl.key;renderPM();updatePlaneVis();schedulePreview()}return}
+  if(pm&&pm.type==='mirror'){
+    // düzlem veya modelin düz yüzeyi: hangisi öndeyse
+    const pl=pickPlane(e),f=pickFace(e);const fd=f?camera.position.distanceTo(v3(f.pt)):Infinity;
+    if(f&&(!pl||fd<pl.dist)){if(!isPlanarFace(f)){toast('Ayna düzlemi olarak düz bir yüzey seç.');return}pm.draft.plane=pm.mirFace=faceRef(f)}
+    else if(pl)pm.draft.plane=pl.key;else return;
+    renderPM();renderTree();updatePlaneVis();schedulePreview();return;
+  }
+  if(pm&&pm.type==='plane'){const pl=pickPlane(e);if(pl){if(pm.type==='mirror')pm.draft.plane=pl.key;else pm.draft.base=pl.key;renderPM();updatePlaneVis();schedulePreview()}return}
   if(pm)return;
   if(pickMode==='plane'){
     const f=pickFace(e);if(f&&isPlanarFace(f)){startSketch(faceRef(f));return}

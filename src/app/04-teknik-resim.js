@@ -46,7 +46,11 @@ function viewData(key,alt){
     let mx=0;for(let j=-1;j<=1;j++){const Y=Math.min(RES-1,Math.max(0,iy+j));for(let i=-1;i<=1;i++){const X=Math.min(RES-1,Math.max(0,ix+i));const v=dep[Y*RES+X];if(v>mx)mx=v}}
     return d01<=mx+eps01;
   };
-  const edges=computeEdges(src.polys,{x:D[0],y:D[1],z:D[2]},src.kind==='asm');
+  // montajda kenarlar bileşen başına bulunur: farklı bileşenlerin çakışan yüzeyleri (ör. aynı çaplı mil ve delik) kenar sayılmaz
+  let edges;
+  if(src.kind==='asm'){const gs=new Map();for(const p of src.polys){if(!gs.has(p.shared))gs.set(p.shared,[]);gs.get(p.shared).push(p)}
+    edges=[];for(const ps of gs.values())edges.push(...computeEdges(ps,{x:D[0],y:D[1],z:D[2]},true))}
+  else edges=computeEdges(src.polys,{x:D[0],y:D[1],z:D[2]},false);
   const vis=[],hid=[];
   for(const s of edges){
     const a1=dot3(s.a,R),b1=dot3(s.a,U),a2=dot3(s.b,R),b2=dot3(s.b,U);
@@ -260,6 +264,22 @@ function buildSheet(forExport,opts){
       const txt=(n>1?n+'× ':'')+(best.txt||('Ø'+fmt(best.r*2)));
       o.push(leader(x,y,best.r*s,cut?Math.PI/4:Math.PI*3/4,txt));
     }
+    /* delik konumları: simetrik çift merkezden merkeze, diğerleri görünüşün sol/alt kenarından */
+    for(const k of order){
+      const hs=[];for(const g of plan.values())if(g.k===k)for(const q of g.list)if(q.op==='cut')hs.push(q);if(!hs.length)continue;
+      const v=ctx.views[k],bb=vd[k].bb;
+      const uniq=a=>{const out=[];for(const x of a.sort((p,q)=>p-q))if(!out.length||x-out[out.length-1]>0.01)out.push(x);return out};
+      const axis=(vals,lo,hi,horiz)=>{
+        const c=(lo+hi)/2;vals=uniq(vals).filter(x=>Math.abs(x-c)>1e-3&&x>lo+1e-3&&x<hi-1e-3);if(!vals.length||vals.length>5)return;
+        const pairs=vals.length===2&&Math.abs(vals[0]+vals[1]-2*c)<0.01?[[vals[0],vals[1]]]:vals.map(x=>[lo,x]);
+        pairs.forEach(([x0,x1],i)=>{const off=(horiz&&k!=='top'?16:9)+7*i; // ön ve yan görünüşün altında genel boyut var
+          if(horiz){const P1=v.map(x0,x0===lo?bb.minB:hs.find(q=>Math.abs(q.a-x0)<0.01).b),P2=v.map(x1,hs.find(q=>Math.abs(q.a-x1)<0.01).b),y=v.map(0,bb.minB)[1]+off;
+            o.push(dimMarkup(P1,P2,[P1[0],y],[P2[0],y],fmt(x1-x0)))}
+          else{const P1=v.map(x0===lo?bb.maxA:hs.find(q=>Math.abs(q.b-x0)<0.01).a,x0),P2=v.map(hs.find(q=>Math.abs(q.b-x1)<0.01).a,x1),x=v.map(bb.maxA,0)[0]+off;
+            o.push(dimMarkup(P1,P2,[x,P1[1]],[x,P2[1]],fmt(x1-x0)))}});
+      };
+      axis(hs.map(q=>q.a),bb.minA,bb.maxA,true);axis(hs.map(q=>q.b),bb.minB,bb.maxB,false);
+    }
     /* genel boyutlar */
     const vF=ctx.views.front,dF=vd.front.bb;
     const BL=vF.map(dF.minA,dF.minB),BR=vF.map(dF.maxA,dF.minB),TL=vF.map(dF.minA,dF.maxB);
@@ -386,6 +406,7 @@ function renderDrawRibbon(){
     '<div class="rsep"></div>'+dRb('hidden','hidden','Gizli çizgiler',S.hidden)+dRb('centers','center','Eksen çizgileri',S.centers)+dRb('autodims','autodim','Oto. ölçüler',S.autodims)+dRb('iso','isoView','İzometrik',S.iso)+
     '<div class="rsep"></div>'+(doc.kind==='part'||S.asmView!=='iso'?rctl('Kesit','dSec',[['none','Yok'],['front','Ön görünüş A-A'],['side','Yan görünüş A-A']],S.section||'none'):'')+dRb('dim','dim','Ölçü ekle',dimMode)+dRb('detail','detailv','Detay görünüşü',dwTool==='detail')+dRb('surf','surf','Yüzey işareti',dwTool==='surf')+dRb('note','note','Not ekle',dwTool==='note')+dRb('fit','fit','Sığdır',false)+
     '<div class="rsep"></div>'+dRb('pdf','pdf','PDF olarak al',false)+dRb('svg','svg','SVG indir',false)+dRb('png','png','PNG indir',false);
+  fitRibbon($('#drawRibbon'));
 }
 $('#drawRibbon').addEventListener('change',e=>{
   const S=dwS(),t=e.target;

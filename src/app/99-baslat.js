@@ -88,13 +88,16 @@ document.addEventListener('keydown',e=>{
     if(sel){setSel(null)}
     return;
   }
-  if(e.key==='Enter'&&!typing&&activeTab==='asm'&&asmUI.pm&&asmUI.pm.type==='mate'){e.preventDefault();commitMate();return}
-  if(e.key==='Enter'&&!typing&&pm){e.preventDefault();commitPM();return}
+  // Enter: özellik panelindeki bir alanda yazarken de değeri alıp özelliği onaylar
+  const inPm=typing&&ae.tagName==='INPUT'&&ae.type!=='checkbox'&&!!ae.closest('#pm');
+  if(e.key==='Enter'&&(!typing||inPm)&&activeTab==='asm'&&asmUI.pm&&asmUI.pm.type==='mate'){e.preventDefault();if(inPm)ae.blur();commitMate();return}
+  if(e.key==='Enter'&&(!typing||inPm)&&pm&&!sk&&activeTab==='model'){e.preventDefault();if(inPm)ae.blur();commitPM();return}
   if((e.key==='Delete'||e.key==='Backspace')&&!typing&&activeTab==='asm'){if(asmUI.sel&&!asmUI.pm){e.preventDefault();delComp(asmUI.sel)}return}
   if((e.key==='Delete'||e.key==='Backspace')&&!typing&&activeTab==='model'){
     if(sk){e.preventDefault();deleteSel();return}
     if(!pm&&sel&&sel.kind==='feature'){const b=$(`.ti[data-id="${sel.id}"] [data-a="del"]`);if(b)b.click()}
   }
+  if(!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key.toLowerCase()==='f'&&activeTab!=='drawing'){e.preventDefault();fitView();return}
   // çizerken ölçü yazma: ilk noktadan sonra rakam yazınca giriş kutusu açılır
   if(sk&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[0-9.,(]$/.test(e.key)&&skInputFields()){e.preventDefault();openSkInput(e.key);return}
   if(sk&&!typing&&!e.ctrlKey&&!e.metaKey){const k=e.key.toLowerCase();const map={l:'line',c:'circle',r:'rect',d:'smartdim',a:'arc',t:'trim'};if(map[k]){setTool(map[k])}}

@@ -253,10 +253,14 @@ function entIntersect(sk,e,o){
    Malzeme kuralı (8. adım): birbirini kesen konturlar (daire + dikdörtgen gibi) birleşir, iç içe ve birbirine değmeyen
    konturlar delik olur, bir bölgeyi ikiye ayıran çizgiler ve boşta uçlar profili bozmaz. */
 function skArrangement(sk,inner){
-  const ents=sk.ents.filter(e=>!e.cons);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
+  let ents=sk.ents.filter(e=>!e.cons);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
   let ext=1;for(const id in sk.pts){const p=sk.pts[id];ext=Math.max(ext,Math.abs(p.x),Math.abs(p.y))}
   for(const e of ents)if(e.t==='circle'){const c=P(e.c);ext=Math.max(ext,Math.abs(c[0])+e.r,Math.abs(c[1])+e.r)}
   const tol=Math.max(1e-6,ext*1e-6);
+  // üst üste çakışan özdeş öğeler (ör. aynalanmış kopyanın üstüne düşen çoğaltma kopyası) tek öğe sayılır; yoksa delik dolardı
+  {const same=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<tol;const key=e=>e.t==='line'?[P(e.a),P(e.b)]:e.t==='circle'?[P(e.c),[e.r,0]]:[P(e.c),P(e.a),P(e.b)];
+    const dup=(e,o)=>{if(e.t!==o.t)return false;const k=key(e),m=key(o);if(e.t==='line')return (same(k[0],m[0])&&same(k[1],m[1]))||(same(k[0],m[1])&&same(k[1],m[0]));return k.every((p,i)=>same(p,m[i]))};
+    const kept=[];for(const e of ents)if(!kept.some(o=>dup(e,o)))kept.push(e);ents=kept}
   // 1) öğe başına bölme noktaları: kesişimler ve öğenin ortasına dokunan uç noktaları (T-birleşimi, üst üste binen çizgiler)
   const splits=new Map(ents.map(e=>[e,[]]));
   const par=(e,p)=>{if(e.t==='line'){const a=P(e.a),b=P(e.b);const dx=b[0]-a[0],dy=b[1]-a[1];return ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy||1)}
@@ -486,7 +490,8 @@ function numJacC(fun,X){
   const m=cols.length?cols[0].length:0,J=[];for(let i=0;i<m;i++){const r=new Array(n);for(let j=0;j<n;j++)r[j]=cols[j][i];J.push(r)}
   return J;
 }
-function lm(fun,X,iters){
+/* rtol: maliyet göreli olarak bu kadar azalmıyorsa durur (sıfıra inmeyen yumuşak terimli çözümler için) */
+function lm(fun,X,iters,rtol){
   iters=iters||100;let x=X.slice();let r=fun(x);let cost=r.reduce((s,v)=>s+v*v,0);let lam=1e-3;const n=x.length;
   if(!n)return {x,cost};
   for(let it=0;it<iters;it++){
@@ -500,7 +505,7 @@ function lm(fun,X,iters){
       const M=A.map(q=>q.slice());for(let i=0;i<n;i++)M[i][i]+=lam*(A[i][i]+1e-6);
       const d=linSolve(M,g.map(v=>-v));if(!d){lam*=10;continue}
       const xn=x.map((v,i)=>v+d[i]);const rn=fun(xn);const cn=rn.reduce((s,v)=>s+v*v,0);
-      if(isFinite(cn)&&cn<cost){x=xn;r=rn;const gain=cost-cn;cost=cn;lam=Math.max(lam/4,1e-12);ok=true;if(gain<1e-24)it=iters;break}
+      if(isFinite(cn)&&cn<cost){x=xn;r=rn;const gain=cost-cn;cost=cn;lam=Math.max(lam/4,1e-12);ok=true;if(gain<1e-24||(rtol&&gain<rtol*cost))it=iters;break}
       lam*=6;
     }
     if(!ok)break;
@@ -511,14 +516,19 @@ function lm(fun,X,iters){
 function solveSketch(sk,targets){
   const S=sysBuild(sk);
   if(!S.n)return S.fs.every(f=>Math.abs(f([]))<1e-6);
-  let X=S.X0.slice();
+  let X=S.X0.slice();const X0=S.X0;
+  const soft=[],tgt=new Set();
   if(targets&&targets.length){
-    const soft=[];
     for(const t of targets){
-      if(t.p!==undefined&&S.pIdx[t.p]!==undefined){const i=S.pIdx[t.p];soft.push(X=>(X[i]-t.x)*0.5,X=>(X[i+1]-t.y)*0.5)}
-      if(t.e!==undefined&&S.rIdx[t.e]!==undefined){const i=S.rIdx[t.e];soft.push(X=>(X[i]-t.r)*0.5)}
+      if(t.p!==undefined&&S.pIdx[t.p]!==undefined){const i=S.pIdx[t.p];tgt.add(i).add(i+1);soft.push(X=>(X[i]-t.x)*0.5,X=>(X[i+1]-t.y)*0.5)}
+      if(t.e!==undefined&&S.rIdx[t.e]!==undefined){const i=S.rIdx[t.e];tgt.add(i);soft.push(X=>(X[i]-t.r)*0.5)}
     }
-    X=lm(X=>S.res(X).concat(soft.map(f=>f(X))),X,40).x;
+  }
+  // en az hareket: önce her değişkeni bulunduğu yerde tutan zayıf terimlerle çözülür. Tam tanımlanmamış çizimde
+  // etkisi küçük koordinatlar (ör. eğik çizginin uçları) aksi hâlde büyük adımlarla kayıp şekli ters çevirebilir.
+  if(soft.length||S.res(X).some(v=>Math.abs(v)>1e-9)){
+    for(let i=0;i<X.length;i++)if(!tgt.has(i))soft.push(X=>(X[i]-X0[i])*0.01);
+    X=lm(X=>S.res(X).concat(soft.map(f=>f(X))),X,60,1e-4).x;
   }
   const r=lm(S.res,X,120);
   const mx=r.r?r.r.reduce((m,v)=>Math.max(m,Math.abs(v)),0):0;
@@ -673,8 +683,28 @@ function placeDimLabels(sk,added,px){
 }
 
 /* ============ Özellik gövdeleri ============ */
-function extrudeRange(f,L){
-  const s=(f.op==='cut'?-1:1)*(f.flip?-1:1);const d=num(f.depth);
+/* ışının gövdeye ilk çarptığı uzaklık (dışbükey çokgenlerle); çarpmazsa null */
+function rayHit(polys,o,d){
+  let best=null;
+  for(const p of polys){const n=p.plane.n,den=n.x*d[0]+n.y*d[1]+n.z*d[2];if(Math.abs(den)<1e-9)continue;
+    const t=(p.plane.w-(n.x*o[0]+n.y*o[1]+n.z*o[2]))/den;if(!(t>1e-6)||(best!==null&&t>=best))continue;
+    const q=[o[0]+d[0]*t,o[1]+d[1]*t,o[2]+d[2]*t];const v=p.verts,L=v.length;let ok=true;
+    for(let i=0;i<L&&ok;i++){const a=v[i],b=v[(i+1)%L];const e=[b.x-a.x,b.y-a.y,b.z-a.z],w=[q[0]-a.x,q[1]-a.y,q[2]-a.z];
+      const c=[e[1]*w[2]-e[2]*w[1],e[2]*w[0]-e[0]*w[2],e[0]*w[1]-e[1]*w[0]];if(c[0]*n.x+c[1]*n.y+c[2]*n.z<-1e-9*(1+Math.hypot(...e)))ok=false}
+    if(ok)best=t}
+  return best;
+}
+/* Gövdeye kadar: profilin her noktası gövdeye değene dek (en uzak ilk çarpma) uzunluk */
+function depthToBody(shapes,F,s,off,solid){
+  if(!solid||!solid.length)throw new Error('Gövdeye kadar için önce bir gövde olmalı.');
+  const d=vk(F.n,s);let mx=null,miss=0,n=0;
+  for(const sh of shapes){const pts=sh.outer.slice();let cx=0,cy=0;for(const q of sh.outer){cx+=q[0];cy+=q[1]}pts.push([cx/sh.outer.length,cy/sh.outer.length]);
+    for(const q of pts){n++;const t=rayHit(solid,fpt(F,q[0],q[1],off),d);if(t===null){miss++;continue}if(mx===null||t>mx)mx=t}}
+  if(mx===null)throw new Error('Bu yönde gövde yok: Ters yön ile dene.');
+  return mx;
+}
+function extrudeRange(f,L,toBody){
+  const s=(f.op==='cut'?-1:1)*(f.flip?-1:1);const d=f.end==='body'?toBody:num(f.depth);
   let z0=0,z1=0;
   if(f.end==='mid'){if(!(d>0))throw new Error('Derinlik sıfırdan büyük olmalı.');z0=-d/2;z1=d/2}
   else{
@@ -726,8 +756,10 @@ function thinProfiles(sk,t,side){
   }
   return shapes;
 }
-function extrudeTool(f,sk,F,L){
-  const shapes=f.thin?thinProfiles(sk,num(f.thick),f.thinSide):sketchProfiles(sk,f.regions);const {z0,z1,s}=extrudeRange(f,L);
+function extrudeTool(f,sk,F,L,solid){
+  const shapes=f.thin?thinProfiles(sk,num(f.thick),f.thinSide):sketchProfiles(sk,f.regions);
+  const toBody=f.end==='body'?depthToBody(shapes,F,(f.op==='cut'?-1:1)*(f.flip?-1:1),f.fromOff?num(f.fromOff):0,solid):null;
+  const {z0,z1,s}=extrudeRange(f,L,toBody);
   const M=frameMatrix(F);let polys=[];const ann=[];
   for(const sh of shapes){
     const shape=new T.Shape(sh.outer.map(q=>new T.Vector2(q[0],q[1])));
@@ -1023,7 +1055,7 @@ function rebuildModel(features,upto){
         const sk=byId[f.sketch];if(!sk)throw new Error('Özelliğin çizimi bulunamadı.');
         if(ctx.errors[sk.id])throw new Error('Çizimde hata var: '+ctx.errors[sk.id]);
         const F=ctx.frames[sk.id];if(!F)throw new Error('Çizim düzlemi çözülemedi.');
-        const r=f.type==='extrude'?extrudeTool(f,sk,F,reachFor(solid,F)):revolveTool(f,sk,F);
+        const r=f.type==='extrude'?extrudeTool(f,sk,F,reachFor(solid,F),solid):revolveTool(f,sk,F);
         if(r.cap)ctx.caps[f.id]=r.cap;
         ctx.tools[f.id]={polys:r.polys,op:f.op,ann:r.ann};
         solid=f.op==='cut'?csgSubtract(solid,r.polys):(solid.length?csgUnion(solid,r.polys):r.polys);

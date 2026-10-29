@@ -288,6 +288,7 @@ function renderAsmRibbon(){
     rb('amove','move','Bileşeni Taşı',t==='move'?'on':'')+rb('arotate','rotate','Bileşeni Döndür',t==='rotate'?'on':'')+'<div class="rsep"></div>'+
     rb('ameasure','measure','Ölç',meas?'on':'')+'<div class="rsep"></div>'+rb('aexplode','explode','Patlatılmış Görünüm',asmUI.pm&&asmUI.pm.type==='explode'?'on':'')+rb('atoggle','explode',asmUI.exf>0.5?'Topla':'Patlat',asmUI.exf>0.5?'on':'')+rb('ainterf','interf','Girişim Algıla',asmUI.pm&&asmUI.pm.type==='interf'?'on':'')+'<div class="rsep"></div>'+
     rb('adraw','asmDraw','Montaj Resmi')+rb('astl','stl','Montajı STL olarak al');
+  fitRibbon($('#ribbon'));
 }
 function asmCmd(c){
   if(c==='ainsert'){if(!curAsm())newAsm();else openInsertPM();return}

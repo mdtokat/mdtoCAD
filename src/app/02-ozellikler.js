@@ -15,7 +15,7 @@ function renderTree(){
   if(state.mesh){h+=`<div class="ti"><span class="ic">${IC.iso}</span><span class="nm">İçe aktarılan gövde (STL)</span></div><div class="tree-empty">Bu parça STL dosyasından alındı. Ölçüleri değiştirilemez; montajda ve teknik resimde kullanılabilir.</div>`;$('#tree').innerHTML=h;return}
   if(!state.features.length)h+=`<div class="tree-empty">Henüz özellik yok. Bir düzlem seç, sonra şeritten Çizim'e bas.</div>`;
   const row=(f,child)=>{
-    const err=model.errors[f.id];const isSel=(sel&&sel.kind==='feature'&&sel.id===f.id)||(pm&&pm.draft&&((pm.draft.targets||[]).includes(f.id)||pm.draft.sketch===f.id||(pm.type==='mirror'&&pm.draft.plane===f.id)||(pm.type==='plane'&&pm.draft.base===f.id)));
+    const err=model.errors[f.id];const isSel=(sel&&sel.kind==='feature'&&sel.id===f.id)||(sel&&sel.kind==='plane'&&sel.key===f.id)||(pm&&pm.draft&&((pm.draft.targets||[]).includes(f.id)||pm.draft.sketch===f.id||(pm.type==='mirror'&&pm.draft.plane===f.id)||(pm.type==='plane'&&pm.draft.base===f.id)));
     const active=(sk&&sk.feat.id===f.id)||(pm&&!pm.isNew&&pm.draft.id===f.id);
     let nm=esc(f.name);if(f.type==='sketch'&&model.dof[f.id]>0)nm=`<em>(-)</em> `+nm;
     let acts='';
@@ -31,6 +31,7 @@ function renderTree(){
   }
   $('#tree').innerHTML=h;
 }
+let treeLast=null;
 $('#tree').addEventListener('click',e=>{
   if(activeTab==='asm'){asmTreeClick(e);return}
   const pa=e.target.closest('[data-pa]');if(pa){partAction(pa.dataset.pa);return}
@@ -55,7 +56,10 @@ $('#tree').addEventListener('click',e=>{
     }
     if(pickMode==='plane'&&f.type==='plane'){startSketch({kind:'plane',id});return}
     if(sk)return;
-    setSel(sel&&sel.kind==='feature'&&sel.id===id?null:(f.type==='plane'?{kind:'plane',key:id}:{kind:'feature',id}));return;
+    // çift tıklama: ilk tıklama ağacı yeniden çizdiği için tarayıcının dblclick olayı gelmez; burada yakalanır
+    const now=performance.now();if(treeLast&&treeLast.id===id&&now-treeLast.t<450){treeLast=null;if(f.type==='sketch')editSketch(id);else openPM(f.type,f);return}
+    treeLast={id,t:now};
+    setSel(sel&&((sel.kind==='feature'&&sel.id===id)||(sel.kind==='plane'&&sel.key===id))?null:(f.type==='plane'?{kind:'plane',key:id}:{kind:'feature',id}));return;
   }
   if(act==='edit'){openPM(f.type,f);return}
   if(act==='editsk'){editSketch(f.type==='sketch'?id:f.sketch);return}
@@ -105,8 +109,11 @@ function renderRibbon(){
       '<div class="rsep"></div>'+rb('sfillet','sfillet','Çizim Radyusu',on('sfillet'))+rb('trim','trim','Budama',on('trim'))+rb('soffset','offset','Varlıkları Ofsetle',sk&&sk.op&&sk.op.t==='offset'?'on':'')+rb('smirror','smirror','Varlıkları Aynala',sk&&sk.op&&sk.op.t==='mirror'?'on':'')+rb('slpat','slpat','Doğrusal Çoğaltma',sk&&sk.op&&sk.op.t==='lpat'?'on':'')+rb('scpat','scpat','Dairesel Çoğaltma',sk&&sk.op&&sk.op.t==='cpat'?'on':'')+
       '<div class="rsep"></div>'+rb('construction','construction','Yapı Geometrisi')+rb('normal','normal','Normal Görünüm');
   }
-  $('#ribbon').innerHTML=h;
+  $('#ribbon').innerHTML=h;fitRibbon($('#ribbon'));
 }
+/* şerit taşarsa sıkıştır, yine taşarsa etiketleri gizle (tam ad düğmenin ipucunda kalır) */
+function fitRibbon(el,again){if(!el)return;el.classList.remove('compact','tight');if(!again)requestAnimationFrame(()=>fitRibbon(el,true));if(el.scrollWidth<=el.clientWidth+1)return;el.classList.add('compact');if(el.scrollWidth>el.clientWidth+1)el.classList.add('tight')}
+{let rw={};const ro=new ResizeObserver(es=>{for(const e of es){const w=Math.round(e.contentRect.width);if(rw[e.target.id]!==w){rw[e.target.id]=w;fitRibbon(e.target)}}});ro.observe($('#ribbon'));ro.observe($('#drawRibbon'))}
 $('#cmTabs').addEventListener('click',e=>{const b=e.target.closest('[data-cm]');if(!b)return;cmTab=b.dataset.cm;renderRibbon()});
 $('#ribbon').addEventListener('click',e=>{const b=e.target.closest('[data-cmd]');if(!b)return;if(activeTab==='asm')asmCmd(b.dataset.cmd);else cmd(b.dataset.cmd)});
 function cmd(c){
@@ -134,7 +141,7 @@ function beginSketchCommand(pend,tool){
   pending=pend;pendingTool=tool;
   if(pm)closePM(true);
   if(sel&&sel.kind==='plane'){startSketch(planeRef(sel.key));return}
-  if(sel&&sel.kind==='face'){if(isPlanarFace(sel)){startSketch(faceRef(sel));return}}
+  if(sel&&sel.kind==='face'){if(isPlanarFace(sel)){startSketch(faceRef(sel));return}toast('Seçili yüzey düz değil; düz bir yüzey veya düzlem seç.')}
   pickMode='plane';updatePlaneVis();
   prompt_('Çizim için bir düzlem (Ön, Üst, Sağ) veya modelde düz bir yüzey seç. İptal için Esc.');
   renderTree();
@@ -142,17 +149,19 @@ function beginSketchCommand(pend,tool){
 let pendingTool=null;
 function cancelPick(){pickMode=null;pending=null;pendingTool=null;prompt_(null);updatePlaneVis()}
 
+/* Ekrana sığdır: çizim düzenlenirken çizimi (ve modeli) bakış yönünü değiştirmeden sığdırır */
+function fitView(){if(sk&&activeTab==='model')fitSketch(true);else fitCamera(null)}
 /* HUD (görünüm araç çubuğu) */
 function renderHud(){
   const b=(k,ic,t,on)=>`<button data-hud="${k}" title="${t}" class="${on?'on':''}" aria-label="${t}">${IC[ic]}</button>`;
-  $('#hud').innerHTML=b('normal','normal','Normal görünüm (seçili düzleme dik)')+b('front','front','Ön')+b('top','top','Üst')+b('right','right','Sağ')+b('iso','iso','İzometrik')+b('fit','fit','Ekrana sığdır')+b('measure','measure','Ölç')+
+  $('#hud').innerHTML=b('normal','normal','Normal görünüm (seçili düzleme dik)')+b('front','front','Ön')+b('top','top','Üst')+b('right','right','Sağ')+b('iso','iso','İzometrik')+b('fit','fit','Ekrana sığdır (F)')+b('measure','measure','Ölç')+
     '<span class="hsep"></span>'+`<button data-disp="shadedEdges" title="Gölgeli, kenarlı">${IC.shadedEdges}</button><button data-disp="shaded" title="Gölgeli">${IC.shaded}</button><button data-disp="wire" title="Tel kafes">${IC.wire}</button>`+b('planes','planes','Düzlemleri göster',showPlanes);
 }
 $('#hud').addEventListener('click',e=>{
   const d=e.target.closest('[data-disp]');if(d){display=d.dataset.disp;applyDisplay();return}
   const b=e.target.closest('[data-hud]');if(!b)return;const k=b.dataset.hud;
   if(k==='measure'){if(meas)closeMeasure();else openMeasure();return}
-  if(k==='normal')cmd('normal');else if(k==='fit')fitCamera(null);else if(k==='planes'){showPlanes=!showPlanes;updatePlaneVis();applyDisplay();renderTree()}
+  if(k==='normal')cmd('normal');else if(k==='fit')fitView();else if(k==='planes'){showPlanes=!showPlanes;updatePlaneVis();applyDisplay();renderTree()}
   else fitCamera(VIEWDIRS[k]);
 });
 
@@ -162,7 +171,14 @@ function openNewProfile(type,op,sid){
   const s=byId(sid);
   const d=type==='extrude'?{type,op,sketch:sid,end:op==='cut'?'through':'blind',depth:op==='cut'?10:20,flip:false,dir2:false,end2:'blind',depth2:10,fromOff:0,thin:openOnly(s),thinSide:'a',thick:5}
     :{type,op,sketch:sid,axis:defaultAxis(s),angle:360,mode:'one',flip:false};
-  d.id=uid();d.name=nextName(d);openPM(type,null,d);
+  d.id=uid();d.name=nextName(d);openPM(type,null,d);previewView(sid);
+}
+/* çizime dik bakılıyorsa önizlemenin derinliği görünsün diye izometrik görünüşe geçilir (çizimin bulunduğu taraftan) */
+function previewView(sid){
+  const F=model.frames[sid];if(!F||!pm)return;
+  const d=camera.position.clone().sub(controls.target).normalize();if(Math.abs(d.dot(v3(F.n)))<0.97)return;
+  let iso=[1,1,1];const k=vd(iso,F.n);if(k<0)iso=va(iso,vk(F.n,-2*k));
+  pm.view=iso;
 }
 /* kapalı bölgesi olmayan (yalnızca açık zincirli) çizim: ekstrüzyon ince özellik olarak açılır */
 function openOnly(s){if(!s||!s.ents.some(e=>!e.cons))return false;try{return !sketchProfiles(s).length}catch(e){return true}}
@@ -204,8 +220,14 @@ function commitPM(){
   if(f.type==='hole')prompt_(null);
   pushHist();
   if(pm.isNew)state.features.push(f);else{const i=state.features.findIndex(x=>x.id===f.id);if(i>=0)state.features[i]=f}
-  const id=f.id,wasNew=pm.isNew;pm=null;clearPreview();afterChange();if(wasNew&&(f.type==='extrude'||f.type==='revolve'))fitCamera(VIEWDIRS.iso);sel={kind:'feature',id};updateSelVisual();renderTree();
+  const id=f.id,wasNew=pm.isNew;pm=null;clearPreview();afterChange();if(wasNew&&(f.type==='extrude'||f.type==='revolve'))fitCamera(VIEWDIRS.iso);else keepInView();sel=f.type==='plane'?{kind:'plane',key:id}:{kind:'feature',id};updateSelVisual();renderTree();
   if(model.errors[id])toast('Özellik eklendi ancak hata içeriyor: '+model.errors[id]);
+}
+/* model görünür alanın dışına taştıysa (ör. çoğaltma, aynalama sonrası) bakış yönü korunarak sığdırılır */
+function keepInView(){
+  const b=curBox();if(!b)return;camera.updateMatrixWorld();
+  for(const x of [b.min[0],b.max[0]])for(const y of [b.min[1],b.max[1]])for(const z of [b.min[2],b.max[2]]){
+    const p=new T.Vector3(x,y,z).project(camera);if(Math.abs(p.x)>1||Math.abs(p.y)>1||p.z>1){fitCamera(null);return}}
 }
 function afterChange(){
   rebuild();renderTree();renderPM();renderRibbon();updUndo();saveState();
@@ -235,9 +257,10 @@ function renderPM(){
     b+=fSel('Çizim (profil)','sketch',sks.map(x=>[x.id,x.name+(model.dof[x.id]>0?' (tam tanımlı değil)':'')]));
     b=grp('',b);
     if(f.type==='extrude'){
-      let d=fSel('Bitiş koşulu','end',[['blind','Kör'],['through','Tümünden geç'],['mid','Orta düzlem']]);
+      let d=fSel('Bitiş koşulu','end',[['blind','Kör'],['through','Tümünden geç'],['mid','Orta düzlem']].concat(f.op==='add'?[['body','Gövdeye kadar']]:[]));
       if(f.end!=='mid')d+=`<button type="button" class="sbtn" data-flip="1" style="margin-bottom:8px">⇅ Ters yön${f.flip?' (açık)':''}</button>`;
-      if(f.end!=='through')d+=fNum('Derinlik','depth');
+      if(f.end==='body')d+=`<p class="note">Profil, önündeki gövdeye tamamen değene kadar uzatılır; gövde değişince uzunluk da güncellenir. Ör. referans düzlemden aşağı inen çıkıntı.</p>`;
+      else if(f.end!=='through')d+=fNum('Derinlik','depth');
       b+=grp('Yön 1',d);
       if(f.end!=='mid'){
         let d2=fChk('Yön 2 kullan','dir2');
@@ -319,7 +342,7 @@ function updatePreview(){
     if(f.type==='extrude'||f.type==='revolve'){
       const s=byId(f.sketch);if(!s)throw new Error('Bir çizim seç.');const F=B.frames[s.id]||model.frames[s.id];if(!F)throw new Error('Çizim düzlemi çözülemedi.');
       if(!f.thin)regionOverlay(s,F,f.regions);
-      const r=f.type==='extrude'?extrudeTool(f,s,F,reachFor(B.polys,F)):revolveTool(f,s,F);addPreview(r.polys,f.op==='cut');
+      const r=f.type==='extrude'?extrudeTool(f,s,F,reachFor(B.polys,F),B.polys):revolveTool(f,s,F);addPreview(r.polys,f.op==='cut');
     }else if(['lpattern','cpattern','mirror'].includes(f.type)){
       if(!f.targets.length)throw new Error('Ağaçtan çoğaltılacak özelliği seç.');
       const Ms=patternMatrices(f,B.frames);
@@ -332,5 +355,8 @@ function updatePreview(){
       const F={o:va(Bf.o,vk(Bf.n,off)),u:Bf.u,v:Bf.v,n:Bf.n};const o=makePlaneObj(F,'prev',Math.max(80,modelExtent()));o.children[0].material.opacity=.2;o.children[0].material.color.setHex(0xE2A83A);o.children[1].material.color.setHex(0xB0760E);previewGroup.add(o);
     }
     if(err){err.classList.remove('on');err.textContent=''}
+    // ilk önizlemeden sonra görünüm önizlemeye ve modele sığdırılır
+    if(pm.view){const dir=pm.view;pm.view=null;const b=new T.Box3().setFromObject(previewGroup);if(model.box){b.expandByPoint(v3(model.box.min));b.expandByPoint(v3(model.box.max))}
+      if(!b.isEmpty())fitCamera(dir,true,null,{min:b.min.toArray(),max:b.max.toArray()})}
   }catch(e){if(err){err.textContent=e.message||String(e);err.classList.add('on')}}
 }

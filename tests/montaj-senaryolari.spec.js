@@ -354,3 +354,51 @@ test('montaj resmi: parça listesi görünüşleri gereksiz küçültmez; balonl
   await page.waitForFunction(() => __tz.getCtx().hits.filter(h => h.t === 'bal').length === 5);
   expect(errors).toEqual([]);
 });
+
+test('montaj kesiti: bitişik parçalar farklı taranır; cıvata, somun ve mil kesilmeden bütün çizilir', async ({ page }) => {
+  const errors = await openApp(page);
+  await openSample(page, 'flansli-kaplin');
+  await page.click('[data-tab="asm"]');
+  await page.click('[data-cmd="adraw"]');
+  await page.waitForFunction(() => !!__tz.getCtx() && Object.keys(__tz.getCtx().views).length >= 3);
+  await page.selectOption('#dSec', 'front');
+  await page.waitForFunction(() => __tz.getCtx().views.front && __tz.getCtx().views.front.d.secPolys.length > 0);
+  const groups = () => page.evaluate(() => { const sp = __tz.getCtx().views.front.d.secPolys, a = __tz.curAsm(); const st = __tz.hatchStyles(sp);
+    const nm = g => { const c = a.comps.find(c => 'SEC:' + c.id === g); return __tz.project.parts.find(p => p.id === c.part).partName; };
+    const o = {}; for (const [g, s] of st) (o[nm(g)] = o[nm(g)] || []).push(s); return o; });
+  let g = await groups();
+  // iki göbek yüz yüze değer: farklı tarama (önceden kimlik sırasına göre aynı açıyı alabiliyordu)
+  expect(g['Kaplin göbeği A'][0]).not.toBe(g['Kaplin göbeği B'][0]);
+  expect(Object.keys(g).sort()).toEqual(['Cıvata M10x50', 'Kaplin göbeği A', 'Kaplin göbeği B', 'Mil Ø25', 'Somun M10']);
+  for (const ad of ['Cıvata M10x50', 'Somun M10', 'Mil Ø25']) {
+    const id = await page.evaluate(ad => __tz.project.parts.find(p => p.partName === ad).id, ad);
+    await page.check(`[data-secskip="${id}"]`);
+  }
+  await page.waitForFunction(() => (__tz.dwS().secSkip || []).length === 3 && new Set(__tz.getCtx().views.front.d.secPolys.map(q => q.g)).size === 2);
+  g = await groups();
+  expect(Object.keys(g).sort()).toEqual(['Kaplin göbeği A', 'Kaplin göbeği B']);
+  // geri al: kesilmeyecek parça seçimi resim geçmişindedir
+  await page.keyboard.press('Control+z');
+  await page.waitForFunction(() => (__tz.dwS().secSkip || []).length === 2);
+  expect(errors).toEqual([]);
+});
+
+test('panel açıkken başka montaja geçmek: çoğaltma önizlemesi ve geçmiş kendi montajında kalır', async ({ page }) => {
+  const errors = await openApp(page);
+  await openSample(page, 'flansli-kaplin');
+  // ikinci montaj: tek göbek
+  const second = await newAsmWith(page, ['Kaplin göbeği A']);
+  const ids = await page.evaluate(() => __tz.project.asms.map(a => a.id));
+  // birinci montaja dön, çoğaltmayı düzenle (adet 6: önizleme kopya ekler), panel açıkken ikinciye geç
+  await page.selectOption('#asmSel', ids[0]);
+  await page.evaluate(() => document.querySelector('.ti[data-apat]').click());
+  await page.fill('#pm input[data-k="n"]', '6'); await page.waitForTimeout(400);
+  expect(await page.evaluate(() => __tz.curAsm().comps.length)).toBe(16);
+  await page.selectOption('#asmSel', ids[1]);
+  const r = await page.evaluate(ids => ({ first: __tz.project.asms.find(a => a.id === ids[0]).comps.length, second: __tz.project.asms.find(a => a.id === ids[1]).comps.map(c => c.id), pm: __tz.asmUI.pm }), ids);
+  expect(r).toEqual({ first: 12, second, pm: null });
+  // ikinci montajın geri alma geçmişi bozulmadı: geri al bileşen eklemeyi geri alır
+  await page.keyboard.press('Control+z');
+  expect(await page.evaluate(() => __tz.curAsm().comps.length)).toBe(0);
+  expect(errors).toEqual([]);
+});

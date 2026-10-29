@@ -6,7 +6,9 @@ IC.note=sv('<path d="M5 4h14v16H5z"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/>');
 let dwTool=null,dwSt={};
 const secCache=new Map();
 function sectionSrc(src,viewKey,S){
-  const off=num(S.secOff)||0,half=S.secType==='half';const key=src.key+'|sec|'+viewKey+'|'+off+(half?'|h':'');
+  // montajda kesilmeyecek parçalar (SolidWorks: kesitten hariç tutulan cıvata, somun, mil…) bütün olarak çizilir
+  const skip=src.kind==='asm'?new Set(S.secSkip||[]):new Set();
+  const off=num(S.secOff)||0,half=S.secType==='half';const key=src.key+'|sec|'+viewKey+'|'+off+(half?'|h':'')+'|'+[...skip].sort().join();
   if(secCache.has(key))return secCache.get(key);
   const b=src.box;const c=[(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2];
   const D=VIEWS[viewKey].D;const P=va(c,vk(D,off));
@@ -15,7 +17,9 @@ function sectionSrc(src,viewKey,S){
   const ctr=va(vs(P,vk(D,L/2)),half?vk(VIEWS[viewKey].R,L/2):[0,0,0]);
   const cutter=sh=>{const g=new T.BoxGeometry(L,L,L);g.translate(ctr[0],ctr[1],ctr[2]);return geomToPolys(g,sh)};
   let polys=[];
-  if(src.kind==='asm'){const groups=new Map();for(const p of src.polys){if(!groups.has(p.shared))groups.set(p.shared,[]);groups.get(p.shared).push(p)}for(const [k,ps] of groups)polys=polys.concat(csgSubtract(ps,cutter('SEC:'+k)))}
+  if(src.kind==='asm'){const groups=new Map();for(const p of src.polys){if(!groups.has(p.shared))groups.set(p.shared,[]);groups.get(p.shared).push(p)}
+    const partOf=id=>{const c=src.a.comps.find(c=>c.id===id);return c&&c.part};
+    for(const [k,ps] of groups)polys=polys.concat(skip.has(partOf(k))?ps:csgSubtract(ps,cutter('SEC:'+k)))}
   else polys=csgSubtract(src.polys,cutter('SEC'));
   for(const v of secCache.values())if(v.g)v.g.dispose();secCache.clear();
   const res={kind:src.kind,key,polys,ann:src.ann,box:polys.length?bboxPolys(polys):src.box,g:polysToBuffers(polys).g,sec:true,P};
@@ -25,10 +29,19 @@ function hatchMarkup(sp,v,isAsm){
   let d='';for(const q of hatchSegs(sp,v,isAsm))d+=Lp(q[0],q[1],q[2],q[3]);
   return d?`<path class="d-thin" d="${d}"/>`:'';
 }
+/* montaj kesitinde bitişik parçalar farklı taranır (ISO 128): komşu (kesit kutuları değen) parçalarda kullanılmayan ilk açı/aralık */
+const HATCH=[[45,2.5],[135,2.5],[45,4],[135,4],[30,3.2],[150,3.2],[60,3.2],[120,3.2]];
+function hatchStyles(sp){
+  const groups=[...new Set(sp.map(q=>q.g))].sort(),box=new Map();
+  for(const q of sp){let b=box.get(q.g);if(!b)box.set(q.g,b=[Infinity,Infinity,-Infinity,-Infinity]);for(const [a,c] of q.pts){b[0]=Math.min(b[0],a);b[1]=Math.min(b[1],c);b[2]=Math.max(b[2],a);b[3]=Math.max(b[3],c)}}
+  const touch=(a,b)=>a[0]<=b[2]+0.5&&b[0]<=a[2]+0.5&&a[1]<=b[3]+0.5&&b[1]<=a[3]+0.5;const st=new Map();
+  for(const g of groups){const used=new Set();for(const [h,s] of st)if(touch(box.get(g),box.get(h)))used.add(s);st.set(g,HATCH.findIndex((x,i)=>!used.has(i))<0?0:HATCH.findIndex((x,i)=>!used.has(i)))}
+  return st;
+}
 function hatchSegs(sp,v,isAsm){
-  const groups=[...new Set(sp.map(q=>q.g))].sort();const d=[];
+  const sty=isAsm?hatchStyles(sp):null;const d=[];
   for(const q of sp){
-    const gi=groups.indexOf(q.g);const ang=(gi%2?135:45)*Math.PI/180,spc=2.5+(isAsm?(Math.floor(gi/2)%3)*0.9:0);
+    const [deg,spc]=sty?HATCH[sty.get(q.g)]:HATCH[0];const ang=deg*Math.PI/180;
     const pts=q.pts.map(([a,b])=>v.map(a,b));const ux=Math.cos(ang),uy=-Math.sin(ang),nx=-uy,ny=ux;
     const pr=pts.map(p=>p[0]*nx+p[1]*ny);const mn=Math.min(...pr),mx=Math.max(...pr);
     for(let k=Math.ceil(mn/spc);k<=Math.floor(mx/spc);k++){
@@ -177,7 +190,9 @@ function tolEditor(d,i){
 }
 function extraPanel(S){
   let h='';
-  if(S.section&&S.section!=='none')h+=`<div class="grp"><div class="grp-t">Kesit A-A</div><label class="fld"><span>Kesit türü</span><select data-xsel="secType" style="${inSt}"><option value="full" ${S.secType!=='half'?'selected':''}>Tam kesit</option><option value="half" ${S.secType==='half'?'selected':''}>Yarım kesit (simetrik parça)</option></select></label><label class="fld"><span>Kesit düzleminin merkeze göre kaydırması</span><div class="inp"><input data-xs="secOff" inputmode="decimal" value="${esc(String(S.secOff||0).replace('.',','))}"><em>mm</em></div></label><p class="note">${S.section==='front'?'Ön görünüş, parçanın ortasından geçen düzlemde kesilmiş olarak çizilir; kesit çizgisi üst görünüşte gösterilir.':S.section==='top'?'Üst görünüş kesilmiş olarak çizilir; kesit çizgisi ön görünüşte gösterilir.':'Yan görünüş kesilmiş olarak çizilir; kesit çizgisi ön görünüşte gösterilir.'} Kesit yüzeyleri taranır.</p></div>`;
+  const doc=dwDoc();
+  const skipList=S.section&&S.section!=='none'&&doc.kind==='asm'?`<div class="fld"><span>Kesilmeyecek parçalar</span><div class="lst">${bomItems(doc.a).map(it=>`<label class="chk" style="margin:0"><input type="checkbox" data-secskip="${it.part}" ${(S.secSkip||[]).includes(it.part)?'checked':''}> ${esc(it.name)}</label>`).join('')}</div><p class="note">SolidWorks'teki gibi cıvata, somun, pim ve dolu miller boyuna kesitte kesilmez, bütün çizilir.</p></div>`:'';
+  if(S.section&&S.section!=='none')h+=`<div class="grp"><div class="grp-t">Kesit A-A</div>${skipList}<label class="fld"><span>Kesit türü</span><select data-xsel="secType" style="${inSt}"><option value="full" ${S.secType!=='half'?'selected':''}>Tam kesit</option><option value="half" ${S.secType==='half'?'selected':''}>Yarım kesit (simetrik parça)</option></select></label><label class="fld"><span>Kesit düzleminin merkeze göre kaydırması</span><div class="inp"><input data-xs="secOff" inputmode="decimal" value="${esc(String(S.secOff||0).replace('.',','))}"><em>mm</em></div></label><p class="note">${S.section==='front'?'Ön görünüş, parçanın ortasından geçen düzlemde kesilmiş olarak çizilir; kesit çizgisi üst görünüşte gösterilir.':S.section==='top'?'Üst görünüş kesilmiş olarak çizilir; kesit çizgisi ön görünüşte gösterilir.':'Yan görünüş kesilmiş olarak çizilir; kesit çizgisi ön görünüşte gösterilir.'} Kesit yüzeyleri taranır.</p></div>`;
   const D=S.details||[],F=S.surfs||[],N=S.notes||[];
   h+=`<div class="grp"><div class="grp-t">Detay görünüşleri</div>${D.length?`<div class="dimlist">${D.map((d,i)=>`<div class="dimrow"><span>${esc(d.label)}</span><select data-dk2="${i}" style="${inSt}">${[2,3,4,5,10].map(k=>`<option value="${k}" ${+d.k===k?'selected':''}>×${k}</option>`).join('')}</select><button data-xdel="details:${i}" aria-label="Sil">✕</button></div>`).join('')}</div>`:'<p class="note">Şeritten “Detay görünüşü”ne bas; büyütülecek bölgenin merkezine, sonra kenarına, sonra detayın yerine tıkla.</p>'}</div>`;
   h+=`<div class="grp"><div class="grp-t">Yüzey işaretleri</div><label class="fld"><span>Yeni işaret için Ra (µm)</span><input data-xs="raDef" value="${esc(S.raDef||'3,2')}"></label>${F.length?`<div class="dimlist">${F.map((f,i)=>`<div class="dimrow"><span>Ra</span><input data-sra="${i}" value="${esc(f.ra)}" style="${inSt};width:60px"><button data-xdel="surfs:${i}" aria-label="Sil">✕</button></div>`).join('')}</div>`:'<p class="note">Şeritten “Yüzey işareti”ne bas, sonra bir görünüşteki kenara tıkla.</p>'}</div>`;
@@ -208,6 +223,7 @@ function extraPanelInput(e,isChange){
   else if(ds.gtol!==undefined)S.gdts[+ds.gtol].tol=t.value;
   else if(ds.gdat!==undefined){const [i,j]=ds.gdat.split(':').map(Number);const g=S.gdts[i];g.dat=(g.dat||['','','']).slice();g.dat[j]=t.value.trim()}
   else if(ds.dlab!==undefined)S.datums[+ds.dlab].label=t.value.trim();
+  else if(ds.secskip!==undefined){if(!isChange)return true;pushDwHist();const L=new Set(S.secSkip||[]);if(t.checked)L.add(ds.secskip);else L.delete(ds.secskip);S.secSkip=[...L];saveState();renderDrawing();return true}
   else hit=false;
   if(hit){saveState();quickRedraw()}
   return hit;

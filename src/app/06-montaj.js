@@ -362,7 +362,8 @@ function renderAsmTree(){
 }
 function asmTreeClick(e){
   const aa=e.target.closest('[data-aa]');
-  if(aa){if(aa.dataset.aa==='new')newAsm();else{const a=curAsm();if(!a)return;const i=project.asms.indexOf(a);project.asms.splice(i,1);project.cur.asm=project.asms[0]?project.asms[0].id:null;asmUI.sel=null;closeAsmPM(true,true);asmChanged();toast(`“${a.name}” silindi.`,{label:'Geri al',fn:()=>{project.asms.splice(i,0,a);project.cur.asm=a.id;asmChanged()}})}return}
+  // açık panel, montaj değişmeden önce kendi montajında kapatılır (yoksa önizleme/geçmiş diğer montaja uygulanırdı)
+  if(aa){closeAsmPM(true,true);if(aa.dataset.aa==='new')newAsm();else{const a=curAsm();if(!a)return;const i=project.asms.indexOf(a);project.asms.splice(i,1);project.cur.asm=project.asms[0]?project.asms[0].id:null;asmUI.sel=null;asmChanged();toast(`“${a.name}” silindi.`,{label:'Geri al',fn:()=>{project.asms.splice(i,0,a);project.cur.asm=a.id;asmChanged()}})}return}
   const ap=e.target.closest('[data-addp]');if(ap){if(!curAsm()){newAsm()}addComp(ap.dataset.addp);return}
   const ct=e.target.closest('[data-comp]');
   if(ct){const id=ct.dataset.comp;const b=e.target.closest('[data-ca]');const c=compById(id);if(!c)return;
@@ -383,7 +384,7 @@ function asmTreeClick(e){
 }
 function asmTreeDbl(e){const ct=e.target.closest('[data-comp]');if(ct&&!e.target.closest('[data-ca]')){const c=compById(ct.dataset.comp);if(c){switchPart(c.part);setTab('model')}}}
 function asmTreeChange(e){
-  if(e.target.id==='asmSel'){project.cur.asm=e.target.value;asmUI.sel=null;closeAsmPM(true,true);asmChanged();fitCamera(VIEWDIRS.iso,false);return}
+  if(e.target.id==='asmSel'){closeAsmPM(true,true);project.cur.asm=e.target.value;asmUI.sel=null;asmChanged();fitCamera(VIEWDIRS.iso,false);return}
   if(e.target.id==='asmNameIn'){const a=curAsm();if(a){a.name=e.target.value.trim()||'Montaj';saveState();renderAsmTree()}}
 }
 
@@ -568,6 +569,7 @@ function applyDrag(d){
   }
   d.c.T=M.toArray();
   if(a.mates.some(m=>!m.suppressed&&(m.a.comp===d.c.id||m.b.comp===d.c.id))){if(!solveAsm(a,{quick:true}))d.c.T=d.last.slice()}
+  else if(a.pats)applyPats(a); // çoğaltma kaynağı (veya eksenin bileşeni) sürüklenirken kopyalar da izler
   d.last=d.c.T.slice();updateAsmPoses();
 }
 function asmUp(e){

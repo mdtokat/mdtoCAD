@@ -141,6 +141,7 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır. `distance` e�
   "vofs":   { "front":[dx,dy], "top":dy, "side":dx, "iso":[dx,dy] },   // sürüklenen görünüşler (sayfa mm)
   "lbl":    { "<delik gid>":[dx,dy] },                                // elle taşınan otomatik etiketler (daire merkezine göre)
   "bal":    { "<poz no>":[dx,dy] },                                   // montaj resmi: elle taşınan balonlar (otomatik yerine göre)
+  "secSkip":[ "<parça id>", … ],                                      // montaj kesitinde kesilmeyen parçalar (cıvata, mil…)
   "hide":   [ "ow:front", "L:<gid>", "V:top", "B:3", … ],             // gizlenen otomatik ölçüler, etiketler, görünüşler, balonlar
   "details":[ {"view":"front","c":[a,b],"r":8,"k":2,"pos":[x,y],"label":"B"} ],
   "surfs":  [ {"view":"top","p":[a,b],"ra":"3,2"} ],

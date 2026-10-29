@@ -113,6 +113,7 @@ button:disabled{cursor:default}
 .ti.active .nm{font-weight:600}
 .ti .acts{display:none;gap:1px}
 .ti.sel .acts{display:flex}
+@media (hover:hover){.ti:hover .acts{display:flex}}
 .ti .acts button{width:26px;height:26px;border:0;background:none;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
 .ti .acts button:hover{background:var(--panel);color:var(--ink)}
 .ti .acts svg{width:15px;height:15px}

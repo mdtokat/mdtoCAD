@@ -10,6 +10,9 @@
 - Düzeltme (teknik resim): delik konum ölçüleri dört–beş sıra olunca izometrik görünüşe değiyordu; izometrik, ölçek küçülmeden sağa kayar, kağıtta yer varsa görünüş aralıkları açılır.
 - Düzeltme (otomatik patlatma): tüm bileşenler sabit mesafe kaydırıldığı için uzun mil yatağın içinde kalıyordu; her bileşen eşleştiği parçadan tamamen ayrılacak kadar kaydırılır.
 - Pah/Radyus paneli dairesel kenarı “1 mm” yerine “dairesel Ø20” olarak gösterir.
+- Düzeltme (montaj): eşleştirme panelinde mesafe/açı yazıp hemen Enter'a basınca sayfa hatası oluşuyordu (gecikmeli önizleme kapanmış panele yazıyordu) ve yeni değer önizlenmeden onaylanabiliyordu. Türü değiştirilen otomatik adlı eşleştirme yeni türün adını alır (Çakışık1 → Mesafe1).
+- Teknik resim: dairesel çoğaltılmış (bir merkezden eşit uzaklıktaki) delikler, kenardan Kartezyen ölçüler yerine eksen çizgisiyle çizilen **delik dairesi** ve çapıyla (ör. Ø80) ölçülür.
+- PDF penceresi, PDF indirilince kapanır.
 - Uygulama olağandışı kullanımla test edildi (geri al/yinele sıraları, silme, kaydedip yeniden açıp çizime devam etme, bozuk dosya). Bulunan hatalar giderildi (testler: `tests/olagandisi.spec.js`):
 - Düzeltme (montaj resmi): eklenen notlar, yüzey işaretleri, geometrik toleranslar, referanslar ve detay görünüşleri hemen kayboluyordu; kağıt boyutu, yönlendirme, ölçek, kesit ve görünüş sürüklemeleri de kaydedilmiyordu. Montaj resminin ayar nesnesi her okunuşta yenileniyor, değişiklik eskisine yazılıyordu.
 - Düzeltme (kaydet/aç): montajın resim ayarları ve patlatma adımları proje yeniden açılınca (sayfa yenileme dahil) siliniyordu.

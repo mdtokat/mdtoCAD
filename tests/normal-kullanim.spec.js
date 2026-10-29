@@ -149,3 +149,60 @@ test('otomatik patlatma: bileşen eşleştiği parçadan tamamen ayrılır', asy
   for (const gap of r) expect(gap).toBeGreaterThan(5);
   expect(errors).toEqual([]);
 });
+
+test('teknik resim: dairesel çoğaltılmış delikler delik dairesi çapıyla ölçülür', async ({ page }) => {
+  const errors = await openApp(page);
+  await newSketch(page, 'top');
+  await page.evaluate(() => { const T = __tz; T.setTool('circle'); T.toolClick(0, 0); T.sk.cursor = [30, 0]; T.applySkInput({ D: 100 }); T.setTool(null); T.exitSketch(true);
+    T.cmd('extrude'); T.pm.draft.depth = 10; T.commitPM(); });
+  // fareyle: üst yüzeye delik, sonra dairesel çoğaltma (6 adet)
+  await page.waitForTimeout(500);
+  await page.click('#ribbon >> text=Delik Sihirbazı');
+  await page.click('#pm >> text=Basit');
+  const [x, y] = await page.evaluate(() => __tz.scrW([40, 10, 0]));
+  await page.mouse.click(x, y);
+  await page.evaluate(() => { const T = __tz; T.pm.draft.pts = [[40, 0]]; T.commitPM(); T.cmd('cpattern'); T.commitPM(); });
+  expect(await page.evaluate(() => [__tz.model.errors, __tz.state.features.at(-1).type])).toEqual([{}, 'cpattern']);
+  await openDrawing(page);
+  const r = await page.evaluate(() => { const c = __tz.getCtx(); return { pcd: c.hits.filter(h => h.k && h.k.startsWith('pcd:')).length, hp: c.hits.filter(h => h.k && h.k.startsWith('hp:')).length,
+    txt: [...document.querySelectorAll('#sheet text')].map(t => t.textContent), circ: document.querySelectorAll('#sheet circle.d-cen').length }; });
+  expect(r.pcd).toBe(1);
+  expect(r.hp).toBe(0); // kenardan Kartezyen konum ölçüleri yok
+  expect(r.txt).toContain('Ø80');
+  expect(r.txt).toContain('6× Ø10');
+  expect(r.circ).toBe(1);
+  // dikdörtgen yerleşimli dört delik (örnek parça) Kartezyen ölçülür
+  await page.evaluate(() => document.querySelector('[data-m="demo"]').click());
+  await page.waitForFunction(() => __tz.state.partName === 'Yatak gövdesi' && [...document.querySelectorAll('#sheet text')].some(t => t.textContent === 'Yatak gövdesi'));
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => __tz.getCtx().hits.filter(h => h.k && h.k.startsWith('pcd:')).length)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('PDF indirilince pencere kapanır', async ({ page }) => {
+  const errors = await openApp(page);
+  await openDrawing(page);
+  await page.click('[data-dcmd="pdf"]');
+  await expect(page.locator('#pdfDlg')).toHaveClass(/on/);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#pdfGo')]);
+  expect((await dl.createReadStream()) !== null).toBe(true);
+  await expect(page.locator('#pdfDlg')).not.toHaveClass(/on/);
+  expect(errors).toEqual([]);
+});
+
+test('montaj: eşleştirme düzenlenirken mesafe yazıp hemen Enter hata vermez, yeni değer uygulanır', async ({ page }) => {
+  const errors = await openApp(page);
+  await openFile(page, PLAKA);
+  await page.click('[data-tab="asm"]');
+  await page.click('.ti:has-text("Çakışık1")');
+  await page.click('.ti.sel [data-ma="edit"]');
+  await page.click('#pm >> text=Mesafe');
+  const inp = page.locator('#pm input[data-num]');
+  await inp.fill('');
+  await inp.type('12');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(() => { const a = __tz.curAsm(); return { pm: !!__tz.asmUI.pm, m: a.mates.map(m => m.name), y: +a.comps[1].T[13].toFixed(3) }; });
+  expect(r).toEqual({ pm: false, m: ['Eşmerkezli1', 'Mesafe1'], y: -13 }); // pim üstü plaka üstünden 12 mm yukarıda
+  expect(errors).toEqual([]);
+});

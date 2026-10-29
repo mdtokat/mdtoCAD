@@ -257,8 +257,21 @@ function holePairs(vals,lo,hi){
   vals=out.filter(x=>Math.abs(x-c)>1e-3&&x>lo+1e-3&&x<hi-1e-3);if(!vals.length||vals.length>5)return null;
   return vals.length===2&&Math.abs(vals[0]+vals[1]-2*c)<0.01?[[vals[0],vals[1]]]:vals.map(x=>[lo,x]);
 }
+/* delik dairesi: aynı gruptan en az 3 delik ortak bir merkezden eşit uzaklıkta ve dikdörtgen ızgara oluşturmuyor (ör. dairesel çoğaltma) */
+function boltCircles(hs){
+  const groups=new Map();for(const q of hs){if(!groups.has(q.gid))groups.set(q.gid,[]);groups.get(q.gid).push(q)}
+  const out=[];
+  for(const [gid,g] of groups){if(g.length<3)continue;
+    const a=g.reduce((x,q)=>x+q.a,0)/g.length,b=g.reduce((x,q)=>x+q.b,0)/g.length;const ds=g.map(q=>Math.hypot(q.a-a,q.b-b));const R=ds.reduce((x,y)=>x+y,0)/g.length;
+    if(!(R>1e-3)||ds.some(d=>Math.abs(d-R)>0.01+R*1e-4))continue;
+    const n=vals=>{const s=vals.slice().sort((x,y)=>x-y);let c=0;for(let i=0;i<s.length;i++)if(!i||s[i]-s[i-1]>0.01)c++;return c};
+    if(n(g.map(q=>q.a))*n(g.map(q=>q.b))===g.length)continue;
+    out.push({gid,a,b,R,holes:g});
+  }
+  return out;
+}
 function holeDimCounts(vd,order){const plan=holePlan(vd,order),out={};
-  for(const k of order){const hs=planHoles(plan,k);if(!hs.length)continue;const bb=vd[k].bb;
+  for(const k of order){const all=planHoles(plan,k);const bc=boltCircles(all);const hs=all.filter(q=>!bc.some(g=>g.holes.includes(q)));if(!hs.length)continue;const bb=vd[k].bb;
     out[k]={h:(holePairs(hs.map(q=>q.a),bb.minA,bb.maxA)||[]).length,v:(holePairs(hs.map(q=>q.b),bb.minB,bb.maxB)||[]).length}}
   return out}
 function buildSheet(forExport,opts){
@@ -368,9 +381,11 @@ function buildSheet(forExport,opts){
   const autoDim=(key,P1,P2,Q1,Q2,txt)=>{if(hide.has(key))return;o.push(dimMarkup(P1,P2,Q1,Q2,txt));ctx.hits.push({t:'auto',k:key,box:lastBox})};
   if(S.autodims&&!isoOnly){
     const order=['top','front',side].filter(k=>ctx.views[k]);const plan=holePlan(vd,order);
-    /* delik konumları: simetrik çift merkezden merkeze, diğerleri görünüşün sol/alt kenarından */
+    /* delik konumları: simetrik çift merkezden merkeze, diğerleri görünüşün sol/alt kenarından; delik dairesindekiler delik dairesi çapıyla */
+    const pcds=[];
     for(const k of order){
-      const hs=planHoles(plan,k);if(!hs.length)continue;
+      const all=planHoles(plan,k);const bc=boltCircles(all);for(const g of bc)pcds.push({k,...g});
+      const hs=all.filter(q=>!bc.some(g=>g.holes.includes(q)));if(!hs.length)continue;
       const v=ctx.views[k],bb=vd[k].bb;
       const axis=(vals,lo,hi,horiz)=>{
         const pairs=holePairs(vals,lo,hi);if(!pairs)return;
@@ -395,6 +410,19 @@ function buildSheet(forExport,opts){
     const geo=[];for(const k of shown){const v=ctx.views[k];for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);geo.push([A[0],A[1],B[0],B[1]])}}
     const score=B=>{let sc=0;for(const b of occ){const a=boxOv(B,b);if(a>0)sc+=6+a}for(const g of geo)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;
       if(B[0]<ax0-8||B[2]>ax1+8||B[1]<ay0-8||B[3]>ay1+8)sc+=30;return sc};
+    /* delik dairesi: eksen çizgisiyle çizilir, çapı iki delik arasından çıkan kılavuzla yazılır */
+    for(const P of pcds){
+      const key='pcd:'+vk2(P.k)+':'+P.gid;if(hide.has(key))continue;
+      const v=ctx.views[P.k];const C=v.map(P.a,P.b),R=P.R*s;
+      o.push(`<circle class="d-cen" cx="${f2(C[0])}" cy="${f2(C[1])}" r="${f2(R)}"/>`);
+      const an=P.holes.map(q=>{const H=v.map(q.a,q.b);return Math.atan2(C[1]-H[1],H[0]-C[0])}).sort((x,y)=>x-y);
+      const mids=an.map((x,i)=>i<an.length-1?(x+an[i+1])/2:(x+an[0]+Math.PI*2)/2);
+      const pref=135*Math.PI/180,dA=x=>{let d=Math.abs(x-pref)%(Math.PI*2);return d>Math.PI?Math.PI*2-d:d};mids.sort((x,y)=>dA(x)-dA(y));
+      let r=null;
+      search:for(const L of [7,12,18])for(const th of mids){const K=[C[0]+Math.cos(th)*(R+L),C[1]-Math.sin(th)*(R+L)];
+        const c=leaderM(C,R,['Ø'+fmt(P.R*2)],K);c.sc=score(c.box)+dA(th)/3+(L-7)/22;if(!r||c.sc<r.sc)r=c;if(r.sc<0.6)break search}
+      o.push(r.m);occ.push(r.box);ctx.hits.push({t:'auto',k:key,box:r.box});
+    }
     for(const [gid,g] of plan){
       const key='L:'+gid;if(hide.has(key))continue;
       const v=ctx.views[g.k];const cut=g.list[0].op==='cut';
@@ -628,12 +656,11 @@ async function saveFile(filename,data){
   if(!dlCap){
     // Claude dışında (ör. GitHub Pages): standart tarayıcı indirmesi
     try{const blob=data instanceof Blob?data:new Blob([data],{type:filename.endsWith('.json')?'application/json':filename.endsWith('.svg')?'image/svg+xml':'application/octet-stream'});
-      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast('İndiriliyor: '+filename)}
-    catch(e){toast('Dosya indirilemedi.')}
-    return;
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast('İndiriliyor: '+filename);return true}
+    catch(e){toast('Dosya indirilemedi.');return false}
   }
-  try{await dlCap.save({filename,data});toast('Kaydedildi: '+filename)}
-  catch(e){if(e&&e.code==='declined')return;toast('Dosya kaydedilemedi'+(e&&e.message?': '+e.message:'.'))}
+  try{await dlCap.save({filename,data});toast('Kaydedildi: '+filename);return true}
+  catch(e){if(e&&e.code==='declined')return false;toast('Dosya kaydedilemedi'+(e&&e.message?': '+e.message:'.'));return false}
 }
 function exportSVG(){saveFile(safeName()+'-teknik-resim.svg',exportSVGString())}
 function exportPNG(){

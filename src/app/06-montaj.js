@@ -365,7 +365,7 @@ function setMateType(t){
   previewMate();
 }
 function previewMate(){
-  const P=asmUI.pm,a=curAsm();restoreOrig();
+  clearTimeout(asmPmInput.t);asmPmInput.t=0;const P=asmUI.pm,a=curAsm();if(!P||P.type!=='mate'||!a)return;restoreOrig();
   if(P.draft.a&&P.draft.b&&P.draft.type){
     const saved=a.mates;a.mates=saved.filter(m=>m.id!==P.editId);
     const ok=solveAsm(a,{extra:[P.draft]});a.mates=saved;
@@ -377,7 +377,11 @@ function previewMate(){
 function commitMate(){
   const P=asmUI.pm,a=curAsm(),d=P.draft;
   if(!d.a||!d.b||!d.type){toast('İki seçim yap ve bir eşleştirme türü seç.');return}
+  // yazılıp henüz önizlenmemiş değer (ör. mesafe yazılıp hemen Enter) önce çözülür
+  if(asmPmInput.t)previewMate();
   if(P.err){toast('Bu eşleştirme çözülemiyor.');return}
+  // türü değişen otomatik adlı eşleştirme yeni türün adını alır (Çakışık1 → Mesafe1)
+  const old=!P.isNew&&a.mates.find(m=>m.id===P.editId);if(old&&old.type!==d.type&&new RegExp('^'+MATE_T[old.type]+'\\d+$').test(d.name||''))d.name='';
   if(!d.name||P.isNew){let n=1;while(a.mates.some(m=>m.name===MATE_T[d.type]+n&&m.id!==d.id))n++;d.name=MATE_T[d.type]+n}
   if(P.isNew)a.mates.push(d);else{const i=a.mates.findIndex(m=>m.id===P.editId);if(i>=0)a.mates[i]=d}
   P.committed=true;asmUI.pm=null;asmChanged(false);renderAsmRibbon();

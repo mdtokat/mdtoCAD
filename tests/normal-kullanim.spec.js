@@ -206,3 +206,18 @@ test('montaj: eşleştirme düzenlenirken mesafe yazıp hemen Enter hata vermez,
   expect(r).toEqual({ pm: false, m: ['Eşmerkezli1', 'Mesafe1'], y: -13 }); // pim üstü plaka üstünden 12 mm yukarıda
   expect(errors).toEqual([]);
 });
+
+test('görünümdeki yönerge şeridi altındaki modele yapılan tıklamayı engellemez', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.selectOption('#partSel', { label: 'Mil' });
+  await page.click('#ribbon >> text=Delik Sihirbazı');
+  await expect(page.locator('#vpPrompt')).toBeVisible();
+  // dik duran milin üst yüzeyi şeridin altında kalıyor
+  const b = await page.locator('#vpPrompt').boundingBox();
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y).tagName, [b.x + b.width / 2, b.y + b.height / 2]);
+  expect(hit).toBe('CANVAS');
+  const [x, y] = await page.evaluate(() => __tz.scrW([1.5, 110, 1]));
+  await page.mouse.click(x, y);
+  expect(await page.evaluate(() => __tz.pm.draft.pts.length)).toBe(1);
+  expect(errors).toEqual([]);
+});

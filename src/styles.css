@@ -128,7 +128,7 @@ button:disabled{cursor:default}
 .hud .hsep{width:1px;background:var(--line);margin:4px 2px;flex:none}
 .vp-status{position:absolute;left:10px;top:48px;font-size:12px;padding:4px 8px;border-radius:5px;background:color-mix(in srgb,var(--panel) 82%,transparent);color:var(--muted);pointer-events:none;max-width:calc(100% - 20px);z-index:2}
 .vp-status.bad{color:var(--warn)}
-.vp-prompt{position:absolute;left:50%;top:48px;transform:translateX(-50%);font-size:13px;padding:6px 12px;border-radius:6px;background:var(--accent);color:var(--accent-ink);z-index:3;display:none;max-width:calc(100% - 20px);text-align:center}
+.vp-prompt{position:absolute;left:50%;top:48px;transform:translateX(-50%);font-size:13px;padding:6px 12px;border-radius:6px;background:var(--accent);color:var(--accent-ink);z-index:3;display:none;max-width:calc(100% - 20px);text-align:center;pointer-events:none}
 .vp-prompt.on{display:block}
 .mass{position:absolute;left:10px;bottom:10px;font-size:12px;padding:7px 10px;border-radius:7px;background:color-mix(in srgb,var(--panel) 86%,transparent);border:1px solid var(--line);display:grid;grid-template-columns:auto auto;gap:1px 12px;pointer-events:none;z-index:2}
 .mass span:nth-child(odd){color:var(--muted)}
@@ -222,7 +222,7 @@ button:disabled{cursor:default}
 .sheetwrap.dim #sheet{cursor:crosshair}
 .dw-busy{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted);font-size:13px;pointer-events:none}
 .dw-busy.on{display:flex}
-.dw-tip{position:absolute;left:10px;top:10px;font-size:12px;padding:5px 9px;border-radius:6px;background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);display:none;max-width:calc(100% - 20px)}
+.dw-tip{position:absolute;left:10px;top:10px;font-size:12px;padding:5px 9px;border-radius:6px;background:color-mix(in srgb,var(--panel) 90%,transparent);border:1px solid var(--line);display:none;max-width:calc(100% - 20px);pointer-events:none}
 .dw-tip.on{display:block}
 .dwp{grid-area:dwp;background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:4px 12px 20px}
 .dimrow button{border:0;background:none;color:var(--muted);width:24px;height:24px;border-radius:4px}

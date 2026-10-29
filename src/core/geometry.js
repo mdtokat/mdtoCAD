@@ -1067,7 +1067,10 @@ function clipAnn(a,box,polys){
   if(hi-lo<1e-6)return null;
   const r=a.r*1.002+1e-3;let l2=Infinity,h2=-Infinity;
   for(const p of polys)for(const v of p.verts){const dx=v.x-C[0],dy=v.y-C[1],dz=v.z-C[2];const t=dx*A[0]+dy*A[1]+dz*A[2];if(t<lo-1e-6||t>hi+1e-6)continue;const px=dx-A[0]*t,py=dy-A[1]*t,pz=dz-A[2]*t;if(px*px+py*py+pz*pz<=r*r){if(t<l2)l2=t;if(t>h2)h2=t}}
-  if(!(h2-l2>1e-6))return null;a.t0=l2;a.t1=h2;return a;
+  if(!(h2-l2>1e-6))return null;a.t0=l2;a.t1=h2;
+  // diş de gövde içinde kalır (tümünden geçen delikte araç boyu değil, gövde kalınlığı)
+  if(a.thread){const t0=Math.max(a.thread.t0,l2),t1=Math.min(a.thread.t1,h2);a.thread=t1-t0>1e-6?{...a.thread,t0,t1}:null}
+  return a;
 }
 function rebuildModel(features,upto){
   const list=upto==null?features:features.slice(0,upto);

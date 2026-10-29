@@ -72,20 +72,28 @@ function setExplode(on,instant){
 }
 function collapseIfExploded(){const a=curAsm();if(a&&asmUI.exf>0){exState(a).on=false;asmUI.exf=0;updateAsmPoses();renderAsmRibbon();toast('Düzenleme için montaj toplandı.')}}
 function snapAxis(v){const ax=['x','y','z'];let best='y',bv=-1;for(let i=0;i<3;i++){const s=Math.abs(v[i]);if(s>bv){bv=s;best=(v[i]<0?'-':'')+ax[i]}}return best}
+/* bileşenin (kutusunun) dünya yönü u üzerindeki izdüşüm aralığı */
+function compRange(c,u){const v=asmView.groups.get(c.id);const b=v&&v.d.box;if(!b)return null;const M=new T.Matrix4().fromArray(c.T);let lo=Infinity,hi=-Infinity;
+  for(let i=0;i<8;i++){const p=new T.Vector3(i&1?b.max[0]:b.min[0],i&2?b.max[1]:b.min[1],i&4?b.max[2]:b.min[2]).applyMatrix4(M);const t=p.x*u[0]+p.y*u[1]+p.z*u[2];lo=Math.min(lo,t);hi=Math.max(hi,t)}
+  return [lo,hi]}
 function autoExplode(a){
   const e=exState(a);const box=asmView.box;const size=box?Math.max(box.max[0]-box.min[0],box.max[1]-box.min[1],box.max[2]-box.min[2]):100;
   const base=Math.round(size*0.7/5)*5||50;const fixed=a.comps.filter(c=>c.fixed);
   const ref=fixed.length?compCenter(fixed[0]):(box?new T.Vector3((box.min[0]+box.max[0])/2,(box.min[1]+box.max[1])/2,(box.min[2]+box.max[2])/2):new T.Vector3());
   e.steps=[];
   for(const c of a.comps){
-    if(c.fixed)continue;let dir=null;const cc=compCenter(c);
+    if(c.fixed)continue;let dir=null,partner=null;const cc=compCenter(c);
     for(const m of a.mates){if(m.suppressed||m.type!=='coincident')continue;
       const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null),oth=mine===m.a?m.b:m.a;if(!mine||oth.ref.t!=='plane'||mine.ref.t!=='plane')continue;
-      const oc=compById(oth.comp);if(!oc)continue;const n=new T.Vector3(...oth.ref.n).transformDirection(new T.Matrix4().fromArray(oc.T));dir=[n.x,n.y,n.z];break}
+      const oc=compById(oth.comp);if(!oc)continue;const n=new T.Vector3(...oth.ref.n).transformDirection(new T.Matrix4().fromArray(oc.T));dir=[n.x,n.y,n.z];partner=oc;break}
     if(!dir)for(const m of a.mates){if(m.suppressed||m.type!=='concentric')continue;const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null);if(!mine)continue;
-      const ax=new T.Vector3(...mine.ref.d).transformDirection(new T.Matrix4().fromArray(c.T));const s=cc.clone().sub(ref).dot(ax);dir=[ax.x,ax.y,ax.z].map(x=>x*(s<0?-1:1));break}
+      const ax=new T.Vector3(...mine.ref.d).transformDirection(new T.Matrix4().fromArray(c.T));const s=cc.clone().sub(ref).dot(ax);dir=[ax.x,ax.y,ax.z].map(x=>x*(s<0?-1:1));partner=compById((mine===m.a?m.b:m.a).comp);break}
     if(!dir){const v=cc.clone().sub(ref);dir=v.length()<1e-6?[0,1,0]:[v.x,v.y,v.z]}
-    e.steps.push({id:uid('x'),comps:[c.id],dir:snapAxis(dir),dist:base});
+    const ax=snapAxis(dir);let dist=base;
+    // bileşen eşleştiği parçadan tamamen ayrılsın (ör. yatağa giren uzun mil yatağın içinde kalmasın)
+    partner=partner||fixed[0];
+    if(partner&&partner!==c){const u=AXDIR[ax],pr=compRange(partner,u),cr=compRange(c,u);if(pr&&cr)dist=Math.max(dist,Math.ceil((pr[1]-cr[0]+Math.max(10,size*0.1))/5)*5)}
+    e.steps.push({id:uid('x'),comps:[c.id],dir:ax,dist});
   }
 }
 const DIRN={x:'+X','-x':'−X',y:'+Y','-y':'−Y',z:'+Z','-z':'−Z'};
@@ -214,11 +222,17 @@ function balloonsMarkup(v,bom,area){
   const cx=(mnx+mxx)/2,cy=(mny+mxy)/2;const R=Math.hypot(mxx-mnx,mxy-mny)/2+10;
   const items=[];
   for(const it of bom){
-    // bileşenin görünür kenarlarından, bileşenin ortasına en yakın nokta
+    // bileşenin görünür kenarlarından, bileşenin ortasına en yakın nokta; başka bileşenin kenarına
+    // çok yakın noktalar (ör. pimi saran deliğin ağzı) balonun hangi parçayı gösterdiğini belirsizleştirir, önce bunlardan kaçınılır
     const segs=d.vis.filter(q=>q[4]===it.first);if(!segs.length)continue;
     let sx=0,sy=0,sn=0;for(const q of segs){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const L=Math.hypot(B[0]-A[0],B[1]-A[1]);sx+=(A[0]+B[0])/2*L;sy+=(A[1]+B[1])/2*L;sn+=L}
-    if(!sn)continue;const mx=sx/sn,my=sy/sn;let best=null,bd=Infinity;
-    for(const q of segs){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;let t=L2?((mx-A[0])*dx+(my-A[1])*dy)/L2:0;t=Math.max(0.15,Math.min(0.85,t));const P=[A[0]+dx*t,A[1]+dy*t];const dd=Math.hypot(P[0]-mx,P[1]-my);if(dd<bd){bd=dd;best=P}}
+    if(!sn)continue;const mx=sx/sn,my=sy/sn;
+    const others=d.vis.filter(q=>q[4]!==it.first).map(q=>[v.map(q[0],q[1]),v.map(q[2],q[3])]);
+    const clear=P=>{let m=Infinity;for(const [A,B] of others){const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;let t=L2?((P[0]-A[0])*dx+(P[1]-A[1])*dy)/L2:0;t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(A[0]+dx*t-P[0],A[1]+dy*t-P[1]));if(m<2.5)break}return m};
+    const cands=[];
+    for(const q of segs){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;let t=L2?((mx-A[0])*dx+(my-A[1])*dy)/L2:0;t=Math.max(0.15,Math.min(0.85,t));const P=[A[0]+dx*t,A[1]+dy*t];cands.push({P,dd:Math.hypot(P[0]-mx,P[1]-my)})}
+    cands.sort((a,b)=>a.dd-b.dd);
+    let best=null,bc=-1;for(const c of cands.slice(0,400)){const cl=clear(c.P);if(cl>=2.5){best=c.P;break}if(cl>bc){bc=cl;best=c.P}}
     items.push({no:it.no,P:best,ang:Math.atan2(best[1]-cy,best[0]-cx)});
   }
   items.sort((a,b)=>a.ang-b.ang);

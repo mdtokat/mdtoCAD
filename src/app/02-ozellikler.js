@@ -269,6 +269,8 @@ const grp=(t,b)=>`<div class="grp">${t?`<div class="grp-t">${t}</div>`:''}${b}</
 const DIR_OPTS=[['x','+X'],['-x','−X'],['y','+Y'],['-y','−Y'],['z','+Z'],['-z','−Z']];
 function eligible(f){const i=state.features.findIndex(x=>x.id===f.id);const lim=i<0?state.features.length:i;return state.features.slice(0,lim).filter(x=>(x.type==='extrude'||x.type==='revolve'||x.type==='hole')&&!x.suppressed)}
 function planeOpts(f){const i=state.features.findIndex(x=>x.id===f.id);const lim=i<0?state.features.length:i;return [['front','Ön Düzlem'],['top','Üst Düzlem'],['right','Sağ Düzlem'],...state.features.slice(0,lim).filter(x=>x.type==='plane').map(x=>[x.id,x.name])]}
+/* radyus/pah kenarı: dairesel kenar tek bir üçgen kenarıyla saklanır, uzunluğu yerine çapı gösterilir */
+function edgeLabel(e){let m=null;try{m=findCircleAnn((model&&model.ann)||[],e)}catch(err){}return m?'dairesel Ø'+fmt(m.an.r*2,1):fmt(vl(vs(e.b,e.a)),1)+' mm'}
 function renderPM(){
   const ws=$('#ws'),el=$('#pm');
   if(meas){renderMeasurePM();return}
@@ -308,7 +310,7 @@ function renderPM(){
     if(!f.thin)b+=grp('Profil bölgeleri',(f.regions&&f.regions.length?`<p class="note" style="color:var(--ink)">${f.regions.length} bölge seçili; yalnızca bunlar kullanılıyor.</p><button type="button" class="sbtn" data-regclr="1">Tüm bölgeleri kullan</button>`:`<p class="note" style="color:var(--ink)">Tüm kapalı bölgeler kullanılıyor.</p>`)+`<p class="note">Birbirini kesen şekiller otomatik birleşir. Yalnızca bazı bölgeleri kullanmak için ekranda çizimin içindeki bölgelere tıkla; tekrar tıklamak seçimi kaldırır.</p>`);
   }else if(f.type==='fillet'||f.type==='chamfer'){
     b=grp('',b)+grp(f.type==='fillet'?'Radyus parametreleri':'Pah parametreleri',f.type==='fillet'?fNum('Yarıçap','r'):fNum('Mesafe (eşit)','d'));
-    b+=grp(`Kenarlar (${f.edges.length})`,(f.edges.length?`<div class="lst">${f.edges.map((e,i)=>`<div><span>Kenar ${i+1}: ${fmt(vl(vs(e.b,e.a)),1)} mm</span><button data-rmedge="${i}" aria-label="Kaldır">✕</button></div>`).join('')}</div>`:'')+`<p class="note">Modelde düz kenarlara tıkla. Tekrar tıklarsan seçim kalkar.</p>`);
+    b+=grp(`Kenarlar (${f.edges.length})`,(f.edges.length?`<div class="lst">${f.edges.map((e,i)=>`<div><span>Kenar ${i+1}: ${edgeLabel(e)}</span><button data-rmedge="${i}" aria-label="Kaldır">✕</button></div>`).join('')}</div>`:'')+`<p class="note">Modelde düz veya dairesel kenarlara tıkla. Tekrar tıklarsan seçim kalkar.</p>`);
   }else if(['lpattern','cpattern','mirror'].includes(f.type)){
     const tg=eligible(f);
     b=grp('',b)+grp('Çoğaltılacak özellikler',tg.length?`<div class="lst">${tg.map(x=>`<label class="chk" style="margin:0"><input type="checkbox" data-tg="${x.id}" ${f.targets.includes(x.id)?'checked':''}> ${esc(x.name)}</label>`).join('')}</div><p class="note">Ağaçtaki özelliklere tıklayarak da seçebilirsin.</p>`:'<p class="note">Uygun özellik yok.</p>');

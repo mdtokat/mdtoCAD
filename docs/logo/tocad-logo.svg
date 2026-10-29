@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 32" width="396" height="96">
+  <title>toCAD</title>
+  <style>
+    .kutu{fill:#1F4E9C}.yuz{fill:#FFFFFF}.to{fill:#5D6977}.cad{fill:#1B222A}
+    @media (prefers-color-scheme: dark){.kutu{fill:#77A2EA}.yuz{fill:#0E1522}.to{fill:#93A0AE}.cad{fill:#E2E7EC}}
+    text{font-family:Barlow,'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:26px}
+  </style>
+  <g transform="translate(0 2) scale(1.1667)">
+    <rect class="kutu" x="1" y="1" width="22" height="22" rx="5.5"/>
+    <path class="yuz" d="M5 9.5 9.5 5H19l-4.5 4.5z" opacity=".8"/>
+    <path class="yuz" d="M14.5 9.5 19 5v9.5L14.5 19z" opacity=".5"/>
+    <path class="yuz" d="M5 9.5h9.5V19H5z"/>
+    <circle class="kutu" cx="9.75" cy="14.25" r="2.1"/>
+  </g>
+  <text x="36" y="25.5"><tspan class="to" font-weight="500">to</tspan><tspan class="cad" font-weight="600">CAD</tspan></text>
+</svg>

@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { openApp } from './helpers.js';
 
-const PLAKA = new URL('./veri/plaka-pim.tezgah.json', import.meta.url).pathname;
+const PLAKA = new URL('./veri/plaka-pim.tocad.json', import.meta.url).pathname;
 async function openFile(page, path) {
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
   await fc.setFiles(path);

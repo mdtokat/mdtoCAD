@@ -4,7 +4,7 @@ import { openApp } from './helpers.js';
 
 async function openSample(page, dosya, ad) {
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
-  await fc.setFiles(new URL(`../ornekler/${dosya}.tezgah.json`, import.meta.url).pathname);
+  await fc.setFiles(new URL(`../ornekler/${dosya}.tocad.json`, import.meta.url).pathname);
   await page.waitForFunction(ad => __tz.state.partName.startsWith(ad), ad);
 }
 async function openDrawing(page) {

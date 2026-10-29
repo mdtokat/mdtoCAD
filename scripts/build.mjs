@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Tezgâh CAD derleme betiği: src/ altındaki dosyaları tek, bağımsız bir HTML dosyasında birleştirir.
+// toCAD derleme betiği: src/ altındaki dosyaları tek, bağımsız bir HTML dosyasında birleştirir.
 // Kullanım:  node scripts/build.mjs            -> dist/index.html
 //            node scripts/build.mjs --watch    -> değişiklikleri izler, her kayıtta yeniden derler
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, watch } from 'node:fs';

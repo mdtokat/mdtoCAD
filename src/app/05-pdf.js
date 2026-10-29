@@ -90,7 +90,7 @@ async function buildPdf(pages,title){
     obj(cid,z?`<< /Length ${z.length} /Filter /FlateDecode >>`:`<< /Length ${raw.length} >>`,z||raw);
     pg.images.forEach((im,i)=>obj(imgIds[i],`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>`,im.bytes));
   }
-  const infoId=next++;obj(infoId,`<< /Title ${utf16hex(title||'Tezgâh CAD')} /Producer ${utf16hex('Tezgâh CAD')} /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)}) >>`);
+  const infoId=next++;obj(infoId,`<< /Title ${utf16hex(title||'toCAD')} /Producer ${utf16hex('toCAD')} /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)}) >>`);
   const xref=off;let x=`xref\n0 ${next}\n0000000000 65535 f \n`;for(let i=1;i<next;i++)x+=String(offs[i]||0).padStart(10,'0')+' 00000 n \n';
   put(x);put(`trailer\n<< /Size ${next} /Root 1 0 R /Info ${infoId} 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
   return new Blob(chunks,{type:'application/pdf'});

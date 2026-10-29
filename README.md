@@ -1,4 +1,6 @@
-# Tezgâh CAD
+<p align="center"><img src="docs/logo/tocad-logo.svg" alt="toCAD" width="300"></p>
+
+# toCAD
 
 Tarayıcıda çalışan, **SolidWorks iş akışını** izleyen basit bir parametrik CAD programı. Basit parçalar ve en fazla 10–20 parçalı montajlar için tasarlandı.
 
@@ -42,8 +44,8 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 Gereken tek şey [Node.js](https://nodejs.org) 18 veya üstü.
 
 ```bash
-git clone <depo-adresi> tezgah-cad
-cd tezgah-cad
+git clone <depo-adresi> tocad
+cd tocad
 npm run build          # dist/index.html oluşur
 ```
 
@@ -64,10 +66,10 @@ Bu klasör ilk commit'i yapılmış bir git deposudur (`main` dalı).
 1. GitHub'da **boş** bir depo oluştur (README, .gitignore veya lisans ekleme).
 2. Klasörde:
    ```bash
-   git remote add origin https://github.com/<kullanıcı>/tezgah-cad.git
+   git remote add origin https://github.com/<kullanıcı>/tocad.git
    git push -u origin main
    ```
-3. GitHub Pages için: *Settings → Pages → Source: GitHub Actions*. Birkaç dakika sonra uygulama `https://<kullanıcı>.github.io/tezgah-cad/` adresinde açılır.
+3. GitHub Pages için: *Settings → Pages → Source: GitHub Actions*. Birkaç dakika sonra uygulama `https://<kullanıcı>.github.io/tocad/` adresinde açılır.
 4. Her gönderimde *Actions* sekmesinde testler çalışır.
 
 ## Testler
@@ -91,15 +93,15 @@ Dosya indirme (PDF, STL, proje), Claude ortamında Claude'un indirme yeteneğiyl
 
 ## Örnek parçalar
 
-`ornekler/` klasöründeki `*.tezgah.json` dosyaları **Dosya → Aç** ile açılır.
+`ornekler/` klasöründeki `*.tocad.json` dosyaları **Dosya → Aç** ile açılır.
 
-- `dort-kanatli-disk.tezgah.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Çizimler teknik resimdeki ölçülerle (Ø813, Ø772, 147,5, R41,2, 20°, 318,5) ve dört katlı simetriyle tam tanımlıdır; bir ölçüyü değiştirmek dört kanadı birlikte günceller. Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
+- `dort-kanatli-disk.tocad.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Çizimler teknik resimdeki ölçülerle (Ø813, Ø772, 147,5, R41,2, 20°, 318,5) ve dört katlı simetriyle tam tanımlıdır; bir ölçüyü değiştirmek dört kanadı birlikte günceller. Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
 
 Aşağıdaki üç örnek, eklerdeki teknik resimlerden programın kendi araçlarıyla çizildi. `npm run ornekler` (önce `npm install`) aynı adımları uygulamada yeniden oynatıp dosyaları üretir; adımlar `ornekler/ornekleri-ciz.mjs` içinde bir kullanıcının izleyeceği sırayla yazılıdır.
 
-- `bukulmus-braket.tezgah.json` — 10 mm kalınlıkta bükülmüş braket (124 × 165, genişlik 50). Dış kenar açık bir çizgi zinciri olarak çizilip R16 / R16,5 / R22 çizim radyuslarıyla yuvarlatılır ve **İnce özellik** ile kalınlaştırılır. Ø38 üst göbek, Ø9/Ø20 faturalı delik (**özel ölçülü Delik Sihirbazı**), Ø38 yan kulaklar (R10 geçişli; **başlangıç ofsetli** ekstrüzyon + Aynala), Ø16 kulak deliği, ayak uçlarında R25 (dikdörtgen + daire çizilip **kesilecek bölge seçilir**), Ø9/Ø18 ayak delikleri.
-- `yatakli-stand.tezgah.json` — izometrik resimden yorumlanan yataklı stand: 80 × 80 aralıklı dört göbek ve kollardan oluşan taban (tek çizimde üst üste çizilir, **bölge çözümü** birleştirir), üstü R30 kolon, 20'şer mm kademeli R20 / R15 / R9 üst yatak (Döndürme Kesme), R12 / R7 alt yatak, Ø8 yağ deliği, 9 mm et kalınlıklı U kutu (**İnce özellik**). İzometrik resim bazı ayrıntılarda belirsiz olduğundan ölçüler resimdekilerle (80, 60, 36, 9, 42, R30, R20, R15, R9, R12) uyumlu bir yorumdur.
-- `l-destek.tezgah.json` — L destek (30 × 35 taban, 65 yükseklik): yan profil tek çizimde, üst kenarlar R5, Ø27 göbek ile 6 mm kaburga üst üste çizilip tek seferde çıkarılır, Ø16 ve iki Ø10 delik, 10 mm kanal.
+- `bukulmus-braket.tocad.json` — 10 mm kalınlıkta bükülmüş braket (124 × 165, genişlik 50). Dış kenar açık bir çizgi zinciri olarak çizilip R16 / R16,5 / R22 çizim radyuslarıyla yuvarlatılır ve **İnce özellik** ile kalınlaştırılır. Ø38 üst göbek, Ø9/Ø20 faturalı delik (**özel ölçülü Delik Sihirbazı**), Ø38 yan kulaklar (R10 geçişli; **başlangıç ofsetli** ekstrüzyon + Aynala), Ø16 kulak deliği, ayak uçlarında R25 (dikdörtgen + daire çizilip **kesilecek bölge seçilir**), Ø9/Ø18 ayak delikleri.
+- `yatakli-stand.tocad.json` — izometrik resimden yorumlanan yataklı stand: 80 × 80 aralıklı dört göbek ve kollardan oluşan taban (tek çizimde üst üste çizilir, **bölge çözümü** birleştirir), üstü R30 kolon, 20'şer mm kademeli R20 / R15 / R9 üst yatak (Döndürme Kesme), R12 / R7 alt yatak, Ø8 yağ deliği, 9 mm et kalınlıklı U kutu (**İnce özellik**). İzometrik resim bazı ayrıntılarda belirsiz olduğundan ölçüler resimdekilerle (80, 60, 36, 9, 42, R30, R20, R15, R9, R12) uyumlu bir yorumdur.
+- `l-destek.tocad.json` — L destek (30 × 35 taban, 65 yükseklik): yan profil tek çizimde, üst kenarlar R5, Ø27 göbek ile 6 mm kaburga üst üste çizilip tek seferde çıkarılır, Ø16 ve iki Ø10 delik, 10 mm kanal.
 
 ## Proje yapısı
 

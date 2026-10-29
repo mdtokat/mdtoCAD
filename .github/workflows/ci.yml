@@ -32,5 +32,5 @@ jobs:
       - name: Derlenmiş uygulama
         uses: actions/upload-artifact@v4
         with:
-          name: tezgah-cad-dist
+          name: tocad-dist
           path: dist/index.html

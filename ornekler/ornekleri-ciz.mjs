@@ -1,5 +1,5 @@
-// Eklerdeki üç teknik resmi Tezgâh CAD'in kendi araçlarıyla, bir kullanıcının izleyeceği adımlarla çizer
-// ve proje dosyalarını yazar: bukulmus-braket, yatakli-stand, l-destek (*.tezgah.json).
+// Eklerdeki üç teknik resmi toCAD'nin kendi araçlarıyla, bir kullanıcının izleyeceği adımlarla çizer
+// ve proje dosyalarını yazar: bukulmus-braket, yatakli-stand, l-destek (*.tocad.json).
 // Kullanım:  npm run build && node ornekler/ornekleri-ciz.mjs
 // (Playwright gerekir: npm install. Yerel Chromium için PW_CHROMIUM=/yol/chrome)
 import { chromium } from '@playwright/test';
@@ -76,7 +76,7 @@ async function kontrol(ad) {
   return r;
 }
 async function kaydet(dosya) {
-  const json = await ev(() => JSON.stringify({ app: 'tezgah-cad', ...__tz.project, version: 3 }, (k, v) => k.startsWith('_') ? undefined : v, 1));
+  const json = await ev(() => JSON.stringify({ app: 'tocad', ...__tz.project, version: 3 }, (k, v) => k.startsWith('_') ? undefined : v, 1));
   writeFileSync(join(here, dosya), json + '\n');
   console.log('Yazıldı:', dosya);
 }
@@ -126,7 +126,7 @@ const delik = await ozellikPM('hole', { name: 'Ayak deliği Ø9 / Ø18', htype: 
   on: { kind: 'face', feat: null, which: null, frame: ayak }, pts: [[0, -140]] });
 await ozellikPM('mirror', { name: 'Ayak deliğini aynala', targets: [delik], plane: 'right' });
 await kontrol('braket');
-await kaydet('bukulmus-braket.tezgah.json');
+await kaydet('bukulmus-braket.tocad.json');
 
 /* =================== 2) Yataklı stand (resim 2, izometrik) =================== */
 // Taban: 80 × 80 aralıklı dört Ø26 × 9 göbek (Ø16 delikli) ve 9 × 9 kollar. Göbekler ve kollar tek çizimde
@@ -168,7 +168,7 @@ await ozellik('cut', { fromOff: 125, flip: true, end: 'blind', depth: 40, name: 
 await cizim({ kind: 'std', key: 'top' }, [['cizgi', [-21, -10], [-21, -40], [21, -40], [21, -10]]]);
 await ozellik('extrude', { thin: true, thick: 9, thinSide: 'a', fromOff: 9, depth: 36, name: 'Ön kutu (U profil)' });
 await kontrol('stand');
-await kaydet('yatakli-stand.tezgah.json');
+await kaydet('yatakli-stand.tocad.json');
 
 /* =================== 3) L destek (resim 3, izometrik) =================== */
 // Yan profil (L): 30 × 10 taban, 7 mm dikme, üstte 13 × 20 başlık; üst kenarlar R5. Genişlik 35.
@@ -194,6 +194,6 @@ await ozellikPM('hole', { name: 'Taban delikleri Ø10', htype: 'simple', size: '
 await cizim({ kind: 'std', key: 'right' }, [['kanal', [-11, 55], [-24, 55], 5]]);
 await ozellik('cut', { end: 'through', dir2: true, end2: 'through', name: 'Kanal 10' });
 await kontrol('L destek');
-await kaydet('l-destek.tezgah.json');
+await kaydet('l-destek.tocad.json');
 
 await browser.close();

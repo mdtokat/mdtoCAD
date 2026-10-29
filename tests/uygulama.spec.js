@@ -1,4 +1,4 @@
-// Tezgâh CAD duman (smoke) testleri. Her test örnek projeyle temiz başlar.
+// toCAD duman (smoke) testleri. Her test örnek projeyle temiz başlar.
 import { test, expect } from '@playwright/test';
 import { openApp, blobHead } from './helpers.js';
 
@@ -103,7 +103,7 @@ test('STL ve ZIP üretimi', async ({ page }) => {
 test('ölçüye dayalı çizim: disk dosyası tam tanımlı, ölçü listeden değişir', async ({ page }) => {
   const errors = await openApp(page);
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
-  await fc.setFiles(new URL('../ornekler/dort-kanatli-disk.tezgah.json', import.meta.url).pathname);
+  await fc.setFiles(new URL('../ornekler/dort-kanatli-disk.tocad.json', import.meta.url).pathname);
   await page.waitForFunction(() => __tz.state.partName.startsWith('Dört'));
   const r0 = await page.evaluate(() => ({ err: __tz.model.errors, dof: __tz.model.dof, vol: __tz.model.props.vol }));
   expect(r0.err).toEqual({});
@@ -147,10 +147,10 @@ test('ölçüsüz çizimler girişte ve çıkışta otomatik tam tanımlanır', 
   const sx = { id: 's1', type: 'sketch', name: 'Çizim1', on: { kind: 'std', key: 'front' },
     pts: { a: { x: 100, y: 0 }, b: { x: 140, y: 0 }, c: { x: 140, y: 20 }, d: { x: 100, y: 20 }, m: { x: 120, y: 20 } },
     ents: [{ id: 'e1', t: 'line', a: 'a', b: 'b' }, { id: 'e2', t: 'line', a: 'b', b: 'c' }, { id: 'e3', t: 'arc', c: 'm', a: 'c', b: 'd' }, { id: 'e4', t: 'line', a: 'd', b: 'a' }], cons: [] };
-  const proj = { app: 'tezgah-cad', version: 3, parts: [{ id: 'P1', partName: 'Dış parça', features: [sx,
+  const proj = { app: 'tocad', version: 3, parts: [{ id: 'P1', partName: 'Dış parça', features: [sx,
     { id: 'x1', type: 'extrude', name: 'Ekstrüzyon1', op: 'add', sketch: 's1', end: 'blind', depth: 10 }] }], asms: [], cur: { part: 'P1' } };
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
-  await fc.setFiles({ name: 'dis.tezgah.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(proj)) });
+  await fc.setFiles({ name: 'dis.tocad.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(proj)) });
   await page.waitForFunction(() => __tz.state.partName === 'Dış parça');
   const b = await page.evaluate(() => { const before = __tz.model.dof.s1; __tz.editSketch('s1'); return { before, dof: __tz.sk.an.dof }; });
   expect(b.before).toBeGreaterThan(0);
@@ -664,7 +664,7 @@ for (const [dosya, ad, kutu] of [['bukulmus-braket', 'Bükülmüş', [124, 171.5
   test(`örnek: ${dosya} hatasız, tam tanımlı ve teknik resmi çizilir`, async ({ page }) => {
     const errors = await openApp(page);
     const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.evaluate(() => document.querySelector('[data-m="open"]').click())]);
-    await fc.setFiles(new URL(`../ornekler/${dosya}.tezgah.json`, import.meta.url).pathname);
+    await fc.setFiles(new URL(`../ornekler/${dosya}.tocad.json`, import.meta.url).pathname);
     await page.waitForFunction(ad => __tz.state.partName.startsWith(ad), ad);
     const r = await page.evaluate(() => { const m = __tz.model, b = m.box; return { err: m.errors, dof: Object.values(m.dof), box: b.min.map((v, i) => b.max[i] - v) }; });
     expect(r.err).toEqual({});

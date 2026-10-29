@@ -1,5 +1,5 @@
-// Dört kanatlı disk (Ø813) için Tezgâh CAD proje dosyasını üretir.
-// Kullanım: node ornekler/dort-kanatli-disk.mjs  →  ornekler/dort-kanatli-disk.tezgah.json
+// Dört kanatlı disk (Ø813) için toCAD proje dosyasını üretir.
+// Kullanım: node ornekler/dort-kanatli-disk.mjs  →  ornekler/dort-kanatli-disk.tocad.json
 // Resimdeki ölçüler aşağıdaki sabitlerdedir; kalınlıklar resimde verilmediği için varsayımdır.
 // Çizimler ilişki ve ölçülerle tam tanımlıdır: programda ölçüyü değiştirmek şekli günceller.
 import { writeFileSync } from 'node:fs';
@@ -109,12 +109,12 @@ const features = [
 ];
 
 const project = {
-  app: 'tezgah-cad', version: 3,
+  app: 'tocad', version: 3,
   parts: [{ id: 'P1', partName: 'Dört kanatlı disk Ø813', material: 'steel', features,
     drawing: { paper: 'A3', orient: 'landscape', method: 'E', scale: 'auto', hidden: true, centers: true, autodims: true, iso: true, dno: 'TZ-0001', drawn: '', checked: '', company: '', dims: [] } }],
   asms: [], cur: { part: 'P1' },
 };
-const out = fileURLToPath(new URL('./dort-kanatli-disk.tezgah.json', import.meta.url));
+const out = fileURLToPath(new URL('./dort-kanatli-disk.tocad.json', import.meta.url));
 writeFileSync(out, JSON.stringify(project, null, 1) + '\n');
 console.log('Yazıldı:', out);
 console.log('Tepe', TEPE.toFixed(2), '\nKanat ucu köşesi', P, '\nR merkezi', A, '\nTeğet noktası', Tn, '\nKenar kesişimi', Q, '\nA-kenar uzaklığı', hA.toFixed(3));

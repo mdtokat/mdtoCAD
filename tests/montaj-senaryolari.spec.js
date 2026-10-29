@@ -402,3 +402,19 @@ test('panel açıkken başka montaja geçmek: çoğaltma önizlemesi ve geçmiş
   expect(await page.evaluate(() => __tz.curAsm().comps.length)).toBe(0);
   expect(errors).toEqual([]);
 });
+
+test('düğmesiz bildirim altındaki modele yapılan tıklamayı engellemez; “Geri al” düğmeli bildirim tıklanır', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.click('[data-tab="asm"]');
+  await page.evaluate(() => __tz.addComp(__tz.project.parts[2].id)); // “… eklendi.”
+  await expect(page.locator('#toast')).toHaveClass(/on/);
+  const hit = async () => { const b = await page.locator('#toast').boundingBox(); return page.evaluate(([x, y]) => document.elementFromPoint(x, y).tagName, [b.x + b.width / 2, b.y + b.height / 2]); };
+  expect(await hit()).toBe('CANVAS');
+  // bileşen sil: “Geri al” düğmeli bildirim
+  await page.evaluate(() => { const a = __tz.curAsm(); document.querySelector(`[data-comp="${a.comps[a.comps.length - 1].id}"] [data-ca="del"]`).click(); });
+  await expect(page.locator('#toast button')).toBeVisible();
+  expect(await hit()).not.toBe('CANVAS');
+  await page.click('#toast button');
+  expect(await page.evaluate(() => __tz.curAsm().comps.length)).toBe(7);
+  expect(errors).toEqual([]);
+});

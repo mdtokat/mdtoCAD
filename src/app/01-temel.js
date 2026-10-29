@@ -196,7 +196,8 @@ let toastT=0;
 function toast(msg,action){
   const t=$('#toast');t.innerHTML=`<span>${esc(msg)}</span>`+(action?`<button>${esc(action.label)}</button>`:'');
   if(action)t.querySelector('button').onclick=()=>{action.fn();t.classList.remove('on')};
-  t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),action?6000:3600);
+  // düğmesiz bildirim altındaki görünüme yapılan tıklamaları engellemez
+  t.classList.toggle('act',!!action);t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),action?6000:3600);
 }
 /* onay penceresi: btns=[{label,fn,primary}]; Esc veya fn'siz düğme kapatır */
 function ask(title,html,btns){

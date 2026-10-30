@@ -141,7 +141,7 @@ test('nokta aracı: tek başına, öğe üstünde ve kesişimde nokta; ölçüle
   expect(r.onLine).toBe(1);
   expect(r.dof0).toBe(1 + 2 + 1); // orijinden yatay çizgi 1, serbest nokta 2, çizgi üstündeki nokta 1
   expect(r.kept).toBe(2);
-  expect(r.dof).toBe(0); // çıkarken otomatik tam tanımlandı (noktalar dahil)
+  expect(r.dof).toBe(4); // otomatik tam tanımlama varsayılan kapalı: ölçü verilmeyen noktalar serbest kalır
   expect(r.err).toEqual({});
   // yalnızca noktadan oluşan yeni çizim silinmez
   await newSketch(page);

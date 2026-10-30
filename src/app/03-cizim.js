@@ -150,9 +150,10 @@ function skXpts(f){
       if(out.some(x=>Math.hypot(x.x-p[0],x.y-p[1])<eps))continue;out.push({x:p[0],y:p[1],e1:e,e2:o})}}
   return out;
 }
-/* Otomatik tam tanımlama: çizime girerken, çıkarken ve "Tam Tanımla" ile */
+/* Otomatik tam tanımlama: yalnızca kullanıcı isteyince — şeritteki "Tam Tanımla" ile ya da paneldeki seçenek açıksa
+   çizime girerken ve çıkarken. Varsayılan kapalı: ölçü verilmeyen öğeler serbest (mavi) kalır. */
 const AUTODEF_KEY='tezgah-cad-otomatik-tam-tanimla';
-function autoDefOn(){try{return localStorage.getItem(AUTODEF_KEY)!=='0'}catch(e){return true}}
+function autoDefOn(){try{return localStorage.getItem(AUTODEF_KEY)==='1'}catch(e){return false}}
 function setAutoDef(on){try{localStorage.setItem(AUTODEF_KEY,on?'1':'0')}catch(e){}}
 function autoDefineSketch(silent){
   if(!sk)return 0;const f=sk.feat;if(skEmpty(f)){if(!silent)toast('Çizimde öğe yok.');return 0}

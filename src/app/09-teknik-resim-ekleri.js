@@ -4,6 +4,8 @@ IC.detailv=sv('<circle cx="10" cy="10" r="6"/><path d="m14.5 14.5 6 6"/><path d=
 IC.surf=sv('<path d="M4 18 8 12h3l3 6 6-12h-6"/><path d="M8 12h6" opacity=".6"/>');
 IC.note=sv('<path d="M5 4h14v16H5z"/><path d="M8 8.5h8M8 12h8M8 15.5h5"/>');
 let dwTool=null,dwSt={};
+/* 2B çizim araçları (16-teknik-resim-cizim.js) */
+const SK2D=new Set(['sline','scen','srect','scirc','sarc','scmark']);
 const secCache=new Map();
 function sectionSrc(src,viewKey,S){
   // montajda kesilmeyecek parçalar (SolidWorks: kesitten hariç tutulan cıvata, somun, mil…) bütün olarak çizilir
@@ -238,13 +240,13 @@ function setDwTool(t,silent){
   dwTool=t;dwSt={stage:0};
   if(t&&dimMode)setDimMode(false);
   sheetWrap.classList.toggle('dim',!!t||dimMode);
-  $$('[data-dcmd="detail"],[data-dcmd="surf"],[data-dcmd="note"],[data-dcmd="gdt"],[data-dcmd="datum"]').forEach(b=>b.classList.toggle('on',b.dataset.dcmd===t));
+  $$('#drawRibbon [data-dcmd]').forEach(b=>{const c=b.dataset.dcmd;if(['detail','surf','note','gdt','datum'].includes(c)||SK2D.has(c))b.classList.toggle('on',c===t)});
   if(t)dwSelect(null);
   dwTip();if(!silent)drawOverlay(null);
 }
 function dwTip(){
   const tEl=$('#dwTip');if(!dwTool){if(!dimMode)tEl.classList.remove('on');return}tEl.classList.add('on');
-  tEl.textContent=dwTool==='detail'?(['Detay: büyütülecek bölgenin merkezine tıkla. Esc ile çık.','Dairenin kenarına tıkla (bölge yarıçapı).','Detay görünüşünün yerleşeceği boş alana tıkla.'][dwSt.stage||0])
+  tEl.textContent=SK2D.has(dwTool)?dskTip():dwTool==='detail'?(['Detay: büyütülecek bölgenin merkezine tıkla. Esc ile çık.','Dairenin kenarına tıkla (bölge yarıçapı).','Detay görünüşünün yerleşeceği boş alana tıkla.'][dwSt.stage||0])
     :dwTool==='surf'?'Yüzey işareti: bir görünüşte kenara tıkla. Ra değeri sağ panelden. Esc ile çık.'
     :dwTool==='gdt'?'Geometrik tolerans: toleransın bağlanacağı kenara tıkla. Tür, değer ve referanslar soldaki panelden. Esc ile çık.'
     :dwTool==='datum'?'Referans işareti: referans yüzeyin kenarına tıkla. Esc ile çık.':'Not: yazının yerine tıkla. Metin sağ paneldeki “Yeni not metni” alanından alınır. Esc ile çık.';
@@ -261,6 +263,7 @@ function nearestEdgePoint(p,tol){
   return best;
 }
 function dwToolClick(p,ptype){
+  if(SK2D.has(dwTool))return dskToolClick(p,ptype);
   const S=dwS();
   if(dwTool==='detail'){
     if(!dwSt.stage){const v=viewAt(p);if(!v){toast('Bir görünüşün (izometrik hariç) içine tıkla.');return}dwSt={stage:1,view:v.key,c:v.inv(p[0],p[1])}}
@@ -284,6 +287,7 @@ function dwToolClick(p,ptype){
   if(dwTool==='note'){pushDwHist();S.notes=S.notes||[];S.notes.push({x:p[0],y:p[1],text:S.noteDef||'Keskin kenarları 0,5×45° kırın.'});saveState();setDwTool(null);renderDrawing();return}
 }
 function dwToolOverlay(p){
+  if(SK2D.has(dwTool))return dskOverlay(p);
   const acc='#1F6FEB';let h='';if(!p||!dctx)return h;
   const w=f2(pxToSheet(1.5));
   if(dwTool==='detail'){

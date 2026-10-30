@@ -5,22 +5,24 @@ IC.dxf=sv('<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/><path d="M9 12
 
 /* ================= AKILLI ÖLÇÜ: daire, kenar, açı ================= */
 const dwViews=()=>dctx?Object.values(dctx.views).filter(v=>v.key!=='iso'):[];
+/* görünüşün kenarları: görünür, gizli ve görünüşe bağlı 2B çizim çizgileri */
+const vSegs=v=>v.sk&&v.sk.segs.length?v.d.vis.concat(v.d.hid,v.sk.segs):v.d.vis.concat(v.d.hid);
 function nearestCircle(p,tol){
   let best=null,bd=tol;
-  for(const v of dwViews())for(const q of v.d.circ){const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r}}}
+  for(const v of dwViews())for(const q of v.sk?v.d.circ.concat(v.sk.circ):v.d.circ){const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r}}}
   return best;
 }
 /* tıklanan kenar ve onunla aynı doğru üzerinde uç uca devam eden parçalar (görünür ve gizli) tek kenar sayılır */
 function pickLine(p,tol){
   let best=null,bd=tol;
-  for(const v of dwViews())for(const q of v.d.vis.concat(v.d.hid)){
+  for(const v of dwViews())for(const q of vSegs(v)){
     const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;if(L2<1e-8)continue;
     let t=((p[0]-A[0])*dx+(p[1]-A[1])*dy)/L2;t=Math.max(0,Math.min(1,t));const d=Math.hypot(A[0]+dx*t-p[0],A[1]+dy*t-p[1]);
     if(d<bd){bd=d;best={v,q,t}}}
   if(!best)return null;
   const {v,q,t}=best;let ux=q[2]-q[0],uy=q[3]-q[1];const l=Math.hypot(ux,uy);ux/=l;uy/=l;
   const tol2=1e-3*Math.max(1,l);const iv=[];
-  for(const r of v.d.vis.concat(v.d.hid)){const d1=Math.abs((r[0]-q[0])*uy-(r[1]-q[1])*ux),d2=Math.abs((r[2]-q[0])*uy-(r[3]-q[1])*ux);if(d1>tol2||d2>tol2)continue;
+  for(const r of vSegs(v)){const d1=Math.abs((r[0]-q[0])*uy-(r[1]-q[1])*ux),d2=Math.abs((r[2]-q[0])*uy-(r[3]-q[1])*ux);if(d1>tol2||d2>tol2)continue;
     const s1=(r[0]-q[0])*ux+(r[1]-q[1])*uy,s2=(r[2]-q[0])*ux+(r[3]-q[1])*uy;iv.push([Math.min(s1,s2),Math.max(s1,s2)])}
   iv.sort((a,b)=>a[0]-b[0]);let lo=0,hi=l,grow=true;
   while(grow){grow=false;for(const [a,b] of iv){if(a<=hi+tol2&&b>hi+tol2&&b>=lo){hi=b;grow=true}if(b>=lo-tol2&&a<lo-tol2&&a<=hi){lo=a;grow=true}}}
@@ -68,28 +70,32 @@ function dimStageOverlay(p){
 
 /* ================= SEÇME, SÜRÜKLEME, SİLME ================= */
 let dwSel=null;
-const DW_ORDER=['bal','lbl','dim','auto','gdt','datum','note','surf','detail','view'];
+const DW_ORDER=['bal','lbl','dim','auto','gdt','datum','note','surf','detail','sk','view'];
 function dwHitAt(p,ptype){
   if(!dctx||!dctx.hits)return null;const pad=pxToSheet(ptype==='mouse'?3:8);let best=null;
   for(const h of dctx.hits){const b=h.box;if(!b)continue;if(p[0]<b[0]-pad||p[0]>b[2]+pad||p[1]<b[1]-pad||p[1]>b[3]+pad)continue;
+    if(h.dist&&h.dist(p)>pad+pxToSheet(3))continue;  // çizim öğeleri: kutusu değil kendisi
     const rk=DW_ORDER.indexOf(h.t),ar=(b[2]-b[0])*(b[3]-b[1]);if(!best||rk<best.rk||(rk===best.rk&&ar<best.ar))best={h,rk,ar}}
-  return best?best.h:null;
+  return best?(best.h.t==='sk'?dskHitGrip(best.h,p,pad):best.h):null;
 }
 const sameHit=(a,b)=>a&&b&&a.t===b.t&&a.i===b.i&&a.k===b.k;
-function dwSelect(h){dwSel=h?{t:h.t,i:h.i,k:h.k}:null;drawOverlay(null);dwStatus()}
+function dwSelect(h){dwSel=h?{t:h.t,i:h.i,k:h.k}:null;
+  // seçilen çizim öğesinin çizgi türü şeritte görünür
+  if(h&&h.t==='sk'){const el=$('#dLtype'),e=(dwS().sk2d||[])[h.i];if(el&&e&&e.st)el.value=e.st}
+  drawOverlay(null);dwStatus()}
 function dwStatus(){
   const t=$('#dwTip');if(dimMode||dwTool)return;if(!dwSel){t.classList.remove('on');return}
-  const N={view:'Görünüş',dim:'Ölçü',auto:'Otomatik ölçü',lbl:'Etiket',note:'Not',surf:'Yüzey işareti',detail:'Detay görünüşü',gdt:'Geometrik tolerans',datum:'Referans işareti',bal:'Balon'};
-  t.classList.add('on');t.textContent=`${N[dwSel.t]||'Öğe'} seçili: sürükleyerek taşı, Delete ile ${['auto','lbl','view','bal'].includes(dwSel.t)?'gizle':'sil'}. Esc ile bırak.`;
+  const N={view:'Görünüş',dim:'Ölçü',auto:'Otomatik ölçü',lbl:'Etiket',note:'Not',surf:'Yüzey işareti',detail:'Detay görünüşü',sk:'Çizim öğesi',gdt:'Geometrik tolerans',datum:'Referans işareti',bal:'Balon'};
+  t.classList.add('on');t.textContent=`${N[dwSel.t]||'Öğe'} seçili: sürükleyerek taşı${dwSel.t==='sk'?' (ucundan veya çevresinden tutunca boyu/çapı değişir)':''}, Delete ile ${['auto','lbl','view','bal'].includes(dwSel.t)?'gizle':'sil'}. Esc ile bırak.`;
 }
 function selOverlay(){
-  if(!dwSel||!dctx)return '';const h=dctx.hits.find(x=>sameHit(x,dwSel));if(!h)return '';const b=h.box,m=pxToSheet(3);
+  if(!dwSel||!dctx)return '';if(dwSel.t==='sk')return dskSelOverlay(dwSel.i);const h=dctx.hits.find(x=>sameHit(x,dwSel));if(!h)return '';const b=h.box,m=pxToSheet(3);
   return `<rect x="${f2(b[0]-m)}" y="${f2(b[1]-m)}" width="${f2(b[2]-b[0]+2*m)}" height="${f2(b[3]-b[1]+2*m)}" fill="rgba(31,111,235,.08)" stroke="#1F6FEB" stroke-width="${f2(pxToSheet(1.2))}" stroke-dasharray="${f2(pxToSheet(4))}"/>`;
 }
 let hoverHit=null;
 function dwHover(p){const h=dwHitAt(p,'mouse');if(sameHit(h,hoverHit)&&(h||!hoverHit))return;hoverHit=h;sheetEl.style.cursor=h?'move':''}
 /* sürükleme: başlangıç değerinden dx, dy (sayfa mm) kadar */
-const DW_DRAG=new Set(['view','lbl','dim','note','detail','gdt','datum','bal']);
+const DW_DRAG=new Set(['view','lbl','dim','note','detail','gdt','datum','bal','sk']);
 function dwDragMove(pan,dx,dy){
   const S=dwS(),h=pan.hit;
   if(!pan.orig){pan.orig=clone(S);pushDwHist();dwSel={t:h.t,i:h.i,k:h.k}}
@@ -108,6 +114,7 @@ function dwDragMove(pan,dx,dy){
   else if(h.t==='note'){S.notes[h.i].x=O.notes[h.i].x+dx;S.notes[h.i].y=O.notes[h.i].y+dy}
   else if(h.t==='detail'){const p0=O.details[h.i].pos;S.details[h.i].pos=[p0[0]+dx,p0[1]+dy]}
   else if(h.t==='gdt'||h.t==='datum'){const k=h.t+'s',o=O[k][h.i].off||[0,-12];S[k][h.i].off=[o[0]+dx,o[1]+dy]}
+  else if(h.t==='sk')dskDrag(S,O,h,dx,dy);
   else if(h.t==='bal'){S.bal=Object.assign({},O.bal);const o=(O.bal||{})[h.k]||[0,0];S.bal[h.k]=[o[0]+dx,o[1]+dy]}
   else return;
   if(!pan.raf)pan.raf=requestAnimationFrame(()=>{pan.raf=0;const r=buildSheet(false);sheetEl.innerHTML=r.markup+'<g id="ov"></g>';dctx=r.ctx;drawOverlay(null)});
@@ -115,7 +122,7 @@ function dwDragMove(pan,dx,dy){
 function dwDragEnd(pan){if(!pan.orig)return;cancelAnimationFrame(pan.raf);saveState();renderDrawing()}
 function dwDeleteSel(){
   if(!dwSel)return false;const S=dwS(),h=dwSel;if(h.t==='view'&&h.k==='front'){toast('Ön görünüş gizlenemez.');return true}pushDwHist();
-  const lists={dim:'dims',note:'notes',surf:'surfs',detail:'details',gdt:'gdts',datum:'datums'};
+  const lists={dim:'dims',note:'notes',surf:'surfs',detail:'details',gdt:'gdts',datum:'datums',sk:'sk2d'};
   if(lists[h.t])(S[lists[h.t]]||[]).splice(h.i,1);
   else if(h.t==='view'){S.hide=(S.hide||[]).concat('V:'+h.k)}
   else if(h.t==='lbl')S.hide=(S.hide||[]).concat('L:'+h.k);

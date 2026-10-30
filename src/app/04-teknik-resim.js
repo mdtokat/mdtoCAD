@@ -100,7 +100,8 @@ function markSegs(marks,map){const out=[];
   return out}
 function arrow(Q,ux,uy){const bx=Q[0]-ux*3,by=Q[1]-uy*3,px=-uy*.55,py=ux*.55;return `<path class="d-ar" d="M${f2(Q[0])} ${f2(Q[1])}L${f2(bx+px)} ${f2(by+py)}L${f2(bx-px)} ${f2(by-py)}Z"/>`}
 function dimMarkup(P1,P2,Q1,Q2,txt,tol){
-  const ext=(P,Q)=>{const dx=Q[0]-P[0],dy=Q[1]-P[1],l=Math.hypot(dx,dy);if(l<1.2)return '';const ux=dx/l,uy=dy/l;return Lp(P[0]+ux,P[1]+uy,Q[0]+ux*2,Q[1]+uy*2)};
+  // yardımcı çizgi ölçülen noktadan başlar (geometriye değer), ölçü çizgisini 2 mm geçer
+  const ext=(P,Q)=>{const dx=Q[0]-P[0],dy=Q[1]-P[1],l=Math.hypot(dx,dy);if(l<1e-3)return '';const ux=dx/l,uy=dy/l;return Lp(P[0],P[1],Q[0]+ux*2,Q[1]+uy*2)};
   const dx=Q2[0]-Q1[0],dy=Q2[1]-Q1[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;
   let s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0],Q1[1],Q2[0],Q2[1])}"/>`+arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy);
   let ang=Math.atan2(dy,dx)*180/Math.PI;if(ang>=90)ang-=180;if(ang<-90)ang+=180;
@@ -185,7 +186,7 @@ function dimRender(d,v){
     const V=v.map(d.v[0],d.v[1]),rr=d.rr*v.s;const a1=Math.atan2(-d.u1[1],d.u1[0]),cr=d.u1[0]*d.u2[1]-d.u1[1]*d.u2[0],sw=-Math.sign(cr||1)*angDeg(d)*Math.PI/180;
     const pt=t=>[V[0]+rr*Math.cos(t),V[1]+rr*Math.sin(t)];let path='';const N=Math.max(6,Math.ceil(Math.abs(sw)/(Math.PI/36)));
     for(let i=0;i<N;i++){const A=pt(a1+sw*i/N),B=pt(a1+sw*(i+1)/N);path+=Lp(A[0],A[1],B[0],B[1])}
-    for(const [u,e] of [[d.u1,d.e1],[d.u2,d.e2]]){const ux=u[0],uy=-u[1];const L=(e||0)*v.s;if(rr>L+1)path+=Lp(V[0]+ux*(L+1),V[1]+uy*(L+1),V[0]+ux*(rr+1.5),V[1]+uy*(rr+1.5))}
+    for(const [u,e] of [[d.u1,d.e1],[d.u2,d.e2]]){const ux=u[0],uy=-u[1];const L=(e||0)*v.s;if(rr>L)path+=Lp(V[0]+ux*L,V[1]+uy*L,V[0]+ux*(rr+1.5),V[1]+uy*(rr+1.5))}
     const a2=a1+sw,sg=Math.sign(sw);const P1=pt(a1),P2=pt(a2);
     let m=`<path class="d-thin" d="${path}"/>`+arrow(P1,sg*Math.sin(a1),-sg*Math.cos(a1))+arrow(P2,-sg*Math.sin(a2),sg*Math.cos(a2));
     const am=a1+sw/2,T=[V[0]+(rr+3.2)*Math.cos(am),V[1]+(rr+3.2)*Math.sin(am)+1.2];const txt=tolText(dimLabel(d,v),d);const w=textWidth(txt,3.5);
@@ -204,11 +205,11 @@ function dimGeom(d,v){
   return {P1,P2,Q1:v.map(a1+nx*d.pos,b1+ny*d.pos),Q2:v.map(a2+nx*d.pos,b2+ny*d.pos),val:l};
 }
 /* elle ölçü görünüşteki bir kenara/noktaya/daireye oturuyor mu (model değişince ölçü eski yerinde kalır) */
-function dimStale(dm,d){
-  const e=1e-3,segs=d.vis.concat(d.hid);
-  const onPt=(a,b)=>segs.some(q=>Math.hypot(q[0]-a,q[1]-b)<e||Math.hypot(q[2]-a,q[3]-b)<e)||d.circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
-  const onSeg=(a,b)=>segs.some(q=>{const dx=q[2]-q[0],dy=q[3]-q[1],l2=dx*dx+dy*dy;let t=l2?((a-q[0])*dx+(b-q[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q[0]+dx*t-a,q[1]+dy*t-b)<e})||d.circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
-  if(dm.kind==='dia')return !d.circ.some(c=>Math.hypot(c.a-dm.c[0],c.b-dm.c[1])<e&&Math.abs(c.r-dm.r)<e);
+function dimStale(dm,d,sk){
+  const e=1e-3,segs=sk?d.vis.concat(d.hid,sk.segs):d.vis.concat(d.hid),circ=sk?d.circ.concat(sk.circ):d.circ;
+  const onPt=(a,b)=>segs.some(q=>Math.hypot(q[0]-a,q[1]-b)<e||Math.hypot(q[2]-a,q[3]-b)<e)||circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
+  const onSeg=(a,b)=>segs.some(q=>{const dx=q[2]-q[0],dy=q[3]-q[1],l2=dx*dx+dy*dy;let t=l2?((a-q[0])*dx+(b-q[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q[0]+dx*t-a,q[1]+dy*t-b)<e})||circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
+  if(dm.kind==='dia')return !circ.some(c=>Math.hypot(c.a-dm.c[0],c.b-dm.c[1])<e&&Math.abs(c.r-dm.r)<e);
   if(dm.kind==='ang'){const onLine=u=>segs.some(q=>[[q[0],q[1]],[q[2],q[3]]].every(P=>Math.abs((P[0]-dm.v[0])*u[1]-(P[1]-dm.v[1])*u[0])<e)&&Math.hypot(q[2]-q[0],q[3]-q[1])>e);return !onLine(dm.u1)||!onLine(dm.u2)}
   // köşeye/merkeze bağlanan uç (at) köşede kalmalı; kenar üstündeki uç (ör. kenara dik ayak) kenarda
   const ok=(P,i)=>dm.at&&dm.at[i]?onPt(P[0],P[1]):onSeg(P[0],P[1]);
@@ -293,6 +294,15 @@ function boltCircles(hs){
     out.push({gid,a,b,R,holes:g});
   }
   return out;
+}
+/* görünüşün bir sınırındaki (ax 0: a = val, 1: b = val) kenar noktası; diğer koordinatı near’a en yakın olan.
+   genel ölçünün yardımcı çizgisi sınır kutusunun köşesinden değil buradan çıkar: köşe yuvarlatılmış veya pahlıysa da kenara değer */
+function edgePt(d,ax,val,near){
+  const o=1-ax,e=1e-4*Math.max(1,Math.abs(val));let best=null,bd=Infinity;
+  for(const q of d.vis){const P=[[q[0],q[1]],[q[2],q[3]]],on=P.map(X=>Math.abs(X[ax]-val)<e);
+    let c=null;if(on[0]&&on[1]){const lo=Math.min(P[0][o],P[1][o]),hi=Math.max(P[0][o],P[1][o]);c=Math.max(lo,Math.min(hi,near))}else if(on[0])c=P[0][o];else if(on[1])c=P[1][o];
+    if(c!=null&&Math.abs(c-near)<bd){bd=Math.abs(c-near);best=c}}
+  const v=best==null?near:best;return ax===0?[val,v]:[v,val];
 }
 function holeDimCounts(vd,order){const plan=holePlan(vd,order),out={};
   for(const k of order){const all=planHoles(plan,k);const bc=boltCircles(all);const hs=all.filter(q=>!bc.some(g=>g.holes.includes(q)));if(!hs.length)continue;const bb=vd[k].bb;
@@ -430,21 +440,23 @@ function buildSheet(forExport,opts){
         const pairs=holePairs(vals,lo,hi);if(!pairs)return;
         pairs.forEach(([x0,x1],i)=>{const off=(horiz&&k!=='top'?16:9)+7*i; // ön ve yan görünüşün altında genel boyut var
           const key='hp:'+vk2(k)+':'+(horiz?'h':'v')+':'+i;
-          if(horiz){const P1=v.map(x0,x0===lo?bb.minB:hs.find(q=>Math.abs(q.a-x0)<0.01).b),P2=v.map(x1,hs.find(q=>Math.abs(q.a-x1)<0.01).b),y=v.map(0,bb.minB)[1]+off;
+          if(horiz){const P1=x0===lo?v.map(...edgePt(vd[k],0,lo,bb.minB)):v.map(x0,hs.find(q=>Math.abs(q.a-x0)<0.01).b),P2=v.map(x1,hs.find(q=>Math.abs(q.a-x1)<0.01).b),y=v.map(0,bb.minB)[1]+off;
             autoDim(key,P1,P2,[P1[0],y],[P2[0],y],fmt(x1-x0))}
-          else{const P1=v.map(x0===lo?bb.maxA:hs.find(q=>Math.abs(q.b-x0)<0.01).a,x0),P2=v.map(hs.find(q=>Math.abs(q.b-x1)<0.01).a,x1),x=v.map(bb.maxA,0)[0]+off;
+          else{const P1=x0===lo?v.map(...edgePt(vd[k],1,lo,bb.maxA)):v.map(hs.find(q=>Math.abs(q.b-x0)<0.01).a,x0),P2=v.map(hs.find(q=>Math.abs(q.b-x1)<0.01).a,x1),x=v.map(bb.maxA,0)[0]+off;
             autoDim(key,P1,P2,[x,P1[1]],[x,P2[1]],fmt(x1-x0))}});
       };
       axis(hs.map(q=>q.a),bb.minA,bb.maxA,true);axis(hs.map(q=>q.b),bb.minB,bb.maxB,false);
     }
     /* genel boyutlar */
     const vF=ctx.views.front,dF=vd.front.bb;
-    const BL=vF.map(dF.minA,dF.minB),BR=vF.map(dF.maxA,dF.minB),TL=vF.map(dF.minA,dF.maxB);
-    autoDim('ow:front',BL,BR,[BL[0],BL[1]+9],[BR[0],BR[1]+9],fmt(dF.maxA-dF.minA));
-    autoDim('oh:front',BL,TL,[BL[0]-9,BL[1]],[TL[0]-9,TL[1]],fmt(dF.maxB-dF.minB));
+    const yB=vF.map(0,dF.minB)[1]+9,xL=vF.map(dF.minA,0)[0]-9;
+    const BL=vF.map(...edgePt(vd.front,0,dF.minA,dF.minB)),BR=vF.map(...edgePt(vd.front,0,dF.maxA,dF.minB));
+    autoDim('ow:front',BL,BR,[BL[0],yB],[BR[0],yB],fmt(dF.maxA-dF.minA));
+    const LB=vF.map(...edgePt(vd.front,1,dF.minB,dF.minA)),LT=vF.map(...edgePt(vd.front,1,dF.maxB,dF.minA));
+    autoDim('oh:front',LB,LT,[xL,LB[1]],[xL,LT[1]],fmt(dF.maxB-dF.minB));
     const vS=ctx.views[side];
-    if(vS){const dS=vd[side].bb;const SL=vS.map(dS.minA,dS.minB),SR=vS.map(dS.maxA,dS.minB);
-      autoDim('ow:side',SL,SR,[SL[0],SL[1]+9],[SR[0],SR[1]+9],fmt(dS.maxA-dS.minA))}
+    if(vS){const dS=vd[side].bb;const SL=vS.map(...edgePt(vd[side],0,dS.minA,dS.minB)),SR=vS.map(...edgePt(vd[side],0,dS.maxA,dS.minB)),y=vS.map(0,dS.minB)[1]+9;
+      autoDim('ow:side',SL,SR,[SL[0],y],[SR[0],y],fmt(dS.maxA-dS.minA))}
     /* döndürmeyle oluşan silindirlerin çapları (mil kademeleri, burç delikleri): eksenin görüldüğü ilk görünüşte profilin içinden;
        yazı başka bir ölçüye değmeyecek yere (kademenin ortası, sonra kenarlarına yakın) konur, sığmazsa yazılmaz */
     {const done=new Set();
@@ -489,9 +501,11 @@ function buildSheet(forExport,opts){
       o.push(r.m);occ.push(r.box);ctx.hits.push({t:'lbl',k:gid,box:r.box,K:r.K,C})
     }
   }
+  // 2B çizim öğeleri (ölçülerden önce: noktaları ve kenarları akıllı ölçüye katılır)
+  o.push(sk2dMarkup(S,ctx));
   /* elle eklenen ölçüler; model değiştiği için artık geometriye oturmayanlar ekranda kırmızı gösterilir (çıktıda normal) */
   ctx.stale=new Set();
-  S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;const st=dimStale(dm,v.d);if(st)ctx.stale.add(i);let m=dimRender(dm,v);if(st&&!forExport)m=tint(m,'#D0342C');
+  S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;const st=dimStale(dm,v.d,v.sk);if(st)ctx.stale.add(i);let m=dimRender(dm,v);if(st&&!forExport)m=tint(m,'#D0342C');
     o.push(`<g data-dim="${i}">${m}</g>`);ctx.hits.push({t:'dim',i,box:lastBox})});
   if(secInfo)o.push(sectionLineMarkup(secInfo,ctx,s));
   o.push(detailsMarkup(S,ctx,s));
@@ -627,8 +641,12 @@ function drawOverlay(p){
 function dRb(cmd,icon,label,on){return `<button class="rb ${on?'on':''}" data-dcmd="${cmd}" title="${esc(label)}">${IC[icon]}<span>${label}</span></button>`}
 function rctl(label,id,opts,val){return `<label class="rctl"><span>${label}</span><select id="${id}">${opts.map(([k,t])=>`<option value="${k}" ${String(k)===String(val)?'selected':''}>${t}</option>`).join('')}</select></label>`}
 let dlCap=null,dwScaleCustom=false;
+/* şerit sekmeleri (SolidWorks çizim CommandManager'ı gibi): sheet = görünüş ve açıklamalar, sketch = 2B çizim */
+let dwCm='sheet';
 function renderDrawRibbon(){
   const S=dwS(),doc=dwDoc();
+  $$('#dwTabs button').forEach(b=>b.classList.toggle('on',b.dataset.dwcm===dwCm));
+  if(dwCm==='sketch'){$('#drawRibbon').innerHTML=sk2dRibbon(S);fitRibbon($('#drawRibbon'));return}
   const docOpts=[...project.parts.map(p=>['p:'+p.id,'Parça: '+p.partName]),...project.asms.map(a=>['a:'+a.id,'Montaj: '+a.name])];
   const docVal=doc.kind==='asm'?'a:'+doc.a.id:'p:'+state.id;
   $('#drawRibbon').innerHTML=rctl('Belge','dDoc',docOpts.map(([k,t])=>[k,esc(t)]),docVal)+
@@ -649,12 +667,14 @@ $('#drawRibbon').addEventListener('change',e=>{
   if(t.id==='dScaleIn'){const v=parseScale(t.value);if(v==null){t.style.borderColor='var(--warn)';toast('Ölçek “1:2,5”, “3:1” veya “1/25” biçiminde olmalı.');return}
     pushDwHist();S.scale=String(v);dwScaleCustom=false;saveState();renderDrawRibbon();renderDrawing();return}
   if(t.id!=='dDoc')pushDwHist();
+  // çizgi türü: yeni öğeler için; seçili çizim öğesi de bu türe geçer (SolidWorks: Çizgi biçimi)
+  if(t.id==='dLtype'){S.skLt=t.value;if(dwSel&&dwSel.t==='sk'&&S.sk2d&&S.sk2d[dwSel.i]&&S.sk2d[dwSel.i].t!=='cmark')S.sk2d[dwSel.i].st=t.value;saveState();renderDrawing();return}
   if(t.id==='dDoc'){const [k,id]=t.value.split(':');if(k==='p'){project.cur.dw={kind:'part',id};switchPart(id)}else project.cur.dw={kind:'asm',id};saveState();renderDrawRibbon();renderDrawing(true);return}
   if(t.id==='dAsmView'){S.asmView=t.value;saveState();renderDrawRibbon();renderDrawing(true);return}
   if(t.id==='dSec'){S.section=t.value;saveState();renderDrawing();renderDwPanel();return}
   if(t.id==='dPaper'){S.paper=t.value;saveState();renderDrawing(true)}
   if(t.id==='dOrient'){S.orient=t.value;saveState();renderDrawing(true)}
-  if(t.id==='dMethod'){S.method=t.value;const keep=x=>x.view==='front'||x.view==='top';S.dims=S.dims.filter(keep);for(const k of ['details','surfs','gdts','datums'])if(S[k])S[k]=S[k].filter(keep);saveState();renderDrawing()}
+  if(t.id==='dMethod'){S.method=t.value;const keep=x=>x.view==='front'||x.view==='top';S.dims=S.dims.filter(keep);for(const k of ['details','surfs','gdts','datums'])if(S[k])S[k]=S[k].filter(keep);if(S.sk2d)S.sk2d=S.sk2d.filter(x=>!x.view||keep(x));saveState();renderDrawing()}
   if(t.id==='dScale'){S.scale=t.value;dwScaleCustom=false;saveState();renderDrawRibbon();renderDrawing()}
   if(t.id==='dLayout'){S.layout=t.value;saveState();renderDrawing(true)}
 });
@@ -665,7 +685,7 @@ $('#drawRibbon').addEventListener('click',e=>{
   if(['balloons','bom'].includes(c)){S[c]=S[c]===false;b.classList.toggle('on',S[c]!==false);saveState();renderDrawing();return}
   if(['hidden','centers','autodims','iso','explode'].includes(c)){S[c]=!S[c];b.classList.toggle('on',S[c]);saveState();renderDrawing()}
   else if(c==='dim')setDimMode(!dimMode);
-  else if(['detail','surf','note','gdt','datum'].includes(c))setDwTool(dwTool===c?null:c);
+  else if(['detail','surf','note','gdt','datum'].includes(c)||SK2D.has(c))setDwTool(dwTool===c?null:c);
   else if(c==='dxf')exportDXF();
   else if(c==='fit')fitSheet();
   else if(c==='svg')exportSVG();
@@ -685,17 +705,18 @@ function renderDwPanel(){
   else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const lab=v?dimLabel(d,v):'—';const st=dctx&&dctx.stale&&dctx.stale.has(i);return `<div class="dimrow" style="flex-wrap:wrap"><span${st?' style="color:var(--warn)" title="Model değişti; ölçü artık bir kenara veya noktaya oturmuyor. Silip yeniden ekle."':''}>${VN[d.view]||d.view}: ${esc(lab)}${d.kind==='ang'?'':' mm'}${st?' ⚠':''}</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin; çap ölçüsünde R yazınca yarıçap gösterilir.</p>`;
   if(dctx&&dctx.stale&&dctx.stale.size)h+=`<p class="note" style="color:var(--warn)">${dctx.stale.size} ölçü modele uymuyor (kırmızı, ⚠): parça değiştiği için ölçülen kenar veya nokta artık o konumda değil. Silip yeniden ekle.</p>`;
   h+=`</div>`;
+  h+=sk2dPanel(S);
   h+=extraPanel(S);
   if(dctx)h+=`<div class="grp"><div class="grp-t">Sayfa</div><p class="note">Ölçek ${scaleLabel(dctx.scale)}, ${S.method==='E'?'ISO E (birinci açı) izdüşüm: üst görünüş ön görünüşün altında, soldan görünüş sağında.':'ISO A (üçüncü açı) izdüşüm: üst görünüş ön görünüşün üstünde, sağdan görünüş sağında.'}</p><p class="note">Fare tekerleği veya iki parmakla yakınlaştır, sürükleyerek kaydır.</p></div>`;
   $('#dwPanel').innerHTML=h;
 }
 $('#dwPanel').addEventListener('input',e=>{
-  if(extraPanelInput(e))return;
+  if(extraPanelInput(e)||sk2dInput(e))return;
   const k=e.target.dataset.dk;if(!k)return;
   if(k==='partName'){const d=dwDoc();if(d.kind==='asm')d.a.name=e.target.value;else state.partName=e.target.value}else dwS()[k]=e.target.value;
   saveState();clearTimeout(drawT);drawT=setTimeout(()=>{const r=buildSheet(false);sheetEl.innerHTML=r.markup+'<g id="ov"></g>';dctx=r.ctx;applyVB()},200);
 });
-$('#dwPanel').addEventListener('change',e=>{if(extraPanelInput(e,true))return;if(e.target.dataset.dk==='partName')renderTree()});
+$('#dwPanel').addEventListener('change',e=>{if(extraPanelInput(e,true)||sk2dInput(e,true))return;if(e.target.dataset.dk==='partName')renderTree()});
 $('#dwPanel').addEventListener('click',e=>{
   if(extraPanelClick(e))return;
   const b=e.target.closest('[data-deldim]');if(!b)return;pushDwHist();

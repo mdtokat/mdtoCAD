@@ -25,7 +25,8 @@ await page.route('**/*', r => {
   if (u.includes('fonts.g')) return r.abort();
   return r.continue();
 });
-await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
+// örnekler çizimden çıkarken eksik ölçüleri otomatik ekleyerek tam tanımlanır (uygulamada varsayılan kapalı)
+await page.addInitScript(() => { try { localStorage.clear(); localStorage.setItem('tezgah-cad-otomatik-tam-tanimla', '1'); } catch (e) {} });
 await page.goto(pathToFileURL(join(here, '..', 'dist', 'index.html')).href);
 await page.waitForFunction(() => window.__tz && window.__tz.model);
 

@@ -128,22 +128,50 @@ test('ölçüye dayalı çizim: disk dosyası tam tanımlı, ölçü listeden de
   expect(errors).toEqual([]);
 });
 
-test('ölçüsüz çizimler girişte ve çıkışta otomatik tam tanımlanır', async ({ page }) => {
+test('otomatik tam tanımlama kullanıcı isteğine bağlı; tanımsız öğeler mavi, tanımlılar siyah', async ({ page }) => {
   const errors = await openApp(page);
   await page.evaluate(() => document.querySelector('[data-m="new"]').click());
   await page.click('.ti[data-plane="front"]');
   await page.click('[data-cmd="sketch"]');
   await page.waitForFunction(() => !!__tz.sk);
-  const a = await page.evaluate(() => {
-    const T = __tz; T.setTool('line');
-    T.toolClick(10, 10); T.toolClick(60, 10); T.toolClick(40, 45); T.toolClick(10, 10);
-    const id = T.sk.feat.id; T.exitSketch(true);
-    const f = T.state.features.find(x => x.id === id);
-    return { dof: T.model.dof[id], dims: f.cons.filter(c => /^d/.test(c.t)).length };
-  });
-  expect(a.dof).toBe(0);
-  expect(a.dims).toBeGreaterThan(0);
-  // dışarıdan gelen, hiç ölçüsü olmayan çizim
+  const tri = () => { const T = __tz; T.setTool('line'); T.toolClick(10, 10); T.toolClick(60, 10); T.toolClick(40, 45); T.toolClick(10, 10); T.setTool(null); };
+  const dims = f => f.cons.filter(c => /^d/.test(c.t)).length;
+  // varsayılan: çıkarken ve tekrar girerken ölçü eklenmez, öğeler mavi
+  const a = await page.evaluate(([tri, dims]) => {
+    const T = __tz; eval(tri)(); const id = T.sk.feat.id; T.exitSketch(true);
+    const f = T.state.features.find(x => x.id === id); const out = { dof: T.model.dof[id], dims: eval(dims)(f) };
+    T.editSketch(id); const C = T.skColors();
+    out.dimsIn = eval(dims)(T.sk.feat); out.dofIn = T.sk.an.dof;
+    out.blue = T.sk.feat.ents.every(e => T.skEntColor(e) === C.und);
+    // Sabitle: yalnızca sabitlenen çizgi siyah olur, serbest ucu olan komşular mavi kalır
+    const l = T.sk.feat.ents[0]; T.selectItems([{ k: 'ent', id: l.id }]); T.addRelation('fix'); T.selectItems([]);
+    out.fixed = T.skEntColor(l) === C.def; out.othersBlue = T.sk.feat.ents.slice(1).every(e => T.skEntColor(e) === C.und);
+    // Tam Tanımla düğmesi: istenince eksik ölçüler eklenir, hepsi siyah
+    T.cmd('fulldef'); out.dofDef = T.sk.an.dof; out.black = T.sk.feat.ents.every(e => T.skEntColor(e) === C.def);
+    return out;
+  }, [tri.toString(), dims.toString()]);
+  expect(a.dof).toBeGreaterThan(0);
+  expect(a.dims).toBe(0);
+  expect(a.dimsIn).toBe(0);
+  expect(a.dofIn).toBe(a.dof);
+  expect(a.blue).toBe(true);
+  expect(a.fixed).toBe(true);
+  expect(a.othersBlue).toBe(true);
+  expect(a.dofDef).toBe(0);
+  expect(a.black).toBe(true);
+  // panelden seçenek açılınca çizimden çıkarken eksik ölçüler eklenir
+  await page.evaluate(() => __tz.exitSketch(true));
+  await page.click('.ti[data-plane="front"]');
+  await page.click('[data-cmd="sketch"]');
+  await page.waitForFunction(() => !!__tz.sk);
+  await page.check('[data-opt="autodef"]');
+  const b0 = await page.evaluate(([tri, dims]) => {
+    const T = __tz; eval(tri)(); const id = T.sk.feat.id; T.exitSketch(true);
+    const f = T.state.features.find(x => x.id === id); return { dof: T.model.dof[id], dims: eval(dims)(f) };
+  }, [tri.toString(), dims.toString()]);
+  expect(b0.dof).toBe(0);
+  expect(b0.dims).toBeGreaterThan(0);
+  // seçenek açıkken dışarıdan gelen, hiç ölçüsü olmayan çizim girişte tam tanımlanır
   const sx = { id: 's1', type: 'sketch', name: 'Çizim1', on: { kind: 'std', key: 'front' },
     pts: { a: { x: 100, y: 0 }, b: { x: 140, y: 0 }, c: { x: 140, y: 20 }, d: { x: 100, y: 20 }, m: { x: 120, y: 20 } },
     ents: [{ id: 'e1', t: 'line', a: 'a', b: 'b' }, { id: 'e2', t: 'line', a: 'b', b: 'c' }, { id: 'e3', t: 'arc', c: 'm', a: 'c', b: 'd' }, { id: 'e4', t: 'line', a: 'd', b: 'a' }], cons: [] };

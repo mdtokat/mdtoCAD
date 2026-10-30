@@ -48,7 +48,7 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 | `03-cizim.js` | Çizim oturumu (`sk`), araçlar ve yakalama, akıllı ölçülendirme, ölçü düzenleme kutusu, ilişkiler, çizim görüntüsü (3B çizgiler + HTML etiketler) |
 | `04-teknik-resim.js` | Görünüş verisi (`viewData`: derinlik arabelleğiyle gizli çizgi), sayfa düzeni (`buildSheet`), antet, ölçüler, sayfa yakınlaştırma, SVG/PNG, `saveFile` |
 | `05-pdf.js` | Bağımlılıksız PDF yazıcı (`buildPdf`), SVG→PDF dönüştürücü (`svgToPdfOps`), ölçekli 3B görüntü (`build3DPage`), PDF penceresi |
-| `06-montaj.js` | Proje parçaları, örnek proje, montaj görünümü, eşleştirme çözücü, montaj ağacı/şerit/panel, taşıma/döndürme, STL/ZIP |
+| `06-montaj.js` | Proje parçaları, örnek proje, montaj görünümü, eşleştirme çözücü (`mateRes`, `asmSystem`, `solveMates`), montaj ağacı/şerit/panel, STL/ZIP |
 | `07-montaj-araclari.js` | Çizim belgesi soyutlaması (`dwDoc`, `dwS`, `dwSrc`: parça veya montaj), patlatılmış görünüm, bileşen çoğaltma (`applyPats`, `openPatPM`), girişim algılama (`cylContact`: aynı çaplı silindir teması), parça listesi ve balonlar |
 | `08-araclar.js` | Delik Sihirbazı paneli, dairesel kenar seçimi, Ölç aracı, çizim işlemleri (budama, ofset, aynalama, çoğaltma) |
 | `09-teknik-resim-ekleri.js` | Kesit (CSG ile yarım uzay çıkarma + tarama), detay görünüşü, tolerans editörü, yüzey işareti, notlar, diş gösterimi |
@@ -59,6 +59,8 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 | `14-olcu-celiskisi.js` | Ölçü çelişkileri: aşırı tanımlayan ölçüde çelişki penceresi (`openConflict`), sarı işaretleme (`setConf`, `isConf`), referans ölçü (`addRefDim`, `setDriven`, `swapDriven`) |
 | `15-kayit.js` | Veri kaybına karşı: IndexedDB yedeği (`backupState`, `durability: 'strict'`), sürümler (`verSnap`, `verSnapNow`, `openRecovery`), açılışta kurtarma (`recoverCheck`), çoklu sekme uyarısı, Ctrl+S (`saveProjectFile`, File System Access API) |
 | `16-teknik-resim-cizim.js` | Teknik resimde 2B çizim (şeritte Çizim sekmesi): çizgi, eksen çizgisi (iki paralel kenarın ortası), dikdörtgen, daire, yay, merkez işareti, çizgi türleri (`sk2d`). Yakalama (`dskSnap`: köşe, merkez, kenar ortası, kenar, yatay/dikey), görünüşe bağlama (`dskFrame`, `dskOwner`), çizim (`sk2dMarkup`: görünüşe bağlı öğelerin noktaları `ctx.snaps`'e, kenarları `v.sk`'ye eklenir; akıllı ölçü bunlara da oturur), seçme/sürükleme (`dskHitGrip`, `dskDrag`) |
+| `18-montaj-hareket.js` | Montajda seçim (`asmPick`: düz yüzey, silindir; `fitCyl`: açıklaması olmayan eğri yüzeyden eksen; `pickAsmEdge`/`edgeRef`: dairesel ve doğrusal kenar), eşleştirme panelinde üzerine gelince vurgu (`asmHover`, `refObjs`), sürükleyerek taşıma/döndürme (`asmGrab` yakalama evresinde OrbitControls'tan önce çalışır; `dragSolve`, `poseSoft`, `moveCompTo`), Bileşeni Taşı paneli (`openMovePM`: serbest, montaj XYZ boyunca, ΔXYZ, XYZ konumuna; döndürme: serbest, eksen etrafında, ΔXYZ) |
+| `19-montaj-eslestirme.js` | Eşleştirme türleri: standart, gelişmiş ve mekanik gruplar (`MATE_STD`, `MATE_ADV`, `MATE_MEC`), seçim yuvaları (`mateSlots`: a, b ve genişlik/simetrik/menteşede c, d), uygun türler (`mateTypesFor`), varsayılanlar (`initMateParams`), dönme bağlantıları (`coupAngles`, `mateTrack`), Eşleştir paneli (`matePMBody`, `mateSelect`) |
 | `99-baslat.js` | Sekmeler, Dosya menüsü, içe/dışa aktarma, klavye, başlatma, `window.__tz` |
 
 ### Durum
@@ -71,7 +73,11 @@ Her özelliğin hatası `errors[id]` içine yazılır; hata, sonraki özellikler
 
 ### Montaj eşleştirme çözücüsü
 
-Her sabit olmayan bileşen için 6 değişken (öteleme + dönme vektörü, bileşen merkezi etrafında). Eşleştirme artıkları dünya koordinatlarında hesaplanır (`mateRes`), çekirdekteki `lm` ile çözülür. Taşıma sırasında istenen konum başlangıç alınıp eşleştirmelere en yakın çözüme izdüşürülür. Serbestlik analizi çizimdekiyle aynı yöntemi (Jacobian rütbesi) kullanır.
+Her sabit olmayan bileşen için 6 değişken (öteleme + dönme vektörü, bileşen merkezi etrafında). Eşleştirme artıkları dünya koordinatlarında hesaplanır (`mateRes`), çekirdekteki `lm` ile çözülür. Serbestlik analizi çizimdekiyle aynı yöntemi (Jacobian rütbesi) kullanır; sınır eşleştirmeleri aralığın içindeyken artık ve türevleri sıfır olduğundan serbestlik kaldırmaz.
+
+**Sürükleme (`dragSolve`):** yalnızca sürüklenen bileşenin eşleştirmelerle (sabit olmayan bileşenler üzerinden) bağlı olduğu grup serbesttir (`mateGroup`, `asmSystem(a, null, only)`). Önce eşleştirmeler ile küçük ağırlıklı yumuşak hedef birlikte çözülür — taşımada yakalanan nokta imleci izler (yalnızca dönebilen bileşen, ör. menteşeli kol, imleçle döner), döndürmede ve panelden Δ ile taşımada bileşenin merkezi ve iki yönü hedeflenir (`poseSoft`; yönler ayrı artık olduğundan eşleştirmenin izin vermediği eğilme bileşeni serbest yönlerde kaydırmaz) — grubun diğer bileşenleri çok küçük ağırlıkla yerinde tutulur. Sonra yalnızca eşleştirmelerle düzeltilir; sağlanamazsa bileşen son geçerli konumunda kalır. Eşleştirmesi olmayan bileşen doğrudan taşınır.
+
+**Dönme bağlantıları:** dişli, kremayer–pinyon ve vida eşleştirmeleri eklendikleri anda her bileşende eksene dik bir referans yön saklar (`ua`, `ub` yerel; `wa`, `wb` dünya). Dönme açısı bu yönün başlangıç yönüne göre eksen etrafındaki açısıdır (`axAng`); her çözümden sonra `mateTrack` açıyı (`ta`, `tb`) saklar ve sonraki çözümde açı ±180°'den geçerken tam turlar sayılır (`unwrapA`).
 
 Çözüm bulunamazsa (`solveMates`) sağlanamayan eşleştirmelerdeki bileşenler yarım tur çevrilmiş başlangıçlardan yeniden denenir (`flipStarts`): yüz yüze çakışıkta yüzler başlangıçta aynı yöne bakıyorsa artık tam ters konumdadır, eğim sıfırdır ve çözücü kendiliğinden dönemez. Bileşen çoğaltmasının kopyaları (`c.pat`) çözücüde serbest değildir; `solveAsm` her çözümden sonra `applyPats` ile kopyaları kaynaklarının yeni konumundan yerleştirir.
 
@@ -102,6 +108,8 @@ PDF'te yazılar standart Helvetica ile, Türkçe karakterler (ğ, ş, ı, İ, Ğ
 | `sketchProfiles(çizim, bölgeler)`, `sketchFaces(çizim)`, `regionClick(olay)` | Bölgeler ve bölge seçimi |
 | `openPM(tür, özellik)`, `commitPM()` | Özellik düzenleme |
 | `curAsm()`, `solveAsm(a)`, `asmDof(a)`, `addComp(parçaId)` | Montaj |
+| `asmPick(olay, {edges})`, `mateSelect(seçim)`, `setMateType(tür)`, `edgeRef(d, i)`, `fitCyl(d, i)` | Montaj seçimi ve eşleştirme paneli |
+| `openMovePM(döndür)`, `moveCompTo(a, bileşen, matris)`, `dragSolve(a, bileşen, hedef)` | Bileşeni taşıma/döndürme |
 | `getCtx()`, `buildSheet(...)`, `openPdfDialog(tür)`, `pdfOpt`, `makePdf()` | Teknik resim ve PDF |
 | `stlBinary`, `makeZip`, `parseSTL` | Dosya biçimleri |
 | `scr(x, y)`, `scrW([x, y, z])` | Çizim / dünya koordinatından ekran koordinatına |

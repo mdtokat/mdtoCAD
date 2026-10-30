@@ -89,7 +89,7 @@ function autoExplode(a){
     for(const m of a.mates){if(m.suppressed||m.type!=='coincident')continue;
       const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null),oth=mine===m.a?m.b:m.a;if(!mine||oth.ref.t!=='plane'||mine.ref.t!=='plane')continue;
       const oc=compById(oth.comp);if(!oc)continue;const n=new T.Vector3(...oth.ref.n).transformDirection(new T.Matrix4().fromArray(oc.T));dir=[n.x,n.y,n.z];partner=oc;break}
-    if(!dir)for(const m of a.mates){if(m.suppressed||m.type!=='concentric')continue;const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null);if(!mine)continue;
+    if(!dir)for(const m of a.mates){if(m.suppressed||!['concentric','hinge','screw'].includes(m.type))continue;const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null);if(!mine)continue;
       const ax=new T.Vector3(...mine.ref.d).transformDirection(new T.Matrix4().fromArray(c.T));const s=cc.clone().sub(ref).dot(ax);dir=[ax.x,ax.y,ax.z].map(x=>x*(s<0?-1:1));partner=compById((mine===m.a?m.b:m.a).comp);break}
     if(!dir){const v=cc.clone().sub(ref);dir=v.length()<1e-6?[0,1,0]:[v.x,v.y,v.z]}
     const ax=snapAxis(dir);let dist=base;
@@ -168,7 +168,7 @@ function applyPats(a){
         c.part=s.part;c.T=Mk.clone().multiply(S).toArray();keep.add(c.id)})}
   }
   const gone=new Set(a.comps.filter(c=>c.pat&&!keep.has(c.id)).map(c=>c.id));
-  if(gone.size){a.comps=a.comps.filter(c=>!gone.has(c.id));a.mates=a.mates.filter(m=>!gone.has(m.a.comp)&&!gone.has(m.b.comp));
+  if(gone.size){a.comps=a.comps.filter(c=>!gone.has(c.id));a.mates=a.mates.filter(m=>mSides(m).every(s=>!gone.has(s.comp)));
     if(a.explode&&a.explode.steps)for(const st of a.explode.steps)st.comps=st.comps.filter(x=>!gone.has(x))}
 }
 function openPatPM(type,existing){

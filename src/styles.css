@@ -184,6 +184,7 @@ button:disabled{cursor:default}
 .inp em{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-style:normal;font-size:12px;color:var(--muted);pointer-events:none}
 .fld input.bad{border-color:var(--warn);background:var(--warn-soft)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-bottom:8px;background:var(--field)}
 .seg button{flex:1;border:0;background:none;padding:6px 4px;font-size:13px;border-right:1px solid var(--line)}
 .seg button:last-child{border-right:0}

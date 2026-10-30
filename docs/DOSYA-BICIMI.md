@@ -149,7 +149,12 @@ Eşleştirme referansları parçanın kendi koordinatlarındadır. `distance` e�
   "details":[ {"view":"front","c":[a,b],"r":8,"k":2,"pos":[x,y],"label":"B"} ],
   "surfs":  [ {"view":"top","p":[a,b],"ra":"3,2"} ],
   "notes":  [ {"x":30,"y":200,"text":"…"} ],
+  "sk2d":   [ {"t":"line","view":"front"|null,"p":[[a,b],[a,b]],"st":"vis"|"thin"|"hid"|"cen"},   // 2B çizim (teknik resme ait)
+              {"t":"circ","view":"top","c":[a,b],"r":40,"st":"cen"},
+              {"t":"arc","view":null,"c":[x,y],"r":10,"a0":0,"sw":1.57,"st":"thin"},           // a0 başlangıç açısı, sw süpürme (radyan)
+              {"t":"cmark","view":"top","c":[a,b],"r":4.5} ],                                 // merkez işareti
+  "skLt":"thin",                                                       // yeni 2B çizim öğelerinin çizgi türü
   "raDef":"3,2", "noteDef":"…"
 }
 ```
-`dims`, `details`, `surfs`, `gdts`, `datums` içindeki `[a,b]` görünüş koordinatlarıdır (model mm); `dims.at` ucun bir köşeye/merkeze (true) mi yoksa kenar üstüne mi bağlandığını söyler ve model değişince ölçünün geometriye oturup oturmadığını denetlemekte kullanılır (yoksa yalnızca kenar üstünde olması aranır); `details.pos`, `notes` ve tüm `off`/`vofs` değerleri sayfa koordinatlarıdır (mm, sol üst köşe orijin). `gdts.sym`: `straight`, `flat`, `circ`, `cyl`, `lprof`, `sprof`, `par`, `perp`, `ang`, `pos`, `conc`, `sym`, `run`, `trun`. Yeni alanların hepsi isteğe bağlıdır; eski dosyalar olduğu gibi açılır.
+`dims`, `details`, `surfs`, `gdts`, `datums` içindeki `[a,b]` görünüş koordinatlarıdır (model mm); `dims.at` ucun bir köşeye/merkeze (true) mi yoksa kenar üstüne mi bağlandığını söyler ve model değişince ölçünün geometriye oturup oturmadığını denetlemekte kullanılır (yoksa yalnızca kenar üstünde olması aranır); `details.pos`, `notes` ve tüm `off`/`vofs` değerleri sayfa koordinatlarıdır (mm, sol üst köşe orijin). `sk2d` öğeleri yalnızca resme aittir (modeli değiştirmez): `view` bir görünüşün adıysa koordinatlar o görünüşün koordinatıdır (model mm; öğe görünüşle taşınır ve ölçeklenir), `null` ise sayfa koordinatıdır (mm); `st` çizgi türü: kalın sürekli, ince sürekli, kesikli (gizli), eksen (zincir). Bozuk öğeler açılırken atılır. `gdts.sym`: `straight`, `flat`, `circ`, `cyl`, `lprof`, `sprof`, `par`, `perp`, `ang`, `pos`, `conc`, `sym`, `run`, `trun`. Yeni alanların hepsi isteğe bağlıdır; eski dosyalar olduğu gibi açılır.

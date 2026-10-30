@@ -25,6 +25,12 @@ function build() {
     try { new vm.Script(code, { filename: name }); }
     catch (e) { console.error(`\n✗ Sözdizimi hatası: ${name}\n${e.stack.split('\n').slice(0, 4).join('\n')}`); return false; }
   }
+  // Aynı adlı iki üst düzey fonksiyon: sonraki öncekini sessizce ezer (ör. çizimin ve teknik resmin ayrı skSnap'leri)
+  const seen = new Map(), dup = [];
+  for (const f of appFiles) for (const m of readFileSync(join(src, 'app', f), 'utf8').matchAll(/^(?:async\s+)?function\s+([\w$]+)/gm)) {
+    if (seen.has(m[1])) dup.push(`${m[1]} (${seen.get(m[1])}, ${f})`); else seen.set(m[1], f);
+  }
+  if (dup.length) { console.error(`\n✗ Aynı adlı üst düzey fonksiyonlar:\n  ${dup.join('\n  ')}`); return false; }
   for (const ph of ['<!-- @styles -->', '<!-- @core -->', '<!-- @app -->'])
     if (!tpl.includes(ph)) { console.error(`✗ src/index.html içinde ${ph} yer tutucusu yok.`); return false; }
 

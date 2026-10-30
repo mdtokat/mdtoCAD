@@ -131,7 +131,10 @@ function normFeature(f,ids){
   }else for(const k of ['targets','edges','pts'])if(k in f&&!Array.isArray(f[k]))f[k]=[];
   return f;
 }
-function normDrawing(d){for(const k of ['dims','notes','surfs','details','gdts','datums','hide'])if(k==='dims'?!Array.isArray(d.dims):(k in d&&!Array.isArray(d[k])))d[k]=[];return d}
+/* 2B çizim öğesi (teknik resim): bozuk olanlar atılır */
+const okPt=q=>Array.isArray(q)&&q.length===2&&q.every(x=>typeof x==='number'&&isFinite(x));
+const okSk=e=>isObj(e)&&(e.view==null||typeof e.view==='string')&&(e.t==='line'?Array.isArray(e.p)&&e.p.length===2&&e.p.every(okPt):['circ','arc','cmark'].includes(e.t)&&okPt(e.c)&&e.r>0&&(e.t!=='arc'||isFinite(e.a0)&&isFinite(e.sw)));
+function normDrawing(d){for(const k of ['dims','notes','surfs','details','gdts','datums','sk2d','hide'])if(k==='dims'?!Array.isArray(d.dims):(k in d&&!Array.isArray(d[k])))d[k]=[];if(d.sk2d)d.sk2d=d.sk2d.filter(okSk);return d}
 function normPart(p){
   p.drawing=normDrawing(Object.assign(defaultDrawing(),isObj(p.drawing)?p.drawing:{}));
   if(!MATERIALS[p.material])p.material='steel';if(!p.id)p.id=uid('P');if(!p.partName)p.partName='Parça';

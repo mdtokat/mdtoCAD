@@ -108,7 +108,7 @@ document.addEventListener('keydown',e=>{
     if(dimPopEl){closeDimPop();return}
     if(skInEl){closeSkInput();return}
     if(meas){closeMeasure();return}
-    if(activeTab==='drawing'){if(dwTool){setDwTool(null);return}if(dimMode){if(dimSt.stage!==0){dimSt={stage:0,p1:null,p2:null};updateDimTip();drawOverlay(null)}else setDimMode(false)}else if(dwSel)dwSelect(null);return}
+    if(activeTab==='drawing'){if(dwTool){if(SK2D.has(dwTool)&&dwSt.stage){dwSt={stage:0};dwTip();drawOverlay(null)}else setDwTool(null);return}if(dimMode){if(dimSt.stage!==0){dimSt={stage:0,p1:null,p2:null};updateDimTip();drawOverlay(null)}else setDimMode(false)}else if(dwSel)dwSelect(null);return}
     if(activeTab==='asm'){if(asmUI.pm){closeAsmPM();return}if(asmUI.tool){asmCmd(asmUI.tool==='move'?'amove':'arotate');return}if(asmUI.sel){asmUI.sel=null;asmHighlight();renderAsmTree()}return}
     if(sk&&(sk.conf||sk.confEnts)){clearConf();renderSketchPM();return}
     if(sk){const busy=Object.keys(sk.st).some(k=>sk.st[k]&&!(Array.isArray(sk.st[k])&&!sk.st[k].length));if(busy){endChainIfAny();sk.dirty=true}else if(sk.tool)setTool(null);else if(sk.sel.length){sk.sel=[];skChanged()}return}

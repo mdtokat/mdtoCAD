@@ -34,7 +34,12 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Geometrik tolerans | ✅ yeni | ISO 1101'in 14 sembolü, Ø, üç referans |
 | Referans (datum) işareti | ✅ yeni | A, B, C… sırayla |
 | Not | ✅ | Sürüklenebilir (yeni) |
-| Eksen çizgisi, merkez işareti, kozmetik diş | ✅ | Otomatik |
+| Eksen çizgisi, merkez işareti, kozmetik diş | ✅ | Otomatik; ayrıca elle (aşağıda) |
+| Çizim sekmesi: çizgi, merkez çizgisi, dikdörtgen, daire, merkez noktalı yay | ✅ yeni | Şeritte **Çizim** sekmesi. Köşe, merkez, kenar ortası ve kenarlara yakalanır, yatay/dikey hizalanır; çizgi zincir olarak devam eder. Öğeler yalnızca resme aittir |
+| Merkez çizgisi (iki kenar arası), merkez işareti (daire) | ✅ yeni | Eksen çizgisi aracıyla iki paralel kenara tıklanınca ortadan geçen eksen; Merkez işareti aracıyla daireye tıklanır |
+| Çizgi biçimi (çizgi türü) | ✅ yeni | Kalın sürekli, ince sürekli, kesikli (gizli), eksen (zincir); seçili öğeye de uygulanır |
+| Görünüşe bağlı çizim (görünüşle taşınır) | ✅ yeni | Görünüşün içinde çizilen veya görünüş geometrisine yakalanan öğe görünüşle taşınır/ölçeklenir; diğerleri sayfaya bağlıdır |
+| Yardımcı çizgiler (extension lines) geometriye değer | ✅ yeni | Ölçülen noktadan başlar, ölçü çizgisini 2 mm geçer; genel ölçüler sınır kutusunun köşesinden değil kenardan çıkar |
 | Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar ölçülere binmez, sürüklenir ve gizlenir (yeni) |
 | Kaynak sembolü, delik tablosu, revizyon tablosu | ❌ | Yol haritasında |
 | Antet, kağıt boyutu, ölçek | ✅ | A4–A0, yatay/dikey; ölçek listeden veya elle (1:2,5, 3:1); antetli, antetsiz (çerçeveli), yalnızca parça adı ve ölçek, yalnızca parça |
@@ -46,4 +51,5 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 - **Taşıma:** araç seçili değilken görünüşü, ölçüyü, etiketi, notu, detayı, toleransı veya referansı tutup sürükle. Boş yerde sürüklemek sayfayı kaydırır.
 - **Seçme / silme:** öğeye tıkla (mavi çerçeve), **Delete**. Otomatik ölçüler, delik etiketleri ve görünüşler gizlenir; soldaki panelde “Gizlenenler → Tümünü geri getir”.
 - **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık); kenar + açılı kenar + yay yeri (açı); kenar + nokta (uzaklık); daire + yazı yeri (çap).
+- **2B çizim (Çizim sekmesi):** araç seçilir; çizgi türü şeritten veya soldaki panelden. Çizgi: ardışık tıklamalar zincir çizer, aynı noktaya tıklamak veya Esc zinciri bitirir. Eksen çizgisi: iki nokta veya iki paralel kenar. Daire: merkez + yarıçap noktası (delik dairesi için merkeze ve bir deliğin merkezine tıkla); çap panelden yazılır. Yay: merkez, başlangıç, bitiş (fareyi götürdüğün yönde). Öğe seçilip sürüklenir, çizginin ucu veya dairenin çevresi tutulursa boyu/çapı değişir; Delete siler. Görünüşe bağlı öğelerin uçlarına ve merkezlerine akıllı ölçü verilir.
 - **Geometrik tolerans / Referans:** şeritten seç, kenara tıkla; tür, değer ve referans harfleri soldaki panelden.

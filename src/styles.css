@@ -201,9 +201,9 @@ button:disabled{cursor:default}
 .chk[data-tip]::after{margin-left:0}
 .tip-box{position:fixed;left:0;top:0;z-index:80;max-width:min(320px,calc(100vw - 12px));padding:7px 10px;border-radius:6px;background:var(--ink);color:var(--panel);font-size:12px;line-height:1.45;white-space:pre-line;pointer-events:none;box-shadow:var(--shadow);opacity:0;visibility:hidden;transition:opacity .12s}
 .tip-box.on{opacity:1;visibility:visible}
-.lst{display:grid;gap:3px;margin-bottom:8px}
+.lst{display:grid;grid-template-columns:minmax(0,1fr);gap:3px;margin-bottom:8px}
 .lst div{display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 6px;border-radius:5px;background:var(--panel-2)}
-.lst div span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lst div span{flex:1;min-width:0;overflow-wrap:anywhere}
 .lst button{border:0;background:none;color:var(--muted);width:22px;height:22px;border-radius:4px;flex:none}
 .lst button:hover{color:var(--warn)}
 .dimlist{display:grid;gap:3px;margin-bottom:6px;max-height:300px;overflow:auto}

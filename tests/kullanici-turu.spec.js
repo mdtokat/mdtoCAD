@@ -122,3 +122,84 @@ test('teknik resim 2B çizim: konturu iki yandan aşan eksen çizgisi görünü�
   expect(await page.evaluate(() => __tz.dwS().sk2d.map(e => e.view))).toEqual(['front']);
   expect(errors).toEqual([]);
 });
+
+/* ---------- ikinci kullanıcı turu: fare ve klavyeyle bulunanlar ---------- */
+
+test('akıllı ölçü: kutu açılmadan (sonraki kareden önce) yazılan değer kaybolmaz', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => { document.querySelector('[data-m="new"]').click(); const T = __tz;
+    T.startSketch({ kind: 'std', key: 'top' }); T.sk.opts.grid = false; T.setTool('rect'); T.toolClick(-20, -10); T.toolClick(20, 10); T.setTool('smartdim'); });
+  // yavaş bir makinede kare gecikir: kare çağrıları bekletilir, ölçü yerleştirilir, değer hemen yazılır
+  await page.evaluate(() => { const T = __tz; window.__q = []; window.__raf = window.requestAnimationFrame; window.requestAnimationFrame = cb => { __q.push(cb); return 0; };
+    T.toolClick(0, 10); T.toolClick(0, 18); });
+  expect(await page.evaluate(() => !!document.querySelector('#viewport .pop'))).toBe(false);
+  await page.keyboard.type('75');
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => { window.requestAnimationFrame = window.__raf; for (const cb of __q) cb(performance.now()); });
+  await page.waitForTimeout(100);
+  const r = await page.evaluate(() => { const T = __tz, f = T.sk.feat, c = f.cons.find(c => c.t === 'd'); const xs = Object.values(f.pts).map(p => p.x);
+    return { val: c && c.val, w: +(Math.max(...xs) - Math.min(...xs)).toFixed(4), pop: !!document.querySelector('#viewport .pop') }; });
+  expect(r).toEqual({ val: 75, w: 75, pop: false });
+  expect(errors).toEqual([]);
+});
+
+test('teknik resim: genel not dikey A4 sayfada çerçevenin içinde, antetin üstünde kalır', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.click('[data-tab="drawing"]');
+  await page.waitForFunction(() => !!__tz.getCtx() && !!__tz.getCtx().views.front);
+  for (const [paper, orient] of [['A4', 'portrait'], ['A3', 'landscape']]) {
+    await page.evaluate(([p, o]) => { const S = __tz.dwS(); S.paper = p; S.orient = o; __tz.renderDrawing(); }, [paper, orient]);
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => { const t = [...document.querySelectorAll('#sheet text')].find(t => /ISO 2768/.test(t.textContent)); const b = t.getBBox();
+      const vb = document.querySelector('#sheet').viewBox.baseVal; return { x0: b.x, x1: b.x + b.width, y1: b.y + b.height, W: vb.width, H: vb.height }; });
+    expect(r.x0).toBeGreaterThan(20);
+    expect(r.x1).toBeLessThan(r.W - 10);
+    expect(r.y1).toBeLessThan(r.H - 46);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('çizim radyusu: köşeye yakın (çizginin üstüne) tıklamak köşeyi yuvarlatır; ilişki simgeleri üst üste binmez', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => { document.querySelector('[data-m="new"]').click(); __tz.startSketch({ kind: 'std', key: 'front' }); });
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => { const T = __tz; T.sk.opts.grid = false; T.setTool('line');
+    for (const [x, y] of [[0, 0], [60, 0], [60, 20], [30, 20], [30, 50], [0, 50], [0, 0]]) T.toolClick(x, y);
+    T.setTool('sfillet'); T.toolClick(30, 20 + 4 * T.sk.px); T.setTool(null);
+    return T.sk.feat.ents.filter(e => e.t === 'arc').length; });
+  expect(r).toBe(1);
+  await page.waitForTimeout(200);
+  const pos = await page.evaluate(() => [...document.querySelectorAll('#labels .rlab')].map(e => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top)]; }));
+  expect(pos.length).toBeGreaterThan(6);
+  for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) expect(Math.abs(pos[i][0] - pos[j][0]) + Math.abs(pos[i][1] - pos[j][1])).toBeGreaterThan(6);
+  expect(errors).toEqual([]);
+});
+
+test('çizim ofseti uygulanamıyorsa önizleme yerine neden panelde yazılır', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => { document.querySelector('[data-m="new"]').click(); const T = __tz; T.startSketch({ kind: 'std', key: 'front' }); T.sk.opts.grid = false; T.setTool('line');
+    for (const [x, y] of [[0, 0], [60, 0], [60, 20], [30, 20], [30, 50], [0, 50], [0, 0]]) T.toolClick(x, y);
+    T.sk.opts.filletR = 5; T.setTool('sfillet'); T.toolClick(30, 20); T.setTool(null);
+    T.setSkOp('offset'); Object.assign(T.sk.op, { d: 5 }); T.selectItems(T.sk.feat.ents.map(e => ({ k: 'ent', id: e.id }))); });
+  const note = () => page.evaluate(() => { const e = document.querySelector('#pm [data-operr]'); return e && !e.hidden ? e.textContent : ''; });
+  await expect.poll(note).toContain('yarıçapından büyük');
+  await page.evaluate(() => { __tz.sk.op.d = 3; __tz.sk.dirty = true; });
+  await expect.poll(note).toBe('');
+  expect(errors).toEqual([]);
+});
+
+test('arayüz: eşleştirme seçim listesi panele sığar; dar ekranda şerit etiketleri yan düğmeye taşmaz', async ({ page }) => {
+  const errors = await openApp(page);
+  await page.click('[data-tab="asm"]');
+  await page.click('#ribbon [data-cmd="amate"]');
+  const over = await page.evaluate(() => [...document.querySelectorAll('#pm .lst > div')].map(d => d.getBoundingClientRect().right - d.parentElement.getBoundingClientRect().right));
+  expect(over.length).toBeGreaterThan(1);
+  for (const o of over) expect(o).toBeLessThan(1);
+  await page.keyboard.press('Escape');
+  await page.click('[data-tab="model"]');
+  await page.setViewportSize({ width: 800, height: 700 });
+  await page.waitForTimeout(400);
+  const spill = await page.evaluate(() => [...document.querySelectorAll('#ribbon .rb')].map(b => { const s = b.querySelector('span'); return s ? s.scrollWidth - b.clientWidth : 0; }));
+  for (const s of spill) expect(s).toBeLessThan(1);
+  expect(errors).toEqual([]);
+});

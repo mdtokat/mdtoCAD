@@ -177,15 +177,17 @@ function setEntSize(items){
 let opPrev=null;
 /* işlem çizimin bir kopyasında yapılır; eklenecek öğelerin parçaları döner: [[a,b,yapı mı]] */
 function skOpPreview(){
-  const o=sk.op;if(!o||!sk.sel.some(h=>h.k==='ent'))return null;
+  const o=sk.op;if(!o||!sk.sel.some(h=>h.k==='ent')){opErrNote(null);return null}
   const real=sk.feat;const key=JSON.stringify([o,sk.sel])+skData(real);
-  if(opPrev&&opPrev.key===key)return opPrev.segs;
-  const cp=JSON.parse(JSON.stringify(real));let segs=null;
+  if(opPrev&&opPrev.key===key){opErrNote(opPrev.err);return opPrev.segs}
+  const cp=JSON.parse(JSON.stringify(real));let segs=null,err=null;
   sk.feat=cp;
   try{const n0=new Set(cp.ents.map(e=>e.id));runSkOp(o,selEnts());
     segs=[];for(const e of cp.ents)if(!n0.has(e.id)){const t=tessEnt(cp,e,72);for(let i=0;i<t.length-1;i++)segs.push([t[i],t[i+1],!!e.cons])}}
-  catch(err){segs=null}
+  catch(e){segs=null;err=e.message||String(e)}
   finally{sk.feat=real}
-  opPrev={key,segs};return segs;
+  opPrev={key,segs,err};opErrNote(err);return segs;
 }
+/* önizleme yapılamıyorsa (ör. ofset bir yayın yarıçapından büyük) nedeni panelde yazılır; önceden önizleme sessizce kayboluyordu */
+function opErrNote(err){const el=document.querySelector('#pm [data-operr]');if(!el)return;el.textContent=err?'Uygulanamaz: '+err:'';el.hidden=!err}
 TOOLHELP.line+=' Bir noktanın üstünden geçersen onun yatay/dikey hizası ve uçtaki çizginin uzantısı kesikli yardımcı çizgiyle gösterilir ve yakalanır; bir daireye yaklaşınca teğet nokta yakalanır.';

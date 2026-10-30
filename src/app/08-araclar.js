@@ -294,7 +294,7 @@ function skOpBody(){
   if(o.t==='offset')b+=fNum('Ofset mesafesi','d','mm',o)+`<label class="chk"><input type="checkbox" data-opboth ${o.both?'checked':''}> İki yönde (her iki tarafa aynı mesafe)</label><label class="chk"${o.both?' style="opacity:.5"':''}><input type="checkbox" data-opflip ${o.flip?'checked':''} ${o.both?'disabled':''}> Ters yön</label>`;
   if(o.t==='lpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Aralık','sp','mm',o)}</div>`+fNum('Yön açısı','ang','°',o,'Açı, yatay eksenden saat yönünün tersine ölçülür.');
   if(o.t==='cpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Toplam açı','tot','°',o)}</div>`;
-  b+=`<div class="relbtns"><button data-opgo>Uygula</button><button data-opx>Kapat</button></div>`;
+  b+=`<p class="warnnote" data-operr hidden></p><div class="relbtns"><button data-opgo>Uygula</button><button data-opx>Kapat</button></div>`;
   return grp(SKOP_T[o.t],b,tip);
 }
 function skOpClick(e){if(e.target.closest('[data-opgo]')){applySkOp();return true}if(e.target.closest('[data-opx]')){sk.op=null;renderSketchPM();renderRibbon();return true}return false}

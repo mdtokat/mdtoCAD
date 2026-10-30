@@ -107,6 +107,7 @@ document.addEventListener('keydown',e=>{
     if($('#pdfDlg').classList.contains('on')){closePdfDialog();return}
     if(settingsOpen()){closeSettings();return}
     if(confEl){closeConflict();return}
+    if(dimPopWait){dimPopWait=null;return}
     if(dimPopEl){closeDimPop();return}
     if(skInEl){closeSkInput();return}
     if(sizeEl){closeSizePop();return}
@@ -132,6 +133,8 @@ document.addEventListener('keydown',e=>{
     if(!pm&&sel&&sel.kind==='feature'){const b=$(`.ti[data-id="${sel.id}"] [data-a="del"]`);if(b)b.click()}
   }
   if(!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key.toLowerCase()==='f'&&activeTab!=='drawing'){e.preventDefault();fitView();return}
+  // yeni ölçünün kutusu açılmadan yazılan değer kutuya gider
+  if(sk&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^([0-9.,(+\-]|Enter)$/.test(e.key)&&dimPopKey(e))return;
   // çizerken ölçü yazma: ilk noktadan sonra rakam yazınca giriş kutusu açılır
   if(sk&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[0-9.,(]$/.test(e.key)&&skInputFields()){e.preventDefault();openSkInput(e.key);return}
   // seçili öğenin boyut kutusu açıkken rakam yazılırsa kutuya yazılır

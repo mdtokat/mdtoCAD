@@ -288,15 +288,48 @@ let pending=null;        // çizimden sonra açılacak özellik
 const model={polys:[],ann:[],errors:{},frames:{},caps:{},version:0,triPoly:[],box:null,props:null,ms:0,dof:{}};
 let shown={polys:[],edges:[],triPoly:[]};
 
+/* BSP kesişimleri T-birleşimleri bırakır: komşu çokgenin köşesi bu çokgenin kenarının ortasına düşer, ekranda bu kenar boyunca
+   piksel çatlakları (parıltı) görünür. Eşi olmayan kenarlara üzerlerine düşen köşeler eklenir (yalnızca görüntü ağı; model değişmez). */
+function weldTJunctions(polys,kf){
+  const ks=polys.map(p=>p.verts.map(kf));const E=new Set();
+  ks.forEach(k=>{for(let i=0;i<k.length;i++)E.add(k[i]+'|'+k[(i+1)%k.length])});
+  const cand=new Map(),open=[];
+  ks.forEach((k,pi)=>{const v=polys[pi].verts;for(let i=0;i<k.length;i++){const j=(i+1)%k.length;if(!E.has(k[j]+'|'+k[i])){open.push([pi,i]);cand.set(k[i],v[i]);cand.set(k[j],v[j])}}});
+  if(!open.length)return null;
+  const C=[...cand.values()].sort((a,b)=>a.x-b.x),xs=C.map(c=>c.x);
+  const lo=x=>{let a=0,b=xs.length;while(a<b){const m=(a+b)>>1;if(xs[m]<x)a=m+1;else b=m}return a};
+  const ins=new Map();
+  for(const [pi,i] of open){
+    const v=polys[pi].verts,A=v[i],B=v[(i+1)%v.length];const dx=B.x-A.x,dy=B.y-A.y,dz=B.z-A.z,L2=dx*dx+dy*dy+dz*dz;if(L2<1e-12)continue;
+    const tol=1e-4,hit=[];
+    for(let m=lo(Math.min(A.x,B.x)-tol);m<C.length&&C[m].x<=Math.max(A.x,B.x)+tol;m++){const c=C[m];
+      const t=((c.x-A.x)*dx+(c.y-A.y)*dy+(c.z-A.z)*dz)/L2;if(t<=1e-6||t>=1-1e-6)continue;
+      const ex=A.x+dx*t-c.x,ey=A.y+dy*t-c.y,ez=A.z+dz*t-c.z;if(ex*ex+ey*ey+ez*ez<tol*tol&&kf(c)!==ks[pi][i])hit.push([t,c])}
+    if(hit.length){hit.sort((a,b)=>a[0]-b[0]);let r=ins.get(pi);if(!r)ins.set(pi,r={});r[i]=hit.map(h=>h[1])}
+  }
+  return ins;
+}
 function polysToBuffers(polys,filter){
   const kf=v=>Math.round(v.x*1000)+'_'+Math.round(v.y*1000)+'_'+Math.round(v.z*1000);
-  const nm=new Map();
-  if(!filter){for(const p of polys){const n=p.plane.n;for(const v of p.verts){const k=kf(v);let arr=nm.get(k);if(!arr)nm.set(k,arr=[]);if(!arr.some(m=>m.dot(n)>.9999))arr.push(n)}}}
+  const ins=filter?null:weldTJunctions(polys,kf);
+  // nm: köşedeki yüzey normalleri; cv: aynı konumdaki köşelerin ortak koordinatı (komşu üçgenler bit düzeyinde aynı köşeyi
+  // paylaşmazsa aralarındaki mikron altı boşluktan da tek tük pikseller sızar)
+  const nm=new Map(),cv=new Map();
+  if(!filter){for(const p of polys){const n=p.plane.n;for(const v of p.verts){const k=kf(v);let arr=nm.get(k);if(!arr){nm.set(k,arr=[]);cv.set(k,v)}if(!arr.some(m=>m.dot(n)>.9999))arr.push(n)}}}
   const COS=Math.cos(32*Math.PI/180);const pos=[],nor=[],tp=[];
   polys.forEach((p,pi)=>{
     if(filter&&!filter(p))return;
-    const n=p.plane.n,q=p.verts;
+    const n=p.plane.n,r=ins&&ins.get(pi);let q=p.verts;
+    if(r){q=[];p.verts.forEach((v,i)=>{q.push(v);if(r[i])q.push(...r[i])})}
     const vnrm=q.map(v=>{if(filter)return [n.x,n.y,n.z];const arr=nm.get(kf(v));let x=0,y=0,z=0;for(const m of arr)if(m.dot(n)>=COS){x+=m.x;y+=m.y;z+=m.z}const l=Math.hypot(x,y,z);return l>1e-9?[x/l,y/l,z/l]:[n.x,n.y,n.z]});
+    if(!filter)q=q.map(v=>cv.get(kf(v))||v);
+    if(r){
+      // kenarına köşe eklenmiş çokgen ağırlık merkezinden üçgenlenir: köşeden yapılan yelpazede eklenen köşe tepeye bitişik
+      // kenardaysa üçgen sıfır alanlı kalır, kenar yine bölünmemiş olur ve çatlak kapanmazdı
+      const L=q.length;let cx=0,cy=0,cz=0,nx=0,ny=0,nz=0;for(let i=0;i<L;i++){cx+=q[i].x;cy+=q[i].y;cz+=q[i].z;nx+=vnrm[i][0];ny+=vnrm[i][1];nz+=vnrm[i][2]}
+      const nl=Math.hypot(nx,ny,nz)||1;cx/=L;cy/=L;cz/=L;nx/=nl;ny/=nl;nz/=nl;
+      for(let i=0;i<L;i++){const j=(i+1)%L;pos.push(cx,cy,cz,q[i].x,q[i].y,q[i].z,q[j].x,q[j].y,q[j].z);nor.push(nx,ny,nz,...vnrm[i],...vnrm[j]);tp.push(pi)}
+    }else
     for(let i=1;i<q.length-1;i++){for(const j of [0,i,i+1]){const v=q[j],w=vnrm[j];pos.push(v.x,v.y,v.z);nor.push(w[0],w[1],w[2])}tp.push(pi)}
   });
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));g.computeBoundingSphere();

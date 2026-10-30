@@ -422,8 +422,13 @@ function buildSheet(forExport,opts){
     if(k!=='iso'){
       const seen=new Set();const add=(a,b,c)=>{const key=Math.round(a*1000)+'_'+Math.round(b*1000);if(seen.has(key))return;seen.add(key);const [x,y]=v.map(a,b);ctx.snaps.push({view:k,a,b,x,y,c:!!c})};
       for(const mk of d.marks)add(mk.a,mk.b,true);
-      for(const q of d.vis){add(q[0],q[1]);add(q[2],q[3])}
-      for(const q of d.hid){add(q[0],q[1]);add(q[2],q[3])}
+      // yalnızca gerçek köşeler: aynı doğru üzerinde devam eden parçaların ek yerleri (ör. yandan görülen dairenin çokgen
+      // köşeleri, gizli/görünür geçişleri) nokta sayılmaz; yoksa kenarın üstü sahte noktalarla dolar, kenar seçilemezdi
+      const dirs=new Map(),kk=(a,b)=>Math.round(a*1000)+'_'+Math.round(b*1000);
+      const inc=(a,b,ux,uy)=>{const key=kk(a,b);let L=dirs.get(key);if(!L)dirs.set(key,L=[]);L.push([ux,uy])};
+      for(const q of d.vis.concat(d.hid)){const dx=q[2]-q[0],dy=q[3]-q[1],l=Math.hypot(dx,dy);if(l<1e-9)continue;inc(q[0],q[1],dx/l,dy/l);inc(q[2],q[3],-dx/l,-dy/l)}
+      const joint=(a,b)=>{const L=dirs.get(kk(a,b));return L&&L.length>=2&&L.every(u=>Math.abs(u[0]*L[0][1]-u[1]*L[0][0])<1e-4)&&L.some(u=>u[0]*L[0][0]+u[1]*L[0][1]<0)};
+      for(const q of d.vis.concat(d.hid))for(const [a,b] of [[q[0],q[1]],[q[2],q[3]]])if(!joint(a,b))add(a,b);
     }
   }
   /* otomatik ölçüler (Model öğeleri): önce sabit konumlu ölçüler, sonra etiketler boş yere yerleştirilir */
@@ -590,6 +595,13 @@ function nearestSnap(p,tolPx){
   if(!dctx)return null;const tol=pxToSheet(tolPx);let best=null,bd=tol;
   for(const s of dctx.snaps){const d=Math.hypot(s.x-p[0],s.y-p[1]);if(d<bd){bd=d;best=s}}return best;
 }
+/* ölçüde nokta mı kenar mı: imleç tam bir kenarın üzerindeyse ve bir köşeye çok yakın değilse kenar seçilir (SolidWorks gibi).
+   Yoksa kısa kenarlarda köşe yakalama toleransı kenarın tamamını kaplar, kenar uzunluğu ölçülemezdi */
+function dimSnap(p,tolPx){
+  const s=nearestSnap(p,tolPx);if(!s||s.c)return s;
+  if(Math.hypot(s.x-p[0],s.y-p[1])>pxToSheet(Math.min(4,tolPx*.45))&&pickLine(p,pxToSheet(Math.min(3,tolPx*.35))))return null;
+  return s;
+}
 function setDimMode(on){
   if(on){setDwTool(null,true);dwSelect(null)}
   dimMode=on;dimSt={stage:0,p1:null,p2:null};sheetWrap.classList.toggle('dim',on);
@@ -602,7 +614,7 @@ function updateDimTip(){
 }
 function dimClick(p,ptype){
   const tol=ptype==='mouse'?9:20;
-  if(dimSt.stage===0){let s=nearestSnap(p,tol);const c=nearestCircle(p,pxToSheet(tol*.6));
+  if(dimSt.stage===0){let s=dimSnap(p,tol);const c=nearestCircle(p,pxToSheet(tol*.6));
     // dairenin çevresine tıklanınca (merkez dışında) çap ölçüsü; çevredeki parça uçları nokta sayılmaz
     if(c&&!(s&&s.c))s=null;
     if(s){dimSt.p1=s;dimSt.stage=1}
@@ -639,7 +651,7 @@ function drawOverlay(p){
   if(dimSt.p1)h+=dotM(dimSt.p1.x,dimSt.p1.y,rr,acc);
   if(dimSt.p2)h+=dotM(dimSt.p2.x,dimSt.p2.y,rr,acc);
   if(p&&dimSt.stage===0){// imlecin altındaki: merkez/nokta, daire veya kenar
-    const s=nearestSnap(p,9),c=nearestCircle(p,pxToSheet(5.4)),w=f2(pxToSheet(2));
+    const s=dimSnap(p,9),c=nearestCircle(p,pxToSheet(5.4)),w=f2(pxToSheet(2));
     if(s&&(!c||s.c))h+=dotM(s.x,s.y,rr*1.2,'rgba(31,111,235,.18)');
     else if(c){const v=dctx.views[c.view],C=v.map(c.a,c.b);h+=`<circle cx="${f2(C[0])}" cy="${f2(C[1])}" r="${f2(c.r*v.s)}" fill="none" stroke="${acc}" stroke-width="${w}"/>`}
     else{const e=pickLine(p,pxToSheet(9));if(e){const v=dctx.views[e.view],A=v.map(e.A[0],e.A[1]),B=v.map(e.B[0],e.B[1]);h+=`<path d="${Lp(A[0],A[1],B[0],B[1])}" stroke="${acc}" stroke-width="${w}" fill="none"/>`}}}

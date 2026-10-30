@@ -97,6 +97,8 @@ document.addEventListener('keydown',e=>{
   const ae=document.activeElement;const typing=ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName);
   if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}
   if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}
+  // Ctrl+A: çizimde tüm öğeleri seçer (SolidWorks gibi); başka yerde sayfadaki yazıları seçmez
+  if((e.ctrlKey||e.metaKey)&&!typing&&e.key.toLowerCase()==='a'){e.preventDefault();if(sk&&activeTab==='model'){sk.sel=sk.feat.ents.map(x=>({k:'ent',id:x.id}));skChanged()}return}
   // Ctrl+S: projeyi dosyaya kaydet (Ctrl+Shift+S: farklı kaydet)
   if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='s'){e.preventDefault();if(typing)ae.blur();saveProjectFile(e.shiftKey);return}
   if(e.key==='Escape'){

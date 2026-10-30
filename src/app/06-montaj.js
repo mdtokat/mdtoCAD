@@ -180,6 +180,16 @@ function mateRes(m,P){
   const pa=A.t==='plane',pb=B.t==='plane';const Pl=pa?A:B,Ax=pa?B:A;const sg=m.flip?-1:1;
   // sınır: değer [en az, en fazla] aralığındaysa artık sıfır (serbest), dışındaysa aşan kadar
   const lim=v=>{const hi=num(m.max),lo=num(m.min);return isFinite(hi)&&v>hi?v-hi:(isFinite(lo)&&v<lo?v-lo:0)};
+  // düz yüzey + dairesel kenar (SolidWorks gibi): daire kendi düzlemiyle ele alınır; çakışıkta daire yüzeyin üzerinde yatar
+  // (ekseni yüzeye dik), mesafede yüzeye paralel durur. Eksen gibi ele alınsaydı parça 90° devrilirdi
+  if(pa!==pb&&(pa?m.b:m.a).ref.e==='circ'&&['coincident','parallel','perpendicular','distance','distlimit'].includes(m.type)){
+    const h=Ax.p.clone().sub(Pl.p).dot(Pl.n);
+    if(m.type==='coincident')return [...crs(Pl.n,Ax.d),h];
+    if(m.type==='parallel')return crs(Pl.n,Ax.d);
+    if(m.type==='perpendicular')return [Pl.n.dot(Ax.d)*ML];
+    if(m.type==='distance')return [...crs(Pl.n,Ax.d),h-sg*num(m.val)];
+    return [...crs(Pl.n,Ax.d),lim(sg*h)];
+  }
   switch(m.type){
     case 'coincident':
       if(pa&&pb){const s=m.flip?-1:1;return [(A.n.x+s*B.n.x)*ML,(A.n.y+s*B.n.y)*ML,(A.n.z+s*B.n.z)*ML,B.p.clone().sub(A.p).dot(A.n)]}
@@ -402,7 +412,7 @@ function asmTreeClick(e){
   const ap=e.target.closest('[data-addp]');if(ap){if(!curAsm()){newAsm()}addComp(ap.dataset.addp);return}
   const ct=e.target.closest('[data-comp]');
   if(ct){const id=ct.dataset.comp;const b=e.target.closest('[data-ca]');const c=compById(id);if(!c)return;
-    if(!b){asmUI.sel=asmUI.sel===id?null:id;asmHighlight();renderAsmTree();return}
+    if(!b){asmUI.sel=(e.ctrlKey||e.metaKey)&&asmUI.sel===id?null:id;asmHighlight();renderAsmTree();return}
     const k=b.dataset.ca;
     if(k==='open'){switchPart(c.part);setTab('model');return}
     if(k==='del'){delComp(id);return}

@@ -43,7 +43,8 @@ $('#tree').addEventListener('click',e=>{
     if(act==='sketchon'||pickMode==='plane'){if(sk)return;startSketch({kind:'std',key:k});return}
     if(pm&&pm.type==='mirror'){pm.draft.plane=k;renderPM();renderTree();updatePlaneVis();schedulePreview();return}
     if(pm&&pm.type==='plane'){pm.draft.base=k;renderPM();renderTree();updatePlaneVis();schedulePreview();return}
-    if(sk)return;setSel(sel&&sel.kind==='plane'&&sel.key===k?null:{kind:'plane',key:k});return;
+    // SolidWorks gibi: tıklama seçer (seçiliyse seçili kalır), Ctrl+tıklama seçimi kaldırır
+    if(sk)return;setSel((e.ctrlKey||e.metaKey)&&sel&&sel.kind==='plane'&&sel.key===k?null:{kind:'plane',key:k});return;
   }
   const ti=e.target.closest('.ti[data-id]');if(!ti)return;const id=ti.dataset.id,f=byId(id);if(!f)return;
   if(!act){
@@ -59,7 +60,7 @@ $('#tree').addEventListener('click',e=>{
     // çift tıklama: ilk tıklama ağacı yeniden çizdiği için tarayıcının dblclick olayı gelmez; burada yakalanır
     const now=performance.now();if(treeLast&&treeLast.id===id&&now-treeLast.t<450){treeLast=null;if(f.type==='sketch')editSketch(id);else openPM(f.type,f);return}
     treeLast={id,t:now};
-    setSel(sel&&((sel.kind==='feature'&&sel.id===id)||(sel.kind==='plane'&&sel.key===id))?null:(f.type==='plane'?{kind:'plane',key:id}:{kind:'feature',id}));return;
+    setSel((e.ctrlKey||e.metaKey)&&sel&&((sel.kind==='feature'&&sel.id===id)||(sel.kind==='plane'&&sel.key===id))?null:(f.type==='plane'?{kind:'plane',key:id}:{kind:'feature',id}));return;
   }
   if(act==='edit'){openPM(f.type,f);return}
   if(act==='editsk'){editSketch(f.type==='sketch'?id:f.sketch);return}
@@ -213,12 +214,15 @@ function openNewProfile(type,op,sid){
   d.id=uid();d.name=nextName(d);openPM(type,null,d);previewView(sid);
 }
 /* çizimin profili varsayılan kesme yönünde (−n) gövdeye hiç değmiyor, ters yönde değiyorsa true */
-function cutAway(sid){
-  const F=model.frames[sid],s=byId(sid);if(!F||!s||!model.polys.length)return false;
+function cutAway(sid){return bodyAway(sid,-1)}
+/* profil k·n yönünde gövdeye hiç değmiyor, ters yönde değiyorsa true */
+function bodyAway(sid,k0){
+  // panel açıkken (özellik düzenlenirken) geri sarılmış gövdeye bakılır
+  const B=pm&&pm.base&&pm.base.polys?pm.base:model;const F=(B.frames&&B.frames[sid])||model.frames[sid],s=byId(sid);if(!F||!s||!B.polys.length)return false;
   let shapes;try{shapes=sketchProfiles(s)}catch(e){return false}if(!shapes.length)return false;
   const hits=k=>{const d=vk(F.n,k);for(const sh of shapes){let cx=0,cy=0;for(const q of sh.outer){cx+=q[0];cy+=q[1]}
-    for(const q of [...sh.outer,[cx/sh.outer.length,cy/sh.outer.length]])if(rayHit(model.polys,fpt(F,q[0],q[1],0),d)!==null)return true}return false};
-  return !hits(-1)&&hits(1);
+    for(const q of [...sh.outer,[cx/sh.outer.length,cy/sh.outer.length]])if(rayHit(B.polys,fpt(F,q[0],q[1],0),d)!==null)return true}return false};
+  return !hits(k0)&&hits(-k0);
 }
 /* çizime dik bakılıyorsa önizlemenin derinliği görünsün diye izometrik görünüşe geçilir (çizimin bulunduğu taraftan) */
 function previewView(sid){
@@ -406,6 +410,8 @@ pmEl.addEventListener('change',e=>{
   // seçilen yüzey/kenar/eksen seçeneği listede kalır; o seçilirse saklanan model referansı geri gelir
   if(['__edge','__sel'].includes(t.value)){renderPM();return}
   setPath(pm.draft,t.dataset.k,t.dataset.k==='plane'&&t.value==='__face'?pm.mirFace:t.dataset.k==='base'&&t.value==='__face'?pm.baseFace:t.value);
+  // Gövdeye kadar: gövde çizimin öbür tarafındaysa yön gövdeye doğru çevrilir (ör. referans düzlemden aşağı inen çıkıntı)
+  if(t.dataset.k==='end'&&t.value==='body'&&pm.type==='extrude'&&bodyAway(pm.draft.sketch,pm.draft.flip?-1:1)){pm.draft.flip=!pm.draft.flip;toast('Gövde çizimin öbür tarafında: yön gövdeye doğru çevrildi.')}
   if(t.dataset.k==='sketch'&&pm.type==='revolve')pm.draft.axis=defaultAxis(byId(t.value));
   renderPM();renderTree();updatePlaneVis();schedulePreview();
 });

@@ -82,8 +82,10 @@ function dskSnap(p,ptype,from,opt){
   if(from){const dx=q[0]-from[0],dy=q[1]-from[1],k=Math.tan(3*Math.PI/180);if(Math.abs(dy)<=Math.abs(dx)*k&&dx){q[1]=from[1];kind='h'}else if(Math.abs(dx)<=Math.abs(dy)*k&&dy){q[0]=from[0];kind='v'}}
   return {p:q,view:null,kind};
 }
-/* öğe hangi görünüşe bağlanır: yakalanan ilk görünüş geometrisi, yoksa noktanın içinde kaldığı ilk görünüş */
-function dskOwner(sns){for(const s of sns)if(s.view&&dctx.views[s.view]&&s.view!=='iso')return s.view;for(const s of sns){const v=viewAt(s.p);if(v)return v.key}return null}
+/* öğe hangi görünüşe bağlanır: yakalanan ilk görünüş geometrisi, yoksa noktanın içinde kaldığı ilk görünüş; uçları görünüşün
+   dışında kalıp ortası içinde olan öğe de (ör. konturu iki yandan aşan eksen çizgisi) o görünüşe bağlanır */
+function dskOwner(sns){for(const s of sns)if(s.view&&dctx.views[s.view]&&s.view!=='iso')return s.view;for(const s of sns){const v=viewAt(s.p);if(v)return v.key}
+  if(sns.length===2){const v=viewAt([(sns[0].p[0]+sns[1].p[0])/2,(sns[0].p[1]+sns[1].p[1])/2]);if(v)return v.key}return null}
 const dskLocal=(view,P)=>view?dctx.views[view].inv(P[0],P[1]):[P[0],P[1]];
 const dskScale=view=>view?dctx.views[view].s:1;
 function dskAdd(list){pushDwHist();const S=dwS();S.sk2d=S.sk2d||[];S.sk2d.push(...list);saveState();renderDrawing()}

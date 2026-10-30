@@ -47,12 +47,15 @@ test('referans düzlem ağaçtaki göz düğmesiyle gizlenir; modeli yeniden hes
   // gizlemek modeli değiştirmez: sonraki yeniden hesap önbellekten gelir
   await page.evaluate(() => __tz.rebuildModel(__tz.state.features));
   expect(await page.evaluate(() => __tz.RB_CACHE.misses)).toBe(misses);
-  // ağaçta seçilince görünür, seçim kalkınca yine gizlenir
-  const sec = () => page.evaluate(id => document.querySelector(`#tree .ti[data-id="${id}"] .nm`).click(), id);
-  await sec();
+  // ağaçta seçilince görünür; yeniden tıklamak seçili bırakır, Ctrl + tıklama seçimi kaldırır (SolidWorks gibi), yine gizlenir
+  const sec = ctrlKey => page.evaluate(([id, ctrlKey]) => document.querySelector(`#tree .ti[data-id="${id}"] .nm`).dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey })), [id, ctrlKey]);
+  await sec(false);
   expect(await vis()).toBe(true);
   await page.waitForTimeout(500);
-  await sec();
+  await sec(false);
+  expect(await vis()).toBe(true);
+  await page.waitForTimeout(500);
+  await sec(true);
   expect(await vis()).toBe(false);
   // kayıt: dosyaya yazılan proje hidden alanını taşır
   await page.evaluate(() => __tz.flushState());

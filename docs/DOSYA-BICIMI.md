@@ -98,8 +98,9 @@ Doğrusal çoğaltmada `{"d": …}` modelde seçilen düz kenarın yönüdür (d
 
 ### `plane` — referans düzlem
 ```jsonc
-{ "type":"plane", "base":"front"|"top"|"right"|"<düzlem id>"|{ "kind":"face", … }, "offset":20, "flip":false }
+{ "type":"plane", "base":"front"|"top"|"right"|"<düzlem id>"|{ "kind":"face", … }, "offset":20, "flip":false, "hidden":true }
 ```
+`hidden` (isteğe bağlı): düzlem 3B görünümde gizlidir (ağaçtaki göz düğmesi); yalnızca seçilince, bir işlemde kullanılırken veya çizim için düzlem seçilirken görünür. Modeli etkilemez.
 Yüzey tabanı çizimin `on` alanıyla aynı biçimdedir; ekstrüzyonun uç yüzü seçildiyse düzlem o yüzle birlikte taşınır, ofset yüzeyin dışına doğrudur.
 
 ## Montaj

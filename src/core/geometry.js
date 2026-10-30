@@ -246,18 +246,18 @@ function tessEnt(sk,e,full){
   full=full||CURVE_SEG;
   if(e.t==='line'){const a=skP(sk,e.a),b=skP(sk,e.b);return [[a.x,a.y],[b.x,b.y]]}
   if(e.t==='circle'){const c=skP(sk,e.c);const out=[];for(let i=0;i<=full;i++){const t=i/full*Math.PI*2;out.push([c.x+e.r*Math.cos(t),c.y+e.r*Math.sin(t)])}return out}
-  const A=arcInfo(sk,e);const n=Math.max(2,Math.ceil(full*A.sw/(Math.PI*2)));
+  const A=arcInfo(sk,e);
   const a=skP(sk,e.a),b=skP(sk,e.b);const out=[[a.x,a.y]];
-  for(const t of arcTs(A.a0,A.a0+A.sw,n))out.push([A.c.x+A.r*Math.cos(t),A.c.y+A.r*Math.sin(t)]);
+  for(const t of arcTs(A.a0,A.a0+A.sw,full))out.push([A.c.x+A.r*Math.cos(t),A.c.y+A.r*Math.sin(t)]);
   out.push([b.x,b.y]);return out;
 }
-// yayın iç ara açıları: n eşit parça + çeyrek açılar (0°, 90°…); böylece yayın en uç noktaları köşe olur, teknik resimdeki genel ölçüler tam çıkar
-function arcTs(t0,t1,n){
-  const ts=[];for(let i=1;i<n;i++)ts.push(t0+(t1-t0)*i/n);
-  const q=Math.PI/2,mn=(t1-t0)/n*0.25;
-  for(let k=Math.ceil((t0+1e-9)/q);k*q<t1-1e-9;k++){const t=k*q;if(t-t0<mn||t1-t<mn)continue;
-    let j=0;while(j<ts.length&&ts[j]<t)j++;const near=[ts[j-1],ts[j]].filter(x=>x!=null&&Math.abs(x-t)<mn);
-    if(near.length)ts[ts.indexOf(near[0])]=t;else ts.splice(j,0,t)}
+// yayın iç ara açıları: tam dairenin bölmeleri (merkeze göre k·2π/full; full=CURVE_SEG, 4'ün katı olduğundan çeyrek açılar 0°, 90°… da köşe olur).
+// Yay kendi uçlarından eşit bölünseydi aynı merkez ve yarıçaplı silindirin yüzeyleriyle çakışmaz; kama kanalı gibi kesimlerde
+// kirişlerle yüzeyler arasında ince şeritler kalıyordu. Bölme yayın içine düşmüyorsa (çok kısa yay) ortası alınır.
+function arcTs(t0,t1,full){
+  full=full||CURVE_SEG;const st=Math.PI*2/full,e=1e-9,ts=[];
+  for(let k=Math.floor(t0/st)+1;k*st<t1-e;k++){const t=k*st;if(t>t0+e)ts.push(t)}
+  if(!ts.length)ts.push((t0+t1)/2);
   return ts;
 }
 function area2d(p){let s=0;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];s+=a[0]*b[1]-b[0]*a[1]}return s/2}
@@ -375,7 +375,7 @@ function skArrangement(sk,inner){
     if(hit)touch.push([e.id,o.id])}
   // 2) öğeleri parçalara bölüp çokgen kenarlarına çevir (yaylar yaklaşık 64 parçalı tam daire inceliğinde)
   const segs=[],ptsOf=new Map();
-  const arcPts=(c,r,t0,t1,pa,pb)=>{const n=Math.max(1,Math.ceil(CURVE_SEG*(t1-t0)/(Math.PI*2)));const out=[pa];for(const t of arcTs(t0,t1,n))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
+  const arcPts=(c,r,t0,t1,pa,pb)=>{const out=[pa];for(const t of arcTs(t0,t1))out.push([c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)]);out.push(pb);return out};
   for(const e of ents){
     // aynı nokta birden çok öğeden gelebilir (ör. çizgi ve yay ucu dairenin üstünde birleşince): tekrarlar atılır,
     // yoksa dairede iki özdeş bölme noktası arasında tam bir daire daha oluşuyor ve kesişim sayısı patlıyordu
@@ -1467,7 +1467,8 @@ function rebuildModel(features,upto){
   const C=RB_CACHE,keys=[];let start=0,prevSolid=null;
   if(C.on){
     const seen=new Set();let key='v1'+C.salt;
-    for(const f of list){let t=JSON.stringify(f);for(const id of [f.sketch,...(Array.isArray(f.targets)?f.targets:[])])if(id&&!seen.has(id)&&byId[id])t+=JSON.stringify(byId[id]);
+    // hidden (referans düzlemin görünürlüğü) modeli değiştirmez: düzlemi gizlemek/göstermek sonraki özellikleri yeniden hesaplatmasın
+    for(const f of list){let t=JSON.stringify(f.hidden?{...f,hidden:undefined}:f);for(const id of [f.sketch,...(Array.isArray(f.targets)?f.targets:[])])if(id&&!seen.has(id)&&byId[id])t+=JSON.stringify(byId[id]);
       seen.add(f.id);key=rbHash(key+'|'+t);keys.push(key)}
     for(let i=list.length-1;i>=0;i--){const e=C.map.get(keys[i]);if(!e)continue;
       C.map.delete(keys[i]);C.map.set(keys[i],e);C.hits++;start=i+1;solid=e.solid;prevSolid=e.solid;ann=e.ann.slice();

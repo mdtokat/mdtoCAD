@@ -57,6 +57,7 @@ const IC={
   x:sv('<path d="M6 6l12 12M18 6 6 18"/>','stroke-width="2"'),
   origin:sv('<path d="M12 4v16M4 12h16"/><circle cx="12" cy="12" r="3"/>'),
   eye:sv('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>'),
+  eyeOff:sv('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/>'),
   hidden:sv('<rect x="4.5" y="4.5" width="15" height="15" rx="1"/><path d="M8 12h2.2M12 12h2.2M16 12h1"/>'),
   center:sv('<path d="M12 3v3.5M12 8.5v2M12 12.5v3M12 17.5v3.5M3 12h3.5M8.5 12h2M13.5 12h3M18.5 12H21"/><circle cx="12" cy="12" r="6"/>'),
   autodim:sv('<path d="M4 18h16M4 15v6M20 15v6"/><path d="M7.5 16.2 4.6 18l2.9 1.8M16.5 16.2l2.9 1.8-2.9 1.8"/><path d="M6 4h12v7H6z"/>'),
@@ -379,7 +380,9 @@ function updatePlaneVis(){
   const pmPlane=pm&&pm.type==='mirror'?pm.draft.plane:(pm&&pm.type==='plane'?pm.draft.base:null);
   for(const o of planeObjs){
     const k=o.userData.key;const hot=k===selKey||k===pmPlane;
-    o.visible=showPlanes||pickMode==='plane'||hot||k===skKey||(state.features.some(f=>f.id===k)&&!sk);
+    // gizlenen referans düzlem yalnızca seçilince, bir işlemde kullanılırken veya çizim için düzlem seçilirken görünür
+    const f=state.features.find(f=>f.id===k);
+    o.visible=f&&f.hidden?(pickMode==='plane'||hot):(showPlanes||pickMode==='plane'||hot||k===skKey||(!!f&&!sk));
     if(k===skKey&&sk)o.visible=false;
     o.children[0].material.opacity=hot?.18:.06;o.children[1].material.opacity=hot?.95:.45;
     o.children[0].material.color.setHex(hot?0x2F7BE0:0x2F62B8);

@@ -110,6 +110,7 @@ button:disabled{cursor:default}
 .ti .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ti .nm em{font-style:normal;color:var(--under)}
 .ti.sup .nm{color:var(--muted);text-decoration:line-through}
+.ti.hid .nm,.ti.hid .ic{color:var(--muted);opacity:.7}
 .ti.err .nm{color:var(--warn)}
 .ti.active .nm{font-weight:600}
 .ti .acts{display:none;gap:1px}

@@ -20,9 +20,9 @@ function renderTree(){
     let nm=esc(f.name);if(f.type==='sketch'&&model.dof[f.id]>0)nm=`<em>(-)</em> `+nm;
     let acts='';
     if(f.type==='sketch')acts=`<button data-a="editsk" title="Çizimi düzenle">${IC.edit}</button>`;
-    else acts=`<button data-a="edit" title="Özelliği düzenle">${IC.edit}</button>`+(f.sketch?`<button data-a="editsk" title="Çizimi düzenle">${IC.sketch}</button>`:'')+(f.type==='plane'?`<button data-a="sketchon" title="Bu düzlemde çizim başlat">${IC.sketch}</button>`:'');
+    else acts=`<button data-a="edit" title="Özelliği düzenle">${IC.edit}</button>`+(f.sketch?`<button data-a="editsk" title="Çizimi düzenle">${IC.sketch}</button>`:'')+(f.type==='plane'?`<button data-a="sketchon" title="Bu düzlemde çizim başlat">${IC.sketch}</button><button data-a="hide" title="${f.hidden?'Düzlemi göster':'Düzlemi gizle'}">${f.hidden?IC.eyeOff:IC.eye}</button>`:'');
     acts+=`<button data-a="sup" title="${f.suppressed?'Bastırmayı kaldır':'Bastır'}">${f.suppressed?IC.play:IC.pause}</button><button data-a="del" title="Sil">${IC.trash}</button>`;
-    return `<div class="ti ${child?'child':''} ${isSel?'sel':''} ${active?'active':''} ${f.suppressed?'sup':''} ${err?'err':''} ${f.op==='cut'?'cut':''}" data-id="${f.id}" title="${esc(typeLabel(f))}"><span class="ic">${IC[typeIcon(f)]}</span><span class="nm">${nm}</span><span class="acts">${acts}</span></div>`+(err?`<div class="tree-err">${esc(err)}</div>`:'');
+    return `<div class="ti ${child?'child':''} ${isSel?'sel':''} ${active?'active':''} ${f.suppressed?'sup':''} ${f.hidden?'hid':''} ${err?'err':''} ${f.op==='cut'?'cut':''}" data-id="${f.id}" title="${esc(typeLabel(f))}"><span class="ic">${IC[typeIcon(f)]}</span><span class="nm">${nm}</span><span class="acts">${acts}</span></div>`+(err?`<div class="tree-err">${esc(err)}</div>`:'');
   };
   for(const f of state.features){
     if(f.type==='sketch'&&cons[f.id])continue;
@@ -65,6 +65,7 @@ $('#tree').addEventListener('click',e=>{
   if(act==='editsk'){editSketch(f.type==='sketch'?id:f.sketch);return}
   if(act==='sketchon'){startSketch({kind:'plane',id});return}
   if(sk||pm)return;
+  if(act==='hide'){pushHist();if(f.hidden)delete f.hidden;else{f.hidden=true;if(sel&&sel.kind==='plane'&&sel.key===id)sel=null;updateSelVisual()}saveState();updatePlaneVis();renderTree();requestRender();return}
   if(act==='sup'){
     // bağlı öğeler (yüzeyine çizilen çizimler, onları kullanan özellikler…) de birlikte bastırılır/geri getirilir; yoksa hata verirlerdi
     pushHist();const on=!f.suppressed;const ids=new Set([f.id]);if(f.sketch)ids.add(f.sketch);

@@ -63,8 +63,8 @@ test('akıllı ölçü: çap, kenar uzunluğu, paralel kenarlar, noktadan kenara
   // kenar uzunluğu: ön görünüşteki eğik kol, sonra boş yere tıkla
   const slant = await edgeMid(page, 'front', 'Math.abs(q[2]-q[0])>3&&Math.abs(q[3]-q[1])>3');
   await page.evaluate(p => { __tz.dimClick(p, 'mouse'); __tz.dimClick([p[0] - 25, p[1] - 25], 'mouse'); }, slant);
-  // açı: eğik kol ve tabandaki dikey kenar
-  const vert = await edgeMid(page, 'front', 'Math.abs(q[2]-q[0])<1e-6&&Math.abs(q[3]-q[1])>15');
+  // açı: eğik kol ve tabandaki iç dikey kenar (dış kenarın üstüne yan kulağın köşesi düşer, tıklama noktaya yakalanır)
+  const vert = await edgeMid(page, 'front', 'Math.abs(q[2]-q[0])<1e-6&&Math.abs(q[3]-q[1])>15&&Math.abs(q[0])<30');
   const st = await page.evaluate(([a, b]) => { __tz.dimClick(a, 'mouse'); __tz.dimClick(b, 'mouse'); const st = __tz.dimSt.stage; __tz.dimClick([(a[0] + b[0]) / 2 + 2, (a[1] + b[1]) / 2], 'mouse'); return st; }, [slant, vert]);
   expect(st).toBe('ang');
   // paralel kenarlar: yan görünüşün iki dikey dış kenarı

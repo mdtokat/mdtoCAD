@@ -457,7 +457,8 @@ function loop(){
 /* sol tuş araca kalır; flat: çizim düzenlenirken görünüm 2B kalır (döndürme yok, orta ve sağ tuş kaydırır) */
 function setControlsForSketch(on,flat){
   if(on){controls.mouseButtons={LEFT:-1,MIDDLE:flat?T.MOUSE.PAN:T.MOUSE.ROTATE,RIGHT:T.MOUSE.PAN};controls.touches={ONE:-1,TWO:T.TOUCH.DOLLY_PAN}}
-  else{controls.mouseButtons={LEFT:T.MOUSE.ROTATE,MIDDLE:T.MOUSE.DOLLY,RIGHT:T.MOUSE.PAN};controls.touches={ONE:T.TOUCH.ROTATE,TWO:T.TOUCH.DOLLY_PAN}}
+  // montajda orta tuş da döndürür (SolidWorks gibi): sol/sağ tuş bileşenin üzerinde onu taşır/döndürür
+  else{controls.mouseButtons={LEFT:T.MOUSE.ROTATE,MIDDLE:activeTab==='asm'?T.MOUSE.ROTATE:T.MOUSE.DOLLY,RIGHT:T.MOUSE.PAN};controls.touches={ONE:T.TOUCH.ROTATE,TWO:T.TOUCH.DOLLY_PAN}}
   controls.enableRotate=!(on&&flat);
 }
 /* fare tekerleği: ekran merkezine değil imlecin altındaki noktaya doğru yakınlaş (SolidWorks gibi) */

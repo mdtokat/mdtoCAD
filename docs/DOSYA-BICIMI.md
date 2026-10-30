@@ -111,11 +111,20 @@ Yüzey tabanı çizimin `on` alanıyla aynı biçimdedir; ekstrüzyonun uç yüz
   "comps": [ { "id":"c1", "part":"P1", "T":[16 sayı, sütun öncelikli 4×4 matris], "fixed":true, "hidden":false },
              { "id":"c9", "part":"P3", "T":[…], "pat":"k1", "seed":"c3", "k":1 } ],   // bileşen çoğaltmasının kopyası
   "mates": [ { "id":"m1", "name":"Eşmerkezli1",
-               "type":"coincident"|"concentric"|"parallel"|"perpendicular"|"distance"|"angle",
-               "a": { "comp":"c1", "ref": {"t":"plane","n":[...],"p":[...]} | {"t":"axis","p":[...],"d":[...],"r":13} },
-               "b": { ... }, "flip":false, "val":10, "suppressed":false,
+               "type":"coincident"|"concentric"|"parallel"|"perpendicular"|"tangent"|"lock"|"distance"|"angle"
+                     |"symmetric"|"width"|"distlimit"|"anglimit"|"hinge"|"gear"|"rack"|"screw",
+               "a": { "comp":"c1", "ref": {"t":"plane","n":[...],"p":[...]}
+                                        | {"t":"axis","p":[...],"d":[...],"r":13,"t0":0,"t1":20}   // silindir yüzeyi
+                                        | {"t":"axis","e":"circ","p":[merkez],"d":[normal],"r":4.5,"t0":0,"t1":0}   // dairesel kenar
+                                        | {"t":"axis","e":"line","p":[uç],"d":[yön],"t0":0,"t1":100} },           // doğrusal kenar
+               "b": { ... }, "c": { ... }, "d": { ... },        // c, d: genişlik (tırnak), simetrik (c: simetri düzlemi), menteşe (çakışık yüzeyler)
+               "flip":false, "val":10, "suppressed":false,
                "lock":true, "lk":{"a":[x,y,z],"b":[x,y,z]},     // eşmerkezli: dönmeyi kilitle
-               "align":true } ],                               // iki düzlem arası mesafe: yüzeyler aynı yöne bakar
+               "align":true,                                   // iki düzlem arası mesafe: yüzeyler aynı yöne bakar
+               "min":0, "max":40,                              // mesafe/açı sınırı
+               "rel":[16 sayı],                                // kilitle: b'nin a'ya göre konumu
+               "ra":24, "rb":48, "sg":1,                       // dişli: oran (çap veya diş sayısı), eksen yönlerinin işareti
+               "ua":[x,y,z], "ub":[x,y,z], "wa":[...], "wb":[...], "w0":[...], "s0":0, "ta":0, "tb":0 } ],   // dönme bağlantıları
   "pats": [ { "id":"k1", "name":"DaireselÇoğaltma1", "type":"circ"|"lin", "seeds":["c3","c4"],
               "ref": { "comp":"c1", "ref": {"t":"axis",…} | {"t":"plane",…} }, "n":4, "angle":360, "sp":50, "rev":false } ],
   "explode": { "on":false, "steps":[ {"id":"x1","comps":["c2"],"dir":"y","dist":80} ] },
@@ -123,6 +132,8 @@ Yüzey tabanı çizimin `on` alanıyla aynı biçimdedir; ekstrüzyonun uç yüz
 }
 ```
 Eşleştirme referansları parçanın kendi koordinatlarındadır. `distance` eşleştirmesinde iki eksen seçildiyse `val` eksenler arası mesafedir, eksen ve düzlemde eksenin düzleme uzaklığıdır (`flip` taraf). İki düzlemde `align` yoksa (eski dosyalar) yalnızca paralellik istenir. `lock` kilitli eşmerkezlide `lk` iki bileşende eksene dik birer yöndür (parça koordinatı); bu yönler paralel kalır.
+
+Eşleştirme türleri: **teğet** (düzlem–silindir: eksen düzlemden yarıçap kadar uzakta, `flip` taraf; iki silindir: eksenler arası `r1+r2`, `flip` ise `|r1−r2|`), **kilitle** (`rel`), **simetrik** (`a` ile `b`, `c` düzlemine göre; iki düzlem veya iki eksen), **genişlik** (`c`–`d` tırnağının orta düzlemi `a`–`b` yüzeylerinin orta düzleminde), **mesafe sınırı** / **açı sınırı** (`min`–`max`; mesafede `flip` yön), **menteşe** (`a`, `b` eşmerkezli; `c`, `d` çakışık, `flip` hizalama), **dişli** (`ta·ra + sg·(flip?−1:1)·tb·rb = 0`), **kremayer–pinyon** (`a` kremayerin doğrusal kenarı, `b` pinyonun ekseni; kremayerin `w0`'dan kenar boyunca ilerlemesi = `val/2 · tb`, `val` hatve çapı), **vida** (eşmerkezli; eksen boyunca ilerleme − `s0` = `val · ta / 2π`, `val` hatve). Dönme bağlantılarında `ua`/`ub` bileşenlerin kendi koordinatında, `wa`/`wb`/`w0` dünyada eklendiği andaki referanslardır; `ta`/`tb` son çözümdeki açılardır (radyan, tam turlar dahil). Eski dosyalarda bu alanlar yoktur ve gerekmez.
 
 **Bileşen çoğaltma** (`pats`): dairesel (`circ`) çoğaltmanın ekseni, yönü doğrusal (`lin`) çoğaltmanın bir bileşenin silindir ekseni veya düz yüzeyinin normalidir (`ref`, eşleştirme referansı biçiminde); `n` kaynak dahil adettir, `angle` toplam açı (360: eşit aralık), `sp` doğrusal aralık, `rev` yönü ters çevirir. Kopyalar `comps` içinde `pat`/`seed`/`k` alanlarıyla durur; eşleştirme çözücüsünde serbest değildir, her çözümden sonra kaynaklarının konumundan yeniden hesaplanır. Çoğaltması olmayan kopyalar açılırken atılır.
 

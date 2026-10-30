@@ -45,12 +45,12 @@ function holePMBody(f){
   if(f.end==='blind'){e+=fNum('Delik derinliği','depth');if(f.htype==='tapped')e+=fNum('Diş derinliği','tdepth')}
   b+=grp('Bitiş',e);
   let info='';try{info=holeSpec(f).txt}catch(err){info=err.message}
-  b+=grp('Delik bilgisi',`<p class="note" style="color:var(--ink);font-size:13px">${esc(info)}</p><p class="note">Ölçüler ISO 273 (geçiş), ISO 4762 (faturalı) ve ISO 10642 (havşa) tablolarından alınır.</p>`);
+  b+=grp('Delik bilgisi',`<p class="note" style="color:var(--ink);font-size:13px">${esc(info)}</p>`,'Ölçüler ISO 273 (geçiş), ISO 4762 (faturalı) ve ISO 10642 (havşa) tablolarından alınır.');
   const F=f.on?holeFrame(f):null;
-  let p=f.on?'':`<p class="note">Modelde deliğin açılacağı düz yüzeye tıkla.</p>`;
+  let p=f.on?'':`<p class="note">Modelde düz bir yüzeye tıkla.</p>`;
   if(f.pts.length)p+=`<div class="lst">${f.pts.map((q,i)=>`<div><span>${i+1}.</span><input inputmode="decimal" data-hp="${i}:0" value="${String(q[0]).replace('.',',')}" style="width:72px;height:26px;border:1px solid var(--line);border-radius:4px;background:var(--field);padding:0 5px" aria-label="Konum ${i+1} yatay"><input inputmode="decimal" data-hp="${i}:1" value="${String(q[1]).replace('.',',')}" style="width:72px;height:26px;border:1px solid var(--line);border-radius:4px;background:var(--field);padding:0 5px" aria-label="Konum ${i+1} dikey"><button data-hdel="${i}" aria-label="Konumu sil">✕</button></div>`).join('')}</div>`;
-  if(f.on)p+=`<p class="note">Koordinatlar yüzeyin üzerindeki çizim orijinine göredir (parça orijininin yüzeye izdüşümü). Yüzeye tıklayarak konum ekle; mevcut deliklerin ve silindirlerin merkezine yakalanır.</p>`;
-  b+=grp(`Konumlar (${f.pts.length})`,p);
+  if(f.on)p+=`<p class="note">Yüzeye tıklayarak konum ekle.</p>`;
+  b+=grp(`Konumlar (${f.pts.length})`,p,f.on?'Koordinatlar yüzeyin üzerindeki çizim orijinine göredir (parça orijininin yüzeye izdüşümü). Yüzeye tıklayarak konum ekle; mevcut deliklerin ve silindirlerin merkezine yakalanır.':'Modelde deliğin açılacağı düz yüzeye tıkla. Tüm konumlar aynı yüzeyde olur.');
   return b;
 }
 function holePmClick(e){
@@ -165,13 +165,14 @@ function renderMeasurePM(){
   const ws=$('#ws'),el=$('#pm');ws.classList.add('pmon');requestAnimationFrame(resize);
   const NM={pt:'Köşe',seg:'Kenar',plane:'Düz yüzey',axis:'Silindir / eksen'};
   const r=measureResult();
-  let b=grp('Seçimler',meas.picks.length?`<div class="lst">${meas.picks.map((p,i)=>`<div><span>${i+1}. ${NM[p.t]}${p.label?' ('+esc(p.label)+')':''}</span></div>`).join('')}</div><button class="sbtn" data-meas="clear">Seçimi temizle</button>`:'<p class="note">Bir veya iki öğeye tıkla. Üçüncü tıklama yeni ölçüm başlatır.</p>');
+  let b=grp('Seçimler',meas.picks.length?`<div class="lst">${meas.picks.map((p,i)=>`<div><span>${i+1}. ${NM[p.t]}${p.label?' ('+esc(p.label)+')':''}</span></div>`).join('')}</div><button class="sbtn" data-meas="clear">Seçimi temizle</button>`:'<p class="note">Bir veya iki öğeye tıkla.</p>','Bir veya iki öğeye (köşe, kenar, düz yüzey, silindir) tıkla. Üçüncü tıklama yeni ölçüm başlatır.');
   if(r.out.length)b+=grp('Sonuç',`<div class="mass" style="position:static;display:grid;pointer-events:auto;font-size:13px">${r.out.map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('')}</div>`);
   el.innerHTML=`<div class="pm-head"><div><div class="pm-title">Ölç</div><div class="pm-sub">${activeTab==='asm'?'Montaj':'Parça'}</div></div><div class="pm-actions"><button data-meas="close" title="Kapat" aria-label="Kapat">${IC.x}</button></div></div><div class="pm-body">${b}</div>`;
 }
 function measurePmClick(e){const b=e.target.closest('[data-meas]');if(!b)return false;if(b.dataset.meas==='close')closeMeasure();else{meas.picks=[];drawMeasure();renderMeasurePM()}return true}
 
 /* ================= ÇİZİM İŞLEMLERİ: budama, ofset, aynalama, çoğaltma ================= */
+TOOLSHORT.trim='Silinecek parçaya tıkla veya üzerinden sürükle.';
 TOOLHELP.trim='Budama: silmek istediğin çizgi parçasına tıkla ya da fareyi basılı tutup parçaların üzerinden geçir (güç budama). Parça, en yakın kesişim noktaları arasında kırpılır; kesişim yoksa öğe silinir.';
 function entParamPt(f,e,q){ // tıklanan noktanın öğe üzerindeki parametresi
   if(e.t==='line'){const a=P2(e.a),b=P2(e.b);const dx=b[0]-a[0],dy=b[1]-a[1];return ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/(dx*dx+dy*dy||1)}
@@ -284,17 +285,17 @@ function splitAtCuts(f,cuts){
 const SKOP_T={offset:'Varlıkları Ofsetle',mirror:'Varlıkları Aynala',lpat:'Doğrusal Çizim Çoğaltma',cpat:'Dairesel Çizim Çoğaltma'};
 function setSkOp(t){if(!sk)return;setTool(null);sk.op={t,d:5,flip:false,both:false,n:3,sp:20,ang:0,tot:360};renderSketchPM();renderRibbon()}
 function skOpBody(){
-  const o=sk.op;let b=`<p class="note">`;
-  if(o.t==='offset')b+=`Ofsetlenecek çizgi, yay veya daireleri Seç aracıyla seç; bir öğeye çift tıklamak bağlı zincirin tamamını seçer. Bağlı zincirler köşelerde birleştirilir.`;
-  if(o.t==='mirror')b+=`Aynalanacak öğeleri ve ayna ekseni olarak bir merkez çizgisini seç. Kopyalar orijinallere simetri ilişkisiyle bağlanır.`;
-  if(o.t==='lpat')b+=`Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Açı, yatay eksenden saat yönünün tersine ölçülür.`;
-  if(o.t==='cpat')b+=`Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Merkez olarak bir nokta da seçebilirsin; seçmezsen orijin kullanılır.`;
-  b+=`</p>`;
+  const o=sk.op;
+  const tip={offset:'Ofsetlenecek çizgi, yay veya daireleri Seç aracıyla seç; bir öğeye çift tıklamak bağlı zincirin tamamını seçer. Bağlı zincirler köşelerde birleştirilir.',
+    mirror:'Aynalanacak öğeleri ve ayna ekseni olarak bir merkez çizgisini seç. Kopyalar orijinallere simetri ilişkisiyle bağlanır.',
+    lpat:'Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Açı, yatay eksenden saat yönünün tersine ölçülür.',
+    cpat:'Çoğaltılacak öğeleri seç (çift tıklama zinciri seçer). Merkez olarak bir nokta da seçebilirsin; seçmezsen orijin kullanılır.'}[o.t];
+  let b=`<p class="note">${o.t==='mirror'?'Öğeleri ve bir merkez çizgisini seç.':'Öğeleri seç.'}</p>`;
   if(o.t==='offset')b+=fNum('Ofset mesafesi','d','mm',o)+`<label class="chk"><input type="checkbox" data-opboth ${o.both?'checked':''}> İki yönde (her iki tarafa aynı mesafe)</label><label class="chk"${o.both?' style="opacity:.5"':''}><input type="checkbox" data-opflip ${o.flip?'checked':''} ${o.both?'disabled':''}> Ters yön</label>`;
-  if(o.t==='lpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Aralık','sp','mm',o)}</div>`+fNum('Yön açısı','ang','°',o);
+  if(o.t==='lpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Aralık','sp','mm',o)}</div>`+fNum('Yön açısı','ang','°',o,'Açı, yatay eksenden saat yönünün tersine ölçülür.');
   if(o.t==='cpat')b+=`<div class="row2">${fNum('Adet (toplam)','n','adet',o)}${fNum('Toplam açı','tot','°',o)}</div>`;
   b+=`<div class="relbtns"><button data-opgo>Uygula</button><button data-opx>Kapat</button></div>`;
-  return grp(SKOP_T[o.t],b);
+  return grp(SKOP_T[o.t],b,tip);
 }
 function skOpClick(e){if(e.target.closest('[data-opgo]')){applySkOp();return true}if(e.target.closest('[data-opx]')){sk.op=null;renderSketchPM();renderRibbon();return true}return false}
 function skOpInput(e){const t=e.target;if(!sk.op)return false;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.op[t.dataset.k]=v;return true}if(t.hasAttribute('data-opflip')){sk.op.flip=t.checked;return true}if(t.hasAttribute('data-opboth')){sk.op.both=t.checked;renderSketchPM();return true}return false}

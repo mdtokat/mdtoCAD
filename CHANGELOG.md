@@ -1,6 +1,7 @@
 # Değişiklik günlüğü
 
 ## Yayımlanmamış
+- **Kısa panel açıklamaları:** araç seçilince soldaki panelde (özellikler, çizim araçları ve işlemleri, Delik Sihirbazı, Ölç, montaj panelleri) yalnızca kısa bir cümle görünür. Ayrıntılı açıklama, alan veya grup başlığının yanındaki **?** işaretli başlığın üzerine fareyle gelince ipucu kutusunda açılır.
 - **Ölçü çelişkileri (SolidWorks gibi):** çizimi aşırı tanımlayan bir ölçü eklenmek istenince ölçü eklenmez; onu zaten belirleyen ölçü ve ilişkiler (ör. toplam boy 100 ve parça 40 varken 3. parça) **sarı** gösterilir ve bir pencere şu anki değeri söyler (100 − 40 = 60). Seçenekler: **referans ölçü olarak ekle** (parantez içinde, geometriyi sürmez, değeri çizimden gelir) veya sarı ölçülerden birini referansa çevirip yenisini sürücü yap. Ölçüler listesinde ve seçim panelinde her ölçü referans ↔ sürücü yapılabilir (yeni `cons[].driven`).
 - Ölçü değeri geometriyle çelişiyorsa (ör. dikdörtgenin yüksekliği köşegeninden büyük) değer uygulanmaz, eski değer kalır, çelişen ölçü ve ilişkiler sarı gösterilir; değer kutusu açık kalır. Büyük değişikliklerde çözüm bulunamazsa veya şekil ters dönerse (çizgi yön değiştirir, yay diğer tarafa geçer) değer kademeli olarak yaklaştırılır.
 - Aşırı tanımlayan ilişkide (ör. yatay + dikey çizgiler arasına dik) uyarı ve sarı işaret; yüklenen çelişkili çizimde sağlanamayan ölçü/ilişkiler sarı, durum “Aşırı tanımlı”. Esc sarı işaretleri kaldırır. Çizerken yazılan ölçü mevcut ilişkilerle zaten belirleniyorsa bildirilir.

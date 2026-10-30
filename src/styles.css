@@ -193,6 +193,12 @@ button:disabled{cursor:default}
 .pm-err.on{display:block}
 .pm-ok{margin:0 0 10px;padding:7px 10px;border-radius:6px;background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok);font-size:12.5px}
 .note{font-size:12px;color:var(--muted);margin:2px 0 8px}
+/* ayrıntılı açıklama ipucu: başlığın yanındaki “?” işareti, üzerine gelince .tip-box açılır */
+[data-tip]{cursor:help}
+.grp-t[data-tip]::after,.fld>span[data-tip]::after,.chk[data-tip]::after,.note[data-tip]::after{content:"?";display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;margin-left:5px;border:1px solid currentColor;border-radius:50%;font-size:9px;font-weight:600;line-height:1;vertical-align:1px;opacity:.6;flex:none}
+.chk[data-tip]::after{margin-left:0}
+.tip-box{position:fixed;left:0;top:0;z-index:80;max-width:min(320px,calc(100vw - 12px));padding:7px 10px;border-radius:6px;background:var(--ink);color:var(--panel);font-size:12px;line-height:1.45;white-space:pre-line;pointer-events:none;box-shadow:var(--shadow);opacity:0;visibility:hidden;transition:opacity .12s}
+.tip-box.on{opacity:1;visibility:visible}
 .lst{display:grid;gap:3px;margin-bottom:8px}
 .lst div{display:flex;align-items:center;gap:6px;font-size:13px;padding:4px 6px;border-radius:5px;background:var(--panel-2)}
 .lst div span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

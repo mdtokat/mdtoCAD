@@ -114,7 +114,7 @@ function openExplodePM(){
 }
 function explodePMBody(){
   const a=curAsm(),e=exState(a),d=asmUI.pm.draft;
-  let b=grp('',`<div class="relbtns"><button data-ex="auto">Otomatik patlat</button><button data-ex="toggle">${asmUI.exf>0.5?'Topla':'Patlat'}</button><button data-ex="clear" class="danger">Adımları temizle</button></div><p class="note">Otomatik patlatma, bileşenleri eşleştirildikleri yüzeyin yönünde ayırır. Adımları aşağıdan düzenleyebilirsin.</p>`);
+  let b=grp('Patlatma',`<div class="relbtns"><button data-ex="auto">Otomatik patlat</button><button data-ex="toggle">${asmUI.exf>0.5?'Topla':'Patlat'}</button><button data-ex="clear" class="danger">Adımları temizle</button></div>`,'Otomatik patlatma, bileşenleri eşleştirildikleri yüzeyin yönünde ayırır. Adımları aşağıdan düzenleyebilirsin.');
   b+=grp(`Adımlar (${e.steps.length})`,e.steps.length?`<div class="lst">${e.steps.map((st,i)=>`<div><span>${i+1}. ${esc(st.comps.map(id=>{const c=compById(id);return c?compName(a,c):'?'}).join(', '))}</span><select data-exdir="${i}" style="height:24px;border:1px solid var(--line);border-radius:4px;background:var(--field)">${Object.entries(DIRN).map(([k,t])=>`<option value="${k}" ${st.dir===k?'selected':''}>${t}</option>`).join('')}</select><input data-exdist="${i}" inputmode="decimal" value="${String(st.dist).replace('.',',')}" style="width:52px;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--field);padding:0 4px"><button data-exdel="${i}" aria-label="Adımı sil">✕</button></div>`).join('')}</div>`:'<p class="note">Henüz adım yok.</p>');
   b+=grp('Yeni adım',`<div class="lst">${d.comps.length?d.comps.map((id,i)=>{const c=compById(id);return `<div><span>${esc(c?compName(a,c):'?')}</span><button data-exun="${i}" aria-label="Çıkar">✕</button></div>`}).join(''):'<div><span style="color:var(--muted)">Ekranda taşınacak bileşenlere tıkla</span></div>'}</div>`+
     `<div class="row2"><label class="fld"><span>Yön</span><select data-exnew="dir">${Object.entries(DIRN).map(([k,t])=>`<option value="${k}" ${d.dir===k?'selected':''}>${t}</option>`).join('')}</select></label>${fNum('Mesafe','dist','mm',d)}</div><button class="sbtn" data-ex="add" ${d.comps.length?'':'disabled'}>Adımı ekle</button>`);
@@ -214,8 +214,8 @@ function patPMBody(){
   let b=grp(d.type==='circ'?'Çoğaltma ekseni':'Çoğaltma yönü',`<div class="lst"><div style="${P.slot==='ref'?'outline:1px solid var(--accent)':''}" data-pslot="ref"><span>${d.ref?esc(refTxt):`<span style="color:var(--muted)">${d.type==='circ'?'Bir silindirik yüze tıkla':'Bir düz yüze veya silindire tıkla'}</span>`}</span>${d.ref?'<button data-pclr="1" aria-label="Kaldır">✕</button>':''}</div></div>`+
     `<button type="button" class="sbtn" data-prev="1" style="margin-top:6px">⇄ Ters yön</button>`);
   b+=grp(`Çoğaltılacak bileşenler (${d.seeds.length})`,`<div class="lst" data-pslot="seeds" style="${P.slot==='seeds'?'outline:1px solid var(--accent)':''}">${d.seeds.length?d.seeds.map((id,i)=>{const c=compById(id);return `<div><span>${esc(c?compName(a,c):'?')}</span><button data-pun="${i}" aria-label="Çıkar">✕</button></div>`}).join(''):'<div><span style="color:var(--muted)">Ekranda bileşenlere tıkla</span></div>'}</div>`);
-  b+=grp('Parametreler',d.type==='circ'?`<div class="row2">${fNum('Adet','n','adet',d)}${fNum('Toplam açı','angle','°',d)}</div><p class="note">Adet kaynak dahildir; 360° girersen kopyalar eşit dağıtılır.</p>`:`<div class="row2">${fNum('Aralık','sp','mm',d)}${fNum('Adet','n','adet',d)}</div><p class="note">Adet kaynak dahildir.</p>`);
-  b+=`<p class="note">Kopyalar kaynakla ve eksenin bileşeniyle birlikte hareket eder; ayrıca eşleştirilmez. Parça listesinde adet olarak sayılır.</p>`;
+  const nTip='Adet kaynak dahildir.';
+  b+=grp('Parametreler',d.type==='circ'?`<div class="row2">${fNum('Adet','n','adet',d,nTip)}${fNum('Toplam açı','angle','°',d,'360° girersen kopyalar eşit dağıtılır.')}</div>`:`<div class="row2">${fNum('Aralık','sp','mm',d)}${fNum('Adet','n','adet',d,nTip)}</div>`,'Kopyalar kaynakla ve eksenin bileşeniyle birlikte hareket eder; ayrıca eşleştirilmez. Parça listesinde adet olarak sayılır.');
   if(P.err)b+=`<div class="pm-err on">${esc(P.err)}</div>`;
   return b;
 }
@@ -292,7 +292,7 @@ function interfPMBody(){
   else{
     b+=grp('',list.length?`<div class="stat over"><i></i>${list.length} girişim bulundu</div>`:`<div class="stat full"><i></i>Girişim yok</div>`);
     if(list.length)b+=grp('Girişimler',`<div class="lst">${P.results.map((r,i)=>(!r.contact||P.includeContact)?`<div style="cursor:pointer;${P.show===i?'outline:1px solid var(--accent)':''}" data-ish="${i}"><span>${esc(compName(a,compById(r.a)))} ↔ ${esc(compName(a,compById(r.b)))}: ${fmt(r.vol,2)} mm³${r.contact?' (temas)':''}</span></div>`:'').join('')}</div><button class="sbtn" data-ish="-1">Tümünü göster</button>`);
-    b+=grp('Seçenekler',`<label class="chk"><input type="checkbox" data-icont ${P.includeContact?'checked':''}> Çakışan yüzeyleri (temas) girişim say</label><p class="note">${P.contacts?`${P.contacts} çiftte yalnızca yüzey teması var (örneğin aynı çaptaki mil ve delik); bunlar girişim sayılmıyor.`:'Yüzey teması olan çift yok.'}</p><button class="sbtn" data-irun>Yeniden hesapla</button>`);
+    b+=grp('Seçenekler',`<label class="chk" data-tip="Yalnızca yüzey teması olan çiftler (örneğin aynı çaptaki mil ve delik) normalde girişim sayılmaz."><input type="checkbox" data-icont ${P.includeContact?'checked':''}> Çakışan yüzeyleri (temas) girişim say</label><p class="note">${P.contacts?`${P.contacts} çiftte yalnızca temas var.`:'Temas eden çift yok.'}</p><button class="sbtn" data-irun>Yeniden hesapla</button>`);
   }
   return b;
 }

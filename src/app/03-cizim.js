@@ -227,7 +227,7 @@ function skHit(q,tol){
 }
 /* yalnızca noktalar: köşe bekleyen araçlarda (çizim radyusu) köşeye yakın tıklama çizgiyi değil köşeyi seçer */
 function skPtHit(q,tol){
-  let best=null,bd=tol;for(const id of Object.keys(sk.feat.pts)){const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={k:'pt',id}}}
+  let best=null,bd=tol;for(const id of ['O',...Object.keys(sk.feat.pts)]){const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={k:'pt',id}}}
   return best;
 }
 function skSnap(q,tol,from,exclude,fromId){

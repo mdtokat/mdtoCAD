@@ -60,7 +60,7 @@ function skData(f){return JSON.stringify({pts:f.pts,ents:f.ents,cons:f.cons})}
 function skPush(){sk.hist.push(skData(sk.feat));clearConf();if(sk.hist.length>100)sk.hist.shift();sk.redo=[];updUndo()}
 function skRestore(s){const o=JSON.parse(s);sk.feat.pts=o.pts;sk.feat.ents=o.ents;sk.feat.cons=o.cons}
 // açık ölçü kutuları ve sürükleme geri alınan duruma ait olabilir: kapatılır (yoksa silinen ölçünün kimliğini alan yeni ölçü değişirdi)
-function skHistReset(){sk.sel=[];sk.st={};sk.drag=null;sk.dragTg=null;closeDimPop();closeSkInput();clearConf()}
+function skHistReset(){sk.sel=[];sk.st={};sk.drag=null;sk.dragTg=null;closeDimPop();closeSkInput();closeSizePop();clearConf()}
 function sketchUndo(){if(!sk||!sk.hist.length)return;sk.redo.push(skData(sk.feat));skRestore(sk.hist.pop());skHistReset();skChanged();updUndo()}
 function sketchRedo(){if(!sk||!sk.redo.length)return;sk.hist.push(skData(sk.feat));skRestore(sk.redo.pop());skHistReset();skChanged();updUndo()}
 
@@ -102,7 +102,7 @@ function exitSketch(accept){
       const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
       if(msg)toast(msg);
       if(!wasNew&&snapshot()===hist.undo[hist.undo.length-1])drop()}}
-  clearConf();sk=null;closeDimPop();closeSkInput();solidTone();
+  clearConf();sk=null;closeDimPop();closeSkInput();closeSizePop();solidTone();
   for(const c of [...skGroup.children]){skGroup.remove(c);if(c.geometry)c.geometry.dispose()}
   $('#labels').innerHTML='';setControlsForSketch(false);setOrtho(false);vpEl.classList.remove('sketching');$('#confirm').classList.remove('on');$('#sbar').classList.remove('on');
   cmTab='features';afterChange();
@@ -166,7 +166,7 @@ function autoDefineSketch(silent){
   toast(`${nd} ölçü ve ${added.length-nd} ilişki eklendi; çizim tam tanımlı. Ölçüye çift tıklayarak veya soldaki listeden değiştirebilirsin.`,{label:'Geri al',fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
   return added.length;
 }
-function skChanged(){analyze();sk.dirty=true;renderSketchPM();updSbar();renderRibbon();saveState()}
+function skChanged(){analyze();sk.dirty=true;renderSketchPM();updSbar();renderRibbon();saveState();if(sizeEl)refreshSizePop()}
 function cleanupOrphans(f){
   const ids=new Set(f.ents.map(e=>e.id));
   f.cons=f.cons.filter(c=>!(c.e&&!ids.has(c.e))&&!(c.e1&&!ids.has(c.e1))&&!(c.e2&&!ids.has(c.e2)));
@@ -179,7 +179,7 @@ function cleanupOrphans(f){
   f.cons=f.cons.filter(c=>c.t!=='offd'||f.cons.some(x=>x.id===c.dim));
 }
 function setTool(t){
-  if(!sk)return;endChainIfAny();sk.tool=t;sk.filArc=null;sk.st={};sk.op=null;if(t)sk.sel=[];closeDimPop();closeSkInput();closeConflict();
+  if(!sk)return;endChainIfAny();sk.tool=t;sk.filArc=null;sk.st={};sk.op=null;sk.wake=null;sk.hoverAxis=null;if(t)sk.sel=[];closeDimPop();closeSkInput();closeSizePop();closeConflict();
   renderRibbon();renderSketchPM();sk.dirty=true;updSbar();
 }
 function endChainIfAny(){
@@ -231,6 +231,8 @@ function skSnap(q,tol,from,exclude,fromId){
   for(const X of (sk.xpts||[])){const d=Math.hypot(X.x-q[0],X.y-q[1]);if(d<bd&&f.ents.includes(X.e1)&&f.ents.includes(X.e2)){bd=d;best={x:X.x,y:X.y,rels:[X.e1,X.e2].map(e=>({t:e.t==='line'?'pol':'poc',e:e.id})),ix:true}}}
   if(best)return best;bd=tol;
   for(const e of f.ents)if(e.t==='line'&&!(exclude&&(exclude.has(e.a)||exclude.has(e.b)))){const a=P2(e.a),b=P2(e.b);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(Math.hypot(m[0]-q[0],m[1]-q[1])<tol)return {x:m[0],y:m[1],rel:{t:'mid',e:e.id}}}
+  // çizgi başlangıcından daireye/yaya teğet nokta: çizgi teğet ilişkisiyle çevreye bağlanır
+  if(from&&fromId){const T=tanPtSnap(q,tol,from,fromId);if(T)return T}
   bd=tol*0.8;
   let ent=null;
   for(const e of f.ents){if(exclude&&(exclude.has(e.a)||exclude.has(e.b)))continue;const [d,p]=entDist(e,q);if(d<bd){bd=d;ent=e;best={x:p[0],y:p[1],rel:{t:e.t==='line'?'pol':'poc',e:e.id}}}}
@@ -242,10 +244,11 @@ function skSnap(q,tol,from,exclude,fromId){
   if(sk.opts.grid){const st=gridStep(tol/9),fine=st/10;const gx=Math.round(x/st)*st,gy=Math.round(y/st)*st;
     x=Math.abs(gx-x)<tol*0.55?gx:Math.round(x/fine)*fine;y=Math.abs(gy-y)<tol*0.55?gy:Math.round(y/fine)*fine}
   x=Math.round(x*1000)/1000;y=Math.round(y*1000)/1000;
-  let hv=null;
-  if(from){if(Math.abs(y-from[1])<tol){y=from[1];hv='h'}else if(Math.abs(x-from[0])<tol){x=from[0];hv='v'}}
+  // hiza çizgileri: başlangıçtan yatay/dikey, imlecin üzerinden geçtiği noktaların yatay/dikey hizası, çizgi uzantıları ve yay teğetleri
+  const g=guideSnap(skGuides(from,exclude),q,[x,y],tol);
+  if(g&&g.hv)return g;
   // çıkarım: başlangıç noktasındaki çizgiye dik, yaya teğet
-  if(!hv&&from&&fromId){
+  if(from&&fromId){
     const v=[x-from[0],y-from[1]],L=Math.hypot(v[0],v[1]);
     if(L>tol)for(const e of f.ents){if(e.t==='circle'||(e.a!==fromId&&e.b!==fromId))continue;
       let d,t;
@@ -254,7 +257,7 @@ function skSnap(q,tol,from,exclude,fromId){
       let k=v[0]*d[0]+v[1]*d[1];if(t==='perp'&&k<0){d=[-d[0],-d[1]];k=-k}if(k<=0)continue;
       const off=Math.abs(v[0]*d[1]-v[1]*d[0]);if(off<tol*0.7){x=from[0]+d[0]*k;y=from[1]+d[1]*k;return {x,y,inf:{t,e:e.id}}}}
   }
-  return {x,y,hv};
+  return g||{x,y,hv:null};
 }
 /* başlangıç noktasından geçen yatay/dikey doğrunun öğeyi imlece yakın kestiği nokta */
 function hvOnEnt(e,q,from,tol){
@@ -303,6 +306,8 @@ function skPointerDown(e){
 function skPointerMove(e){
   const {q,px,tol}=skEv(e);if(!q)return;sk.cursor=q;sk.px=px;
   $('#sbXY').textContent=`${PLANEAX()[0]}: ${fmt(q[0])}   ${PLANEAX()[1]}: ${fmt(q[1])}`;
+  // düğme görünüm dışında bırakıldıysa (bırakma olayı kaçtı) sürükleme biter; öğe tıklanmadan fareyle gelmez
+  if(sk.drag&&e.pointerType==='mouse'&&!(e.buttons&1)){flushDrag();const d=sk.drag;sk.drag=null;if(d.moved)skChanged()}
   if(sk.drag){
     const d=sk.drag;if(!d.moved&&Math.hypot(q[0]-d.q0[0],q[1]-d.q0[1])>px*3){d.moved=true;skPush()}
     if(d.moved){
@@ -316,7 +321,8 @@ function skPointerMove(e){
     }
     return;
   }
-  sk.extHover=null;
+  sk.extHover=null;sk.hoverAxis=null;
+  if(sk.tool&&DRAWTOOLS.has(sk.tool))wakeAt(q,tol);
   if(!sk.tool||sk.tool==='smartdim'||sk.tool==='sfillet'){const h=skHit(q,tol);const k=h?h.k+':'+h.id:null;if(k!==sk.hover){sk.hover=k}
     if(!h&&(!sk.tool||(sk.tool==='smartdim'&&dimRefOk())))sk.extHover=extPick(q,tol*0.7)}
   else sk.hover=null;
@@ -337,7 +343,7 @@ function skPointerUp(e,d){
   if(e.button!==0&&e.pointerType==='mouse')return;
   const ev=skEv(e);if(!ev.q)return;
   // boş yere tıklama: arkadaki model kenarı veya başka bir çizimin öğesi varsa referans olarak eklenip seçilir
-  if(!sk.tool){const h=skHit(ev.q,ev.tol)||refAt(ev.q,ev.tol*0.7);if(h)toggleSel(h);else{sk.sel=[];skChanged()}return}
+  if(!sk.tool){const h=skHit(ev.q,ev.tol)||refAt(ev.q,ev.tol*0.7);if(h)toggleSel(h);else{sk.sel=[];skChanged()}sizePopForSel(ev.q);return}
   toolClick(ev.q,ev.px,ev.tol);
 }
 /* sürüklenen nokta başka bir noktanın (orijin dahil) üstüne bırakılınca onunla birleşir; bir öğenin üstüne bırakılınca üzerinde kalır */
@@ -663,21 +669,34 @@ const lblEl=$('#labels');
 lblEl.addEventListener('pointerdown',e=>{
   const t=e.target.closest('[data-cid]');if(!t||!sk)return;e.preventDefault();e.stopPropagation();
   const cid=t.dataset.cid;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
-  if(t.classList.contains('dlab')&&(!sk.tool||sk.tool==='smartdim')){sk.ldrag={cid,x:e.clientX,y:e.clientY,moved:false};t.setPointerCapture(e.pointerId)}
+  if(t.classList.contains('dlab')&&(!sk.tool||sk.tool==='smartdim')){const q0=skLocalXY(e.clientX,e.clientY);sk.ldrag={cid,x:e.clientX,y:e.clientY,moved:false,q0,lp0:c.lp.slice(),pid:e.pointerId}}
   else{toggleSel({k:'con',id:cid})}
 });
-lblEl.addEventListener('pointermove',e=>{
-  if(!sk||!sk.ldrag)return;const d=sk.ldrag;if(!d.moved&&Math.hypot(e.clientX-d.x,e.clientY-d.y)>4){d.moved=true;skPush()}
-  if(d.moved){const q=skLocalXY(e.clientX,e.clientY);const c=sk.feat.cons.find(x=>x.id===d.cid);if(q&&c){c.lp=q;sk.dirty=true}}
-});
-lblEl.addEventListener('pointerup',e=>{if(!sk||!sk.ldrag)return;const d=sk.ldrag;sk.ldrag=null;if(!d.moved)toggleSel({k:'con',id:d.cid})});
+/* Etiket sürükleme pencere düzeyinde izlenir: etiketler her karede yeniden oluşturulduğundan etikete bağlı olay ve
+   işaretçi yakalaması sürüklerken kaybolur (ölçü fareyi izlemez, bırakma kaçar ve ölçü sonra tıklamadan fareyle gelir) */
+function lblDragMove(e){
+  if(!sk||!sk.ldrag||e.pointerId!==sk.ldrag.pid)return;const d=sk.ldrag;
+  // düğme bırakılmış (bırakma olayı pencere dışında kaldı): sürükleme biter
+  if(!(e.buttons&1)){lblDragEnd(e,true);return}
+  if(!d.moved&&Math.hypot(e.clientX-d.x,e.clientY-d.y)>4){d.moved=true;skPush()}
+  if(d.moved){const q=skLocalXY(e.clientX,e.clientY);const c=sk.feat.cons.find(x=>x.id===d.cid);
+    // tutulan yer etiketin merkezine atlamaz
+    if(q&&c){c.lp=d.q0?[d.lp0[0]+q[0]-d.q0[0],d.lp0[1]+q[1]-d.q0[1]]:q;sk.dirty=true}}
+}
+function lblDragEnd(e,lost){
+  if(!sk||!sk.ldrag||(e&&e.pointerId!==sk.ldrag.pid))return;const d=sk.ldrag;sk.ldrag=null;
+  if(d.moved){sk.dirty=true;saveState()}else if(!lost&&e.type==='pointerup')toggleSel({k:'con',id:d.cid});
+}
+window.addEventListener('pointermove',lblDragMove);
+window.addEventListener('pointerup',e=>lblDragEnd(e));
+window.addEventListener('pointercancel',e=>lblDragEnd(e,true));
 lblEl.addEventListener('dblclick',e=>{const t=e.target.closest('.dlab');if(t&&sk)openDimPop(t.dataset.cid)});
 function placeLabels(){
   for(const it of labelItems){const s=skToScreen(it.x,it.y);it.el.style.left=s[0]+'px';it.el.style.top=s[1]+'px';it.el.style.display=s[2]>1?'none':''}
 }
 
 /* ---------- çizim görüntüsü ---------- */
-function skColors(){const d=isDark();return {def:d?0xE8EDF2:0x10151C,und:d?0x6FA8FF:0x1A64E0,conf:d?0xFFD23F:0xD9A400,drv:d?0x8E99A6:0x6B7682,sel:0xF08A1A,hov:0xF0A845,prev:d?0x9CC3FF:0x3A7BE8,origin:0xD0453A,snap:0xF08A1A,ref:d?0xC79BF2:REFCOL}}
+function skColors(){const d=isDark();return {def:d?0xE8EDF2:0x10151C,und:d?0x6FA8FF:0x1A64E0,conf:d?0xFFD23F:0xD9A400,drv:d?0x8E99A6:0x6B7682,sel:0xF08A1A,hov:0xF0A845,prev:d?0x9CC3FF:0x3A7BE8,origin:0xD0453A,snap:0xF08A1A,guide:d?0xF2B84B:0xC97A0A,ref:d?0xC79BF2:REFCOL}}
 const hex=c=>new T.Color(c);
 function dimGeo(f,c,px){
   const E=entMap(f);const P=id=>{const p=skP(f,id);return [p.x,p.y]};const segs=[];
@@ -788,8 +807,15 @@ function renderSketch(){
     else if(sk.tool==='arc3'){s=skSnap(q,tol,null,null);if(st.a&&!st.b)pv(P(st.a),[s.x,s.y]);if(st.a&&st.b){const A=P(st.a),B=P(st.b);const C=circum(A,B,[s.x,s.y]);if(C){const t=arcPts(C,A,B,arcCcw(C,A,B,[s.x,s.y]));for(let i=0;i<t.length-1;i++)pv(t[i],t[i+1])}else pv(A,B)}}
     else if(sk.tool==='tarc'){s=skSnap(q,tol,null,st.start?new Set([st.start]):null);if(st.start){const g=tanArcGeo(st.start,st.ref,[s.x,s.y]);const A=P(st.start);if(g){const t=arcPts(g.c,A,[s.x,s.y],g.ccw);for(let i=0;i<t.length-1;i++)pv(t[i],t[i+1])}else pv(A,[s.x,s.y])}}
     else if(sk.tool==='slot'){s=skSnap(q,tol,st.c1&&!st.c2?P(st.c1):null,null);if(st.c1&&!st.c2)pv(P(st.c1),[s.x,s.y]);if(st.c1&&st.c2){const a=P(st.c1),b=P(st.c2);let d=[b[0]-a[0],b[1]-a[1]];const l=Math.hypot(...d);d=[d[0]/l,d[1]/l];const n=[-d[1],d[0]];const r=Math.abs((q[0]-a[0])*n[0]+(q[1]-a[1])*n[1]);pv([a[0]+n[0]*r,a[1]+n[1]*r],[b[0]+n[0]*r,b[1]+n[1]*r]);pv([a[0]-n[0]*r,a[1]-n[1]*r],[b[0]-n[0]*r,b[1]-n[1]*r]);const ba=Math.atan2(d[1],d[0]);for(const [c,o] of [[b,-Math.PI/2],[a,Math.PI/2]]){let prev=null;for(let i=0;i<=24;i++){const t=ba+o+Math.PI*i/24;const p=[c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)];if(prev)pv(prev,p);prev=p}}}}
-    if(s){pts.push(s.x,s.y,0);const k=hex(s.pid||s.rel?C.snap:C.prev);ptsC.push(k.r,k.g,k.b);if(s.rel&&s.rel.t==='mid')labels.push({x:s.x+px*12,y:s.y+px*12,cls:'rlab',cid:'',html:'M'})}
+    if(s){pts.push(s.x,s.y,0);const k=hex(s.pid||s.rel||s.inf?C.snap:C.prev);ptsC.push(k.r,k.g,k.b);if(s.rel&&s.rel.t==='mid')labels.push({x:s.x+px*12,y:s.y+px*12,cls:'rlab',cid:'',html:'M'})
+      // hiza yardımcı çizgileri (kesikli)
+      for(const [a,b] of s.guides||[]){dash.push(a[0],a[1],0,b[0],b[1],0);dashC.push(...hexArr(C.guide),...hexArr(C.guide))}}
+    // üzerinde durulan çizginin ekseni (geçici)
+    const ax=sk.hoverAxis&&f.ents.find(e=>e.id===sk.hoverAxis);
+    if(ax){const a=P(ax.a),b=P(ax.b),l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l>1e-9){const d=[(b[0]-a[0])/l,(b[1]-a[1])/l],k=px*2000;dash.push(a[0]-d[0]*k,a[1]-d[1]*k,0,b[0]+d[0]*k,b[1]+d[1]*k,0);dashC.push(...hexArr(C.guide),...hexArr(C.guide))}}
   }
+  // ofset / aynala / çoğaltma önizlemesi
+  if(sk.op){const op=skOpPreview();if(op)for(const [a,b,cn] of op){if(cn){dash.push(a[0],a[1],0,b[0],b[1],0);dashC.push(...hexArr(C.prev),...hexArr(C.prev))}else pushSeg(sol,solC,a,b,C.prev)}}
   if(sk.extHover)for(const [a,b] of extHoverSegs(sk.extHover))pushSeg(sol,solC,a,b,C.hov);
   if(sk.extHover&&sk.extHover.t==='pt'){pts.push(sk.extHover.p[0],sk.extHover.p[1],0);ptsC.push(...hexArr(C.hov))}
   if(sk.ptrim&&sk.ptrim.path.length>1){const t=sk.ptrim.path;for(let i=0;i<t.length-1;i++)pushSeg(sol,solC,t[i],t[i+1],C.sel)}

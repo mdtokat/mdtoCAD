@@ -1,6 +1,6 @@
 /* Çizerken ölçü yazma: araç ilk noktayı aldıktan sonra rakam yazılınca giriş kutusu açılır.
    Girilen değerle öğe çizilir ve değer sürücü ölçü olarak eklenir (çizim hemen tanımlanır). */
-let skInEl=null;
+let skInEl=null,skNoGrid=false;
 function skInputFields(){
   if(!sk||!sk.tool)return null;const t=sk.tool,st=sk.st;
   // açı isteğe bağlı (SolidWorks'teki ekranda sayısal giriş gibi): +X yönünden saat yönünün tersine; boşsa yön imleçten
@@ -35,8 +35,9 @@ function openSkInput(first){
 function addDrivingDim(c){const f=sk.feat;if(sketchConflict(f,[c]).over){sk.skippedDims=(sk.skippedDims||0)+1;return false}c.id=newId(f,'c');c.val=Math.round(c.val*1e4)/1e4;f.cons.push(c);return true}
 function applySkInput(v){
   if(!sk||!sk.tool)return;
-  // yazılan değer ızgaraya yuvarlanmasın (ör. 30° açılı çizginin ucu)
-  const g=sk.opts.grid;sk.opts.grid=false;try{applySkInput0(v)}finally{if(sk)sk.opts.grid=g}
+  // yazılan değer ızgaraya yuvarlanmasın (ör. 30° açılı çizginin ucu). Seçenek değiştirilmez: panel arada yeniden çizilince
+  // “Izgaraya yakala” kutusu boş görünüyordu
+  skNoGrid=true;try{applySkInput0(v)}finally{skNoGrid=false}
 }
 function applySkInput0(v){
   const f=sk.feat,st=sk.st,t=sk.tool,px=sk.px||0.3,tol=px*0.5,q=sk.cursor||[0,0];

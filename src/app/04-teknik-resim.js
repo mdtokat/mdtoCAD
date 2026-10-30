@@ -468,6 +468,21 @@ function buildSheet(forExport,opts){
             const M=[(P1[0]+P2[0])/2,(P1[1]+P2[1])/2],vert=Math.abs(P1[0]-P2[0])<Math.abs(P1[1]-P2[1]);
             const B=vert?[M[0]-3.6,M[1]-tw,M[0]+1,M[1]+tw]:[M[0]-tw,M[1]-3.6,M[0]+tw,M[1]+1];
             if(occ.some(b=>boxOv(B,b)>0)||lns.some(g=>segHitsBox(g[0],g[1],g[2],g[3],B)))continue;autoDim(key,P1,P2,P1,P2,txt);break}})}}
+    /* kademe boyları (mil, burç, kasnak): tüm silindirleri aynı eksende olan parçada, eksenin yatay/dikey görüldüğü ilk görünüşte
+       kademe sınırları arasında zincir ölçü; genel boyun karşı tarafına konur (genel boy alttaysa üstte, soldaysa sağda) */
+    for(const k of ['front','top',side]){const v=ctx.views[k],cs=v&&vd[k].cyls;if(!cs||cs.length<2)continue;
+      const c0=cs[0],hz=Math.abs(c0.b1-c0.b0)<1e-6&&Math.abs(c0.a1-c0.a0)>1e-6,vt=Math.abs(c0.a1-c0.a0)<1e-6&&Math.abs(c0.b1-c0.b0)>1e-6;if(!hz&&!vt)continue;
+      const ax=hz?c0.b0:c0.a0;if(!cs.every(c=>hz?Math.abs(c.b0-ax)<1e-3&&Math.abs(c.b1-ax)<1e-3:Math.abs(c.a0-ax)<1e-3&&Math.abs(c.a1-ax)<1e-3))continue;
+      const sp=c=>hz?[Math.min(c.a0,c.a1),Math.max(c.a0,c.a1)]:[Math.min(c.b0,c.b1),Math.max(c.b0,c.b1)];
+      const xs=[];for(const c of cs)for(const x of sp(c))if(!xs.some(y=>Math.abs(y-x)<1e-3))xs.push(x);xs.sort((p,q)=>p-q);
+      if(xs.length<3||xs.length>9)break;
+      // uzatma çizgisi o sınırdaki en büyük silindirin dış çizgisinden çıkar
+      const rAt=x=>Math.max(...cs.filter(c=>{const [p,q]=sp(c);return x>p-1e-3&&x<q+1e-3}).map(c=>c.r));
+      const bb=vd[k].bb,off=k==='front'||!hz?9:16;
+      for(let i=0;i<xs.length-1;i++){const key='kb:'+vk2(k)+':'+i;
+        if(hz){const P1=v.map(xs[i],ax+rAt(xs[i])),P2=v.map(xs[i+1],ax+rAt(xs[i+1])),y=v.map(0,bb.maxB)[1]-off;autoDim(key,P1,P2,[P1[0],y],[P2[0],y],fmt(xs[i+1]-xs[i]))}
+        else{const P1=v.map(ax+rAt(xs[i]),xs[i]),P2=v.map(ax+rAt(xs[i+1]),xs[i+1]),x=v.map(bb.maxA,0)[0]+off;autoDim(key,P1,P2,[x,P1[1]],[x,P2[1]],fmt(xs[i+1]-xs[i]))}}
+      break}
     /* çap ve delik etiketleri: kılavuz çizgisi boş yer bulana kadar döndürülür; elle taşınmışsa o konum kullanılır */
     const geo=[];for(const k of shown){const v=ctx.views[k];for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);geo.push([A[0],A[1],B[0],B[1]])}}
     const score=B=>{let sc=0;for(const b of occ){const a=boxOv(B,b);if(a>0)sc+=6+a}for(const g of geo)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;

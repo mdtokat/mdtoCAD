@@ -92,7 +92,7 @@ function beginSession(f,F,isNew){
 }
 function exitSketch(accept){
   if(!sk)return true;const f=sk.feat,wasNew=sk.isNew;
-  endChainIfAny();
+  endChainIfAny();closeSketchToast();
   // değişiklik yoksa çizime girerken eklenen geri alma adımı kaldırılır, yinele listesi geri gelir
   const drop=()=>{hist.undo.pop();if(sk.redo0)hist.redo=sk.redo0};
   if(!accept){if(wasNew)state.features=state.features.filter(x=>x!==f);else Object.assign(f,JSON.parse(sk.orig));drop();pending=null}
@@ -163,7 +163,7 @@ function autoDefineSketch(silent){
   if(!solveSketch(f)){skRestore(sk.hist.pop());toast('Çizim otomatik tanımlanamadı.');skChanged();return 0}
   skChanged();
   const nd=added.filter(c=>DIMT.has(c.t)).length;
-  toast(`${nd} ölçü ve ${added.length-nd} ilişki eklendi; çizim tam tanımlı. Ölçüye çift tıklayarak veya soldaki listeden değiştirebilirsin.`,{label:'Geri al',fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
+  toast(`${nd} ölçü ve ${added.length-nd} ilişki eklendi; çizim tam tanımlı. Ölçüye çift tıklayarak veya soldaki listeden değiştirebilirsin.`,{label:'Geri al',sk:true,fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
   return added.length;
 }
 function skChanged(){analyze();sk.dirty=true;renderSketchPM();updSbar();renderRibbon();saveState();if(sizeEl)refreshSizePop()}
@@ -241,7 +241,7 @@ function skSnap(q,tol,from,exclude,fromId){
   if(best)return best;
   let x=q[0],y=q[1];
   // ızgara: çizgilere yakınken (≈5 px) yakala, aradaki değerleri adımın onda birine yuvarla
-  if(sk.opts.grid){const st=gridStep(tol/9),fine=st/10;const gx=Math.round(x/st)*st,gy=Math.round(y/st)*st;
+  if(sk.opts.grid&&!skNoGrid){const st=gridStep(tol/9),fine=st/10;const gx=Math.round(x/st)*st,gy=Math.round(y/st)*st;
     x=Math.abs(gx-x)<tol*0.55?gx:Math.round(x/fine)*fine;y=Math.abs(gy-y)<tol*0.55?gy:Math.round(y/fine)*fine}
   x=Math.round(x*1000)/1000;y=Math.round(y*1000)/1000;
   // hiza çizgileri: başlangıçtan yatay/dikey, imlecin üzerinden geçtiği noktaların yatay/dikey hizası, çizgi uzantıları ve yay teğetleri
@@ -543,7 +543,8 @@ function sketchFillet(pid){
   const mid=a1+sw/2,toP=[P[0]-C[0],P[1]-C[1]];const fw=Math.cos(mid)*toP[0]+Math.sin(mid)*toP[1]>0;
   const arc=addEnt(fw?{t:'arc',c:cc,a:t1,b:t2}:{t:'arc',c:cc,a:t2,b:t1});
   // köşeye bağlı ölçü ve ilişkiler korunur: köşe, iki öğenin uzantılarının kesiştiği sanal köşe noktası olarak kalır (SolidWorks gibi)
-  if(pid==='O'||f.cons.some(c=>CPK.some(k=>c[k]===pid))){for(const e of es)addCon({t:e.t==='line'?'pol':'poc',p:pid,e:e.id})}
+  // (merkez dikdörtgenin köşegeni gibi başka bir öğenin ucu olan köşe de sanal köşe olarak bağlı kalır)
+  if(pid==='O'||f.cons.some(c=>CPK.some(k=>c[k]===pid))||f.ents.some(e=>!es.includes(e)&&(e.a===pid||e.b===pid||e.c===pid))){for(const e of es)addCon({t:e.t==='line'?'pol':'poc',p:pid,e:e.id})}
   else if(!f.ents.some(e=>e.a===pid||e.b===pid||e.c===pid))delete f.pts[pid];
   for(const e of es){if(e.t==='line')addCon({t:'tan',e1:e.id,e2:arc.id});else{const c=P2(e.c);const dd=Math.hypot(C[0]-c[0],C[1]-c[1]);addCon({t:'tan',e1:e.id,e2:arc.id,int:Math.abs(dd-Math.abs(curveR(f,e)-r))<Math.abs(dd-(curveR(f,e)+r))})}}
   const ul=Math.hypot(...toP)||1,lo=r+(sk.px?sk.px*30:r*0.6);
@@ -569,14 +570,18 @@ function dimCandidate(q){
   }
   const [h1,h2]=picks;
   if(isLine(h1)&&isLine(h2)){
-    const e1=E[h1.id],e2=E[h2.id];const a=P2(e1.a),b=P2(e1.b),c=P2(e2.a),d=P2(e2.b);
+    let e1=E[h1.id],e2=E[h2.id];const a=P2(e1.a),b=P2(e1.b),c=P2(e2.a),d=P2(e2.b);
     const u=[b[0]-a[0],b[1]-a[1]],v=[d[0]-c[0],d[1]-c[1]];const cr=Math.abs(u[0]*v[1]-u[1]*v[0])/(Math.hypot(...u)*Math.hypot(...v));
-    if(cr<1e-3)return {t:'dll',e1:e1.id,e2:e2.id};
+    if(cr<1e-3){
+      // merkez çizgisi ile ona paralel çizgi: ölçü eksenin öbür tarafına konursa çap ölçüsü olur (SolidWorks gibi)
+      if(e2.cons&&!e1.cons){const t=e1;e1=e2;e2=t}
+      const o={t:'dll',e1:e1.id,e2:e2.id};if(e1.cons&&!e2.cons&&q&&acrossAxis(e1,P2(e2.a),q))o.dia=true;return o}
     const X=lineIntersect(e1,e2);const w=q&&X?[q[0]-X[0],q[1]-X[1]]:[1,1];
     const un=s=>{const l=Math.hypot(...s);return [s[0]/l,s[1]/l]};const ua=un(u),vb=un(v);
     return {t:'dang',e1:e1.id,e2:e2.id,r1:(ua[0]*w[0]+ua[1]*w[1])<0,r2:(vb[0]*w[0]+vb[1]*w[1])<0};
   }
-  if(isLine(h1)!==isLine(h2)){const L=isLine(h1)?h1:h2,O=isLine(h1)?h2:h1;const p=ptOf(O);if(p)return {t:'dpl',p,e:L.id};return null}
+  if(isLine(h1)!==isLine(h2)){const L=isLine(h1)?h1:h2,O=isLine(h1)?h2:h1;const p=ptOf(O);if(!p)return null;
+    const o={t:'dpl',p,e:L.id};if(E[L.id].cons&&q&&acrossAxis(E[L.id],P2(p),q))o.dia=true;return o}
   const p=ptOf(h1),r=ptOf(h2);if(!p||!r||p===r)return null;
   // nokta-nokta: imleç konumuna göre yatay / dikey / hizalı
   const a=P2(p),b=P2(r);let kind='d';
@@ -584,6 +589,9 @@ function dimCandidate(q){
     if(Math.abs(a[0]-b[0])<1e-9)kind='dv';else if(Math.abs(a[1]-b[1])<1e-9)kind='dh';else if(oy&&!ox)kind='dh';else if(ox&&!oy)kind='dv';else kind='d'}
   return {t:kind,p,q:r};
 }
+/* q, eksenin (merkez çizgisi) A noktasının öbür tarafında mı (çap ölçüsü) */
+function acrossAxis(ax,A,q){const a=P2(ax.a),b=P2(ax.b);const s=p=>(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]);const sa=s(A),sq=s(q);
+  return Math.abs(sa)>1e-9&&sa*sq<0}
 /* akıllı ölçüde dış kenar ancak ilk seçim olarak veya tek başına ölçü vermeyen (nokta) seçimden sonra alınır; aksi hâlde tıklama ölçünün yeridir */
 function dimRefOk(){const p=sk.st.picks||[];return !p.length||(p.length===1&&!dimCandidate(null))}
 function skDimClick(q,px,tol){
@@ -714,8 +722,10 @@ function dimGeo(f,c,px){
     case 'd':aligned(P(c.p),P(c.q));break;
     case 'dh':{const A=P(c.p),B=P(c.q);linear(A,B,[A[0],lp[1]],[B[0],lp[1]]);break}
     case 'dv':{const A=P(c.p),B=P(c.q);linear(A,B,[lp[0],A[1]],[lp[0],B[1]]);break}
-    case 'dpl':{const A=P(c.p);aligned(A,foot(E[c.e],A));break}
-    case 'dll':{const A=P(E[c.e2].a);aligned(A,foot(E[c.e1],A));break}
+    case 'dpl':{const A=P(c.p),F=foot(E[c.e],A);if(c.dia){aligned(A,sub(mul(F,2),A));text='Ø'+text}else aligned(A,F);break}
+    case 'dll':{if(c.dia){const e2=E[c.e2],a=P(e2.a),d=un(sub(P(e2.b),a));const A=add(a,mul(d,(lp[0]-a[0])*d[0]+(lp[1]-a[1])*d[1]));
+        const F=foot(E[c.e1],A);linear(A,sub(mul(F,2),A),A,sub(mul(F,2),A));text='Ø'+text;break}
+      const A=P(E[c.e2].a);aligned(A,foot(E[c.e1],A));break}
     case 'doff':{const e1=E[c.e1],e2=E[c.e2];
       if(e1.t==='line'){const A=P(e2.a);aligned(A,foot(e1,A));break}
       const C=P(e1.c),d=un(sub(lp,C));const A=add(C,mul(d,curveR(f,e1))),B=add(C,mul(d,curveR(f,e2)));segs.push([A[0],A[1],B[0],B[1]]);const k=un(sub(B,A));ar(A,mul(k,-1));ar(B,k);
@@ -985,8 +995,8 @@ function dimName(c){
     case 'dang':return 'Açı';
     case 'dh':return c.p==='O'?'Yatay konum':'Yatay mesafe';
     case 'dv':return c.p==='O'?'Dikey konum':'Dikey mesafe';
-    case 'dpl':return c.p==='O'?'Çizginin merkeze uzaklığı':'Nokta–çizgi mesafesi';
-    case 'dll':return 'Paralel çizgi aralığı';
+    case 'dpl':return c.dia?'Çap (eksene göre)':c.p==='O'?'Çizginin merkeze uzaklığı':'Nokta–çizgi mesafesi';
+    case 'dll':return c.dia?'Çap (eksene göre)':'Paralel çizgi aralığı';
     case 'd':{const l=sk.feat.ents.find(x=>x.t==='line'&&((x.a===c.p&&x.b===c.q)||(x.a===c.q&&x.b===c.p)));return l?'Uzunluk':'Mesafe'}
   }
   return 'Ölçü';
@@ -1038,7 +1048,7 @@ function deleteSel(){
   for(const p of pts)delete f.pts[p];
   cleanupOrphans(f);sk.sel=[];solveSketch(f);skChanged();
   const ax=state.features.filter(x=>x.type==='revolve'&&x.sketch===f.id&&ents.has(x.axis));
-  if(ax.length)toast(`Silinen çizgi “${ax.map(x=>x.name).join('”, “')}” özelliğinin döndürme ekseniydi. Yeni bir merkez çizgisi çizersen eksen olarak o kullanılır.`,{label:'Geri al',fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
+  if(ax.length)toast(`Silinen çizgi “${ax.map(x=>x.name).join('”, “')}” özelliğinin döndürme ekseniydi. Yeni bir merkez çizgisi çizersen eksen olarak o kullanılır.`,{label:'Geri al',sk:true,fn:()=>{if(sk&&sk.feat===f)sketchUndo()}});
 }
 function updSbar(){
   if(!sk)return;const dof=sk.an?sk.an.dof:null;const el=$('#sbSt');

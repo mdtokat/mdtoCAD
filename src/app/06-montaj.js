@@ -225,7 +225,10 @@ function asmSystem(a,extra){
     const rv=new T.Vector3(X[i+3],X[i+4],X[i+5]);const ang=rv.length();const R=ang>1e-12?new T.Matrix4().makeRotationAxis(rv.divideScalar(ang),ang):new T.Matrix4();const c0=C0[c.id];
     P[c.id]=new T.Matrix4().makeTranslation(c0.x+X[i],c0.y+X[i+1],c0.z+X[i+2]).multiply(R).multiply(new T.Matrix4().makeTranslation(-c0.x,-c0.y,-c0.z)).multiply(M0[c.id])}return P};
   const res=(X,soft)=>{const P=poses(X);const r=[];for(const m of ms)r.push(...mateRes(m,P));if(soft)r.push(...soft(P));return r};
-  return {n:free.length*6,poses,res,idx,ms};
+  // yumuşak terim: bileşenin merkezinin ve yönünün başlangıçtan sapması (açı parametresi tur atsa da pozdan hesaplanır)
+  const drift=(P,w)=>{const o=[];for(const c of free){const D=P[c.id].clone().multiply(new T.Matrix4().copy(M0[c.id]).invert()),e=D.elements,c0=C0[c.id];
+    const p=c0.clone().applyMatrix4(D).sub(c0);o.push(p.x*w,p.y*w,p.z*w,(e[6]-e[9])*w*ML/2,(e[8]-e[2])*w*ML/2,(e[1]-e[4])*w*ML/2)}return o};
+  return {n:free.length*6,poses,res,idx,ms,drift};
 }
 function solveAsm(a,opt){
   const ok=solveMates(a,opt);applyPats(a);return ok;
@@ -238,6 +241,14 @@ function solveMates(a,opt){
   // yüz yüze (ters hizalı) çakışık: bileşenin 180° dönmesi gerekir; yüzler aynı yöne bakarken başlangıç noktası tekildir
   // (eğim sıfır), çözücü oradan çıkamaz. Sağlanamayan eşleştirmelerin bileşenleri yarım tur çevrilmiş başlangıçlardan denenir.
   if(!ok&&!opt.quick)for(const X0 of flipStarts(S,r.x)){const q=lm(x=>S.res(x),X0,200);if(maxAbs(q)<1e-3){r=q;ok=true;break}}
+  // serbest kalan yönlerde (ör. eşmerkezlide eksen boyunca kayma) bileşen başladığı yere en yakın çözümde kalsın: çözücünün
+  // izlediği yol bileşeni eksen boyunca yüzlerce mm uzağa (görünüm dışına) götürebiliyordu. Yer değiştirmeye küçük ağırlıklı
+  // yumuşak terim eklenerek yeniden çözülür, sonra terimsiz son düzeltme yapılır
+  if(ok&&!opt.quick&&r.x.some(v=>Math.abs(v)>1e-6)){
+    const q=lm(x=>S.res(x,P=>S.drift(P,1e-3)),r.x,80),p=lm(x=>S.res(x),q.x,60);
+    const far=x=>S.drift(S.poses(x),1).reduce((t,v)=>t+v*v,0);
+    if(maxAbs(p)<1e-3&&far(p.x)<far(r.x))r=p;
+  }
   if(ok||opt.force){const P=S.poses(r.x);for(const c of a.comps)c.T=P[c.id].toArray()}
   return ok;
 }
@@ -326,7 +337,10 @@ function addComp(partId){
   let T_=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
   if(a.comps.length&&asmView.box&&d.box){const x=asmView.box.max[0]-d.box.min[0]+20;const y=(asmView.box.min[1]+asmView.box.max[1])/2-(d.box.min[1]+d.box.max[1])/2;T_=[1,0,0,0,0,1,0,0,0,0,1,0,x,y,0,1]}
   const c={id:uid('c'),part:partId,T:T_,fixed:!a.comps.length};a.comps.push(c);asmUI.sel=c.id;
-  asmChanged();if(a.comps.length<=2)fitCamera(null);
+  // yeni bileşen yan yana dizildiğinden görünümün dışına düşebilir: o zaman görünüm hepsine sığdırılır
+  const seen=()=>{const b=d.box;if(!b)return true;camera.updateMatrixWorld();for(const x of [b.min[0],b.max[0]])for(const y of [b.min[1],b.max[1]])for(const z of [b.min[2],b.max[2]]){
+    const v=new T.Vector3(x+T_[12],y+T_[13],z+T_[14]).project(camera);if(Math.abs(v.x)>0.95||Math.abs(v.y)>0.95)return false}return true};
+  asmChanged();if(a.comps.length<=2||!seen())fitCamera(null);
   toast(`${compName(a,c)} eklendi${c.fixed?' ve sabitlendi':''}.`);
 }
 function delComp(id){const a=curAsm();const c=compById(id);if(!c)return;
@@ -473,7 +487,10 @@ function commitMate(close){
   // SolidWorks gibi: yeni eşleştirme eklenince panel açık kalır ve sonraki eşleştirmenin seçimlerini bekler (✓ veya Esc kapatır)
   if(P.isNew&&!close){openMatePM(null);if(asmUI.pm)asmUI.pm.last=d.name;renderAsmPM()}
 }
-function selLabel(s){const a=curAsm(),c=compById(s.comp);return `${c?compName(a,c):'?'}: ${s.ref.t==='plane'?'düz yüzey':'silindir ekseni'+(s.ref.r?` (Ø${fmt(s.ref.r*2)})`:'')}`}
+function selLabel(s){const a=curAsm(),c=compById(s.comp);return `${c?compName(a,c):'?'}: ${s.ref.t==='plane'?'düz yüzey'+(c?` (${dirName(s.ref.n,c.T)})`:''):'silindir ekseni'+(s.ref.r?` (Ø${fmt(s.ref.r*2)})`:'')}`}
+/* düz yüzeyin montajdaki yönü (ör. “+X’e bakar”): aynı bileşenin birbirine benzeyen yüzeylerini ayırt etmek için */
+function dirName(n,M){const w=[0,1,2].map(k=>M[k]*n[0]+M[4+k]*n[1]+M[8+k]*n[2]);const i=w.reduce((b,v,k)=>Math.abs(v)>Math.abs(w[b])?k:b,0);
+  return Math.abs(w[i])>0.995?`${w[i]>0?'+':'−'}${'XYZ'[i]} yönüne bakar`:'eğik'}
 function renderAsmPM(){
   const ws=$('#ws'),el=$('#pm');const P=asmUI.pm;
   if(meas){renderMeasurePM();return}

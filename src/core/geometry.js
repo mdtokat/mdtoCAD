@@ -565,8 +565,9 @@ function sysBuild(sk,extraCons){
       case 'd':fs.push(X=>dpp(X,c.p,c.q)-c.val);break;
       case 'dh':fs.push(X=>Math.abs(gx(X,c.q)-gx(X,c.p))-c.val);break;
       case 'dv':fs.push(X=>Math.abs(gy(X,c.q)-gy(X,c.p))-c.val);break;
-      case 'dpl':fs.push(X=>Math.abs(lpd(X,e,c.p))-c.val);break;
-      case 'dll':fs.push(X=>Math.abs(lpd(X,e1,e2.a))-c.val);break;
+      // dia: merkez çizgisine göre çap ölçüsü (döndürme profili): değer, eksene uzaklığın iki katıdır
+      case 'dpl':fs.push(X=>Math.abs(lpd(X,e,c.p))-(c.dia?c.val/2:c.val));break;
+      case 'dll':fs.push(X=>Math.abs(lpd(X,e1,e2.a))-(c.dia?c.val/2:c.val));break;
       case 'ddia':fs.push(X=>2*R(X,e)-c.val);break;
       case 'drad':fs.push(X=>R(X,e)-c.val);break;
       case 'sym':fs.push(X=>{const mx=(gx(X,c.p)+gx(X,c.q))/2,my=(gy(X,c.p)+gy(X,c.q))/2;const ax=gx(X,e.a),ay=gy(X,e.a),dx=gx(X,e.b)-ax,dy=gy(X,e.b)-ay,l=Math.hypot(dx,dy)||1e-12;return ((mx-ax)*dy-(my-ay)*dx)/l},
@@ -843,8 +844,8 @@ function dimMeasure(sk,c){
     case 'd':{const a=P(c.p),b=P(c.q);return Math.hypot(b[0]-a[0],b[1]-a[1])}
     case 'dh':return Math.abs(P(c.q)[0]-P(c.p)[0]);
     case 'dv':return Math.abs(P(c.q)[1]-P(c.p)[1]);
-    case 'dpl':return lpd(E[c.e],c.p);
-    case 'dll':return lpd(E[c.e1],E[c.e2].a);
+    case 'dpl':return lpd(E[c.e],c.p)*(c.dia?2:1);
+    case 'dll':return lpd(E[c.e1],E[c.e2].a)*(c.dia?2:1);
     case 'doff':return E[c.e1].t==='line'?lpd(E[c.e1],E[c.e2].a):Math.abs(curveR(sk,E[c.e2])-curveR(sk,E[c.e1]));
     case 'ddia':return 2*curveR(sk,E[c.e]);
     case 'drad':return curveR(sk,E[c.e]);
@@ -903,12 +904,26 @@ function autoDefine(sk,opt){
     for(const e of lines){if(e.a===id||e.b===id)continue;const a=P(e.a),b=P(e.b);const L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<tol)continue;const t=((p[0]-a[0])*(b[0]-a[0])+(p[1]-a[1])*(b[1]-a[1]))/(L*L);if(t>-1e-9&&t<1+1e-9&&lpd(e,id)<tol)tryAdd({t:'pol',p:id,e:e.id})}
     for(const e of curves){if(e.c===id||e.a===id||e.b===id)continue;const c=P(e.c);if(Math.abs(Math.hypot(p[0]-c[0],p[1]-c[1])-R(e))<tol)tryAdd({t:'poc',p:id,e:e.id})}
   }
+  // 4b) aynı doğru üzerindeki çizgiler (ör. döndürme profilinde aynı çaptaki iki kademe): tek ölçü ikisini de sürer
+  const ls=ord(lines).filter(e=>!e.cons);
+  for(let i=0;i<ls.length;i++){const e=ls[i],a=P(e.a),b=P(e.b);if(Math.hypot(b[0]-a[0],b[1]-a[1])<tol)continue;
+    // (iki uç da çizgi üzerinde: yatay/dikey çizgide ikincisi bağımsız değildir ve eklenmez)
+    for(let j=0;j<i;j++){const g=ls[j];if(lpd(g,e.a)<tol&&lpd(g,e.b)<tol){const k=tryAdd({t:'pol',p:e.a,e:g.id});if(tryAdd({t:'pol',p:e.b,e:g.id})||k)break}}}
   // 5) eşit yarıçaplar
   const cs=ord(curves);for(let i=0;i<cs.length;i++)for(let j=0;j<i;j++)if(Math.abs(R(cs[i])-R(cs[j]))<tol){tryAdd({t:'eq',e1:cs[j].id,e2:cs[i].id});break}
   const away=(m,nv)=>((m[0]-cx)*nv[0]+(m[1]-cy)*nv[1])<0?[-nv[0],-nv[1]]:nv;
   // 6) çap / yarıçap
   for(const e of cs){const C=P(e.c),r=R(e);let a=Math.PI/4;if(e.t==='arc'){const A=arcInfo(sk,e);a=A.a0+A.sw/2}
     tryAdd({t:e.t==='circle'?'ddia':'drad',e:e.id,val:Math.round((e.t==='circle'?2*r:r)*1e4)/1e4,lp:[C[0]+(r+off)*Math.cos(a),C[1]+(r+off)*Math.sin(a)]})}
+  // 6b) döndürme profili: tek merkez çizgisine paralel çizgilerin konumu eksene göre çap ölçüsüyle (SolidWorks gibi Ø20, Ø30…)
+  const axes=lines.filter(e=>e.cons&&!e.ref);
+  if(axes.length===1){const ax=axes[0],A0=P(ax.a),A1=P(ax.b),AL=Math.hypot(A1[0]-A0[0],A1[1]-A0[1]);
+    if(AL>tol){const u=[(A1[0]-A0[0])/AL,(A1[1]-A0[1])/AL];
+      for(const e of lines){if(e.cons)continue;const a=P(e.a),b=P(e.b),L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<tol)continue;
+        if(Math.abs(((b[0]-a[0])*u[1]-(b[1]-a[1])*u[0])/L)>1e-6)continue;const r=lpd(ax,e.a);if(r<tol)continue;
+        // etiket eksenin öbür tarafında, çizginin ortasının hizasında
+        const m=[(a[0]+b[0])/2,(a[1]+b[1])/2],t=(m[0]-A0[0])*u[0]+(m[1]-A0[1])*u[1],F=[A0[0]+u[0]*t,A0[1]+u[1]*t];
+        tryAdd({t:'dll',e1:ax.id,e2:e.id,dia:true,val:Math.round(2*r*1e4)/1e4,lp:[F[0]+(F[0]-m[0])*0.5,F[1]+(F[1]-m[1])*0.5]})}}}
   // 7) çizgi uzunlukları
   for(const e of ord(lines)){const a=P(e.a),b=P(e.b);const L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<tol)continue;const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];const nv=away(m,[-(b[1]-a[1])/L,(b[0]-a[0])/L]);
     tryAdd({t:'d',p:e.a,q:e.b,val:Math.round(L*1e4)/1e4,lp:[m[0]+nv[0]*off*0.6,m[1]+nv[1]*off*0.6]})}
@@ -934,7 +949,7 @@ function autoDefine(sk,opt){
 function placeDimLabels(sk,added,px){
   const dims=added.filter(c=>c.lp);if(!dims.length)return;
   const E=entMap(sk);const P=id=>{const p=skP(sk,id);return [p.x,p.y]};
-  const txt=c=>{const v=String(Math.round(c.val*1000)/1000);return c.t==='ddia'||c.t==='drad'?v.length+1:c.t==='dang'?v.length+1:v.length};
+  const txt=c=>{const v=String(Math.round(c.val*1000)/1000);return c.t==='ddia'||c.t==='drad'||c.dia?v.length+1:c.t==='dang'?v.length+1:v.length};
   const boxOf=(c,lp)=>{const w=(txt(c)*7+10)*px/2,h=10*px;return [lp[0]-w,lp[1]-h,lp[0]+w,lp[1]+h]};
   const boxes=[];const segs=[];const pts=[];
   for(const c of sk.cons)if(c.lp&&!dims.includes(c))boxes.push(boxOf(c,c.lp));
@@ -961,6 +976,7 @@ function placeDimLabels(sk,added,px){
     else if(c.t==='ddia'||c.t==='drad'){const e=E[c.e];const C=P(e.c),r=curveR(sk,e);const a0=Math.atan2(c.lp[1]-C[1],c.lp[0]-C[0]);
       for(const rr of [r+step,r+step*2])for(let j=0;j<12;j++){const a=a0+(j%2?-1:1)*Math.ceil(j/2)*Math.PI/6;cands.push([C[0]+rr*Math.cos(a),C[1]+rr*Math.sin(a)])}}
     else if(c.t==='dang'){const X=c.lp;cands.push(X)}
+    else if(c.t==='dll'&&c.dia)for(const fr of [0.5,0.3,0.7,0.15,0.85])for(const k of [0.5,0.75,1,1.6,2.2,2.8]){const d=diaLine(c,fr);if(d)cands.push(d.at(k))}
     let best=c.lp,bc=Infinity;
     for(const lp of cands){const k=cost(boxOf(c,lp));if(k<bc){bc=k;best=lp}if(!k)break}
     c.lp=best;boxes.push(boxOf(c,best));
@@ -968,6 +984,17 @@ function placeDimLabels(sk,added,px){
     if(c.t==='dh'){const a=P(c.p),b=P(c.q);segs.push([[a[0],best[1]],[b[0],best[1]]])}
     else if(c.t==='dv'){const a=P(c.p),b=P(c.q);segs.push([[best[0],a[1]],[best[0],b[1]]])}
     else if(c.t==='d'){const a=P(c.p),b=P(c.q);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];const o=[best[0]-m[0],best[1]-m[1]];segs.push([[a[0]+o[0],a[1]+o[1]],[b[0]+o[0],b[1]+o[1]]])}
+    else if(c.t==='dll'&&c.dia){const d=diaLine(c,null,best);if(d)segs.push([d.A,d.B])}
+  }
+  /* eksene göre çap ölçüsü: e2 üzerindeki A noktası (fr: çizgi boyunca oran ya da etiketin hizası) ve eksene göre aynası B;
+     at(k): ölçü çizgisi üzerinde, eksenden aynalı tarafa k·r uzaklıktaki nokta (k=1 aynalı nokta, >1 dışarıda) */
+  function diaLine(c,fr,lp){
+    const ax=E[c.e1],e2=E[c.e2];if(!ax||!e2)return null;const a0=P(ax.a),a1=P(ax.b),pa=P(e2.a),pb=P(e2.b);
+    const L=Math.hypot(a1[0]-a0[0],a1[1]-a0[1]);if(L<1e-12)return null;const u=[(a1[0]-a0[0])/L,(a1[1]-a0[1])/L];
+    let A;if(lp){const d=[pb[0]-pa[0],pb[1]-pa[1]],l=Math.hypot(...d)||1;const t=((lp[0]-pa[0])*d[0]+(lp[1]-pa[1])*d[1])/l;A=[pa[0]+d[0]/l*t,pa[1]+d[1]/l*t]}
+    else A=[pa[0]+(pb[0]-pa[0])*fr,pa[1]+(pb[1]-pa[1])*fr];
+    const t=(A[0]-a0[0])*u[0]+(A[1]-a0[1])*u[1],F=[a0[0]+u[0]*t,a0[1]+u[1]*t],w=[F[0]-A[0],F[1]-A[1]],r=Math.hypot(...w);if(r<1e-12)return null;
+    const n=[w[0]/r,w[1]/r];return {A,B:[F[0]+w[0],F[1]+w[1]],at:k=>[F[0]+n[0]*r*k,F[1]+n[1]*r*k]};
   }
 }
 
@@ -1211,9 +1238,11 @@ function edgeOpBodies(solid,f,anns){
       sec=[va(P1,vk(n1,sg*eps)),va(E0,vk(va(n1,n2),sg*eps)),va(P2,vk(n2,sg*eps)),P2,P1];
     }
     const hp=Math.abs(t[0])<0.9?[1,0,0]:[0,1,0];const b1=vn(vc(t,hp));const b2=vc(t,b1);
-    const st=vs(E0,vk(t,eps));
+    // kesici (dış kenar) uçlardan biraz taşar; dolgu (iç kenar) taşmaz: taşan dolgu kenarın bittiği yüzeyden dışarı çıkıp
+    // gövdeye ince bir çıkıntı ekliyordu (ör. R4 iç radyusta parça boyu 38 → 38,08)
+    const ex=convex?eps:0,st=vs(E0,vk(t,ex));
     const pts2=sec.map(p=>{const r=vs(p,st);return new T.Vector2(vd(r,b1),vd(r,b2))});
-    const sh=new T.Shape(pts2);const g=new T.ExtrudeGeometry(sh,{depth:Ln+2*eps,bevelEnabled:false,steps:1,curveSegments:1});
+    const sh=new T.Shape(pts2);const g=new T.ExtrudeGeometry(sh,{depth:Ln+2*ex,bevelEnabled:false,steps:1,curveSegments:1});
     g.applyMatrix4(new T.Matrix4().makeBasis(v3(b1),v3(b2),v3(t)).setPosition(v3(st)));
     (convex?sub:add).push(geomToPolys(g,f.id));
   }

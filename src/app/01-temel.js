@@ -69,8 +69,9 @@ const IC={
 
 /* ---------- sabitler ---------- */
 const MATERIALS={
-  steel:{name:'Çelik (S235JR)',rho:7.85},c45:{name:'Çelik (C45)',rho:7.85},inox:{name:'Paslanmaz (AISI 304)',rho:7.93},
-  al:{name:'Alüminyum (6061-T6)',rho:2.70},brass:{name:'Pirinç (CuZn39Pb3)',rho:8.47},gg25:{name:'Dökme demir (EN-GJL-250)',rho:7.20},
+  steel:{name:'Çelik (S235JR)',rho:7.85},c22:{name:'Çelik (C22, Ç1020)',rho:7.85},c40:{name:'Çelik (C40, Ç1040)',rho:7.85},c45:{name:'Çelik (C45)',rho:7.85},inox:{name:'Paslanmaz (AISI 304)',rho:7.93},
+  al:{name:'Alüminyum (6061-T6)',rho:2.70},brass:{name:'Pirinç (CuZn39Pb3)',rho:8.47},bronze:{name:'Bronz (CuSn12)',rho:8.70},
+  gg20:{name:'Dökme demir GJL-200 (DDL 22)',rho:7.20},gg25:{name:'Dökme demir GJL-250 (DDL 26)',rho:7.20},
   abs:{name:'ABS',rho:1.04},pom:{name:'POM (Delrin)',rho:1.41}
 };
 const PAPERS={A4:{W:297,H:210},A3:{W:420,H:297},A2:{W:594,H:420},A1:{W:841,H:594},A0:{W:1189,H:841}};
@@ -205,13 +206,16 @@ function undoStep(){const h=hist,n=h.undo.length,top=h.undo[n-1];return ()=>{if(
 function updUndo(){if(activeTab==='drawing'&&typeof dwHistFor==='function'){const h=dwHistFor();$('#undoBtn').disabled=!h.undo.length;$('#redoBtn').disabled=!h.redo.length;return}if(activeTab==='asm'){const h=asmHistFor();$('#undoBtn').disabled=!h||!h.undo.length;$('#redoBtn').disabled=!h||!h.redo.length;return}$('#undoBtn').disabled=sk?!sk.hist.length:!hist.undo.length;$('#redoBtn').disabled=sk?!sk.redo.length:!hist.redo.length}
 
 let toastT=0;
+/* action.sk: “Geri al” yalnızca açık çizimde anlamlı; çizimden çıkınca bildirim kapanır (closeSketchToast) */
+let toastSk=false;
 function toast(msg,action){
-  const t=$('#toast');t.innerHTML=`<span>${esc(msg)}</span>`+(action?`<button>${esc(action.label)}</button>`:'');
+  const t=$('#toast');toastSk=!!(action&&action.sk);t.innerHTML=`<span>${esc(msg)}</span>`+(action?`<button>${esc(action.label)}</button>`:'');
   if(action)t.querySelector('button').onclick=()=>{action.fn();t.classList.remove('on')};
   // düğmesiz bildirim altındaki görünüme yapılan tıklamaları engellemez
   t.classList.toggle('act',!!action);t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),action?6000:3600);
 }
 /* onay penceresi: btns=[{label,fn,primary}]; Esc veya fn'siz düğme kapatır */
+function closeSketchToast(){if(toastSk){toastSk=false;clearTimeout(toastT);$('#toast').classList.remove('on')}}
 function ask(title,html,btns){
   const d=$('#askDlg');$('#askTitle').textContent=title;$('#askMsg').innerHTML=html;
   $('#askBtns').innerHTML=btns.map((b,i)=>`<button class="sbtn${b.primary?' primary':''}" data-ask="${i}">${esc(b.label)}</button>`).join('');

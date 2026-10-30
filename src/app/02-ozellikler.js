@@ -180,7 +180,7 @@ function fitView(){if(sk&&activeTab==='model')fitSketch(true);else fitCamera(nul
 /* HUD (görünüm araç çubuğu) */
 function renderHud(){
   const b=(k,ic,t,on)=>`<button data-hud="${k}" title="${t}" class="${on?'on':''}" aria-label="${t}">${IC[ic]}</button>`;
-  $('#hud').innerHTML=b('normal','normal','Normal görünüm (seçili düzleme dik)')+b('front','front','Ön')+b('top','top','Üst')+b('right','right','Sağ')+b('iso','iso','İzometrik')+b('fit','fit','Ekrana sığdır (F)')+b('measure','measure','Ölç')+
+  $('#hud').innerHTML=b('normal','normal','Normal görünüm (seçili düzleme dik)')+b('front','front','Ön (yeniden tıkla: Arka)')+b('top','top','Üst (yeniden tıkla: Alt)')+b('right','right','Sağ (yeniden tıkla: Sol)')+b('iso','iso','İzometrik (yeniden tıkla: 90° çevir, arkadan da bakılır)')+b('fit','fit','Ekrana sığdır (F)')+b('measure','measure','Ölç')+
     '<span class="hsep"></span>'+`<button data-disp="shadedEdges" title="Gölgeli, kenarlı">${IC.shadedEdges}</button><button data-disp="shaded" title="Gölgeli">${IC.shaded}</button><button data-disp="wire" title="Tel kafes">${IC.wire}</button>`+b('planes','planes','Düzlemleri göster',showPlanes);
 }
 $('#hud').addEventListener('click',e=>{
@@ -189,8 +189,16 @@ $('#hud').addEventListener('click',e=>{
   if(k==='measure'){if(meas)closeMeasure();else openMeasure();return}
   if(k==='normal')cmd('normal');else if(k==='fit')fitView();else if(k==='planes'){showPlanes=!showPlanes;updatePlaneVis();applyDisplay();renderTree()}
   // çizim düzenlenirken görünüm 2B kalır: yön düğmeleri çizim düzlemine dik bakar
-  else if(sk)normalTo(sk.F);else fitCamera(VIEWDIRS[k]);
+  else if(sk)normalTo(sk.F);else fitCamera(nextViewDir(k,e.shiftKey));
 });
+/* aynı yön düğmesine yeniden tıklamak (veya Shift + tıklama) karşı yönden bakar: Arka, Alt, Sol; izometrik her tıklamada
+   dikey eksen etrafında 90° döner. Arkadaki yüzeyleri (ör. montajda eşleştirilecek arka yüz) seçmek için */
+function nextViewDir(k,shift){
+  const d=VIEWDIRS[k];if(!d)return null;const cur=camera.position.clone().sub(controls.target).normalize();
+  const same=v=>cur.dot(new T.Vector3(...v).normalize())>0.999;
+  if(k==='iso'){const q=[[1,1,1],[-1,1,1],[-1,1,-1],[1,1,-1]];const i=q.findIndex(same);return i<0&&!shift?d:q[(Math.max(i,0)+1)%4]}
+  return shift||same(d)?d.map(x=>-x):d;
+}
 
 /* ================= PROPERTYMANAGER (özellikler) ================= */
 function defaultAxis(s){if(!s)return null;const c=s.ents.find(e=>e.t==='line'&&e.cons&&!e.ref);if(c)return c.id;const l=s.ents.find(e=>e.t==='line');return l?l.id:null}
@@ -198,7 +206,18 @@ function openNewProfile(type,op,sid){
   const s=byId(sid);
   const d=type==='extrude'?{type,op,sketch:sid,end:op==='cut'?'through':'blind',depth:op==='cut'?10:20,flip:false,dir2:false,end2:'blind',depth2:10,fromOff:0,thin:openOnly(s),thinSide:'a',thick:5}
     :{type,op,sketch:sid,axis:defaultAxis(s),angle:360,mode:'one',flip:false};
+  // kesme varsayılan olarak normalin tersine gider (yüzeyden malzemeye doğru). Düzlemdeki çizimde gövde diğer taraftaysa
+  // (ör. Ön Düzlem gövdenin arka yüzüyse) kesme hiçbir şey kaldırmazdı: yön gövdeye doğru çevrilir
+  if(op==='cut'&&cutAway(sid)){d.flip=true;toast('Gövde çizimin öbür tarafında: kesme yönü gövdeye doğru çevrildi.')}
   d.id=uid();d.name=nextName(d);openPM(type,null,d);previewView(sid);
+}
+/* çizimin profili varsayılan kesme yönünde (−n) gövdeye hiç değmiyor, ters yönde değiyorsa true */
+function cutAway(sid){
+  const F=model.frames[sid],s=byId(sid);if(!F||!s||!model.polys.length)return false;
+  let shapes;try{shapes=sketchProfiles(s)}catch(e){return false}if(!shapes.length)return false;
+  const hits=k=>{const d=vk(F.n,k);for(const sh of shapes){let cx=0,cy=0;for(const q of sh.outer){cx+=q[0];cy+=q[1]}
+    for(const q of [...sh.outer,[cx/sh.outer.length,cy/sh.outer.length]])if(rayHit(model.polys,fpt(F,q[0],q[1],0),d)!==null)return true}return false};
+  return !hits(-1)&&hits(1);
 }
 /* çizime dik bakılıyorsa önizlemenin derinliği görünsün diye izometrik görünüşe geçilir (çizimin bulunduğu taraftan) */
 function previewView(sid){

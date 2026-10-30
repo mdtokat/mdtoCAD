@@ -9,7 +9,7 @@
     "dev": "node scripts/build.mjs --watch",
     "test": "node scripts/build.mjs && playwright test",
     "test:headed": "node scripts/build.mjs && playwright test --headed",
-    "ornekler": "node scripts/build.mjs && node ornekler/ornekleri-ciz.mjs && node ornekler/makine-parcalari-ciz.mjs && node ornekler/montajlar-ciz.mjs"
+    "ornekler": "node scripts/build.mjs && node ornekler/ornekleri-ciz.mjs && node ornekler/makine-parcalari-ciz.mjs && node ornekler/montajlar-ciz.mjs && node ornekler/kasnak-duzeni-ciz.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.56.0",

@@ -19,6 +19,22 @@ const TOOLHELP={
   sfillet:'Çizim radyusu: iki çizginin veya çizgi ile yayın birleştiği köşe noktasına tıkla.',
   smartdim:'Akıllı ölçülendirme: çizgi (uzunluk), daire (çap), yay (yarıçap), iki nokta/çizgi (mesafe) veya iki çizgi (açı) seç; sonra ölçünün yerine tıkla ve değeri gir.'
 };
+/* panelde görünen kısa açıklama; TOOLHELP'teki ayrıntı “Etkin araç” başlığının ipucundadır */
+const TOOLSHORT={
+  line:'Noktalara tıkla; çift tıkla veya Esc ile bitir.',
+  centerline:'İki noktaya tıkla.',
+  rect:'İki karşı köşeye tıkla.',
+  crect:'Merkeze, sonra köşeye tıkla.',
+  circle:'Merkeze, sonra çevreye tıkla.',
+  arc:'Merkez, başlangıç ve bitişe tıkla.',
+  arc3:'Uçlara, sonra yay noktasına tıkla.',
+  tarc:'Bir uca, sonra bitiş noktasına tıkla.',
+  slot:'İki merkeze, sonra yana tıkla.',
+  polygon:'Merkeze, sonra köşeye tıkla.',
+  point:'Konuma tıkla.',
+  sfillet:'Köşe noktasına tıkla.',
+  smartdim:'Öğe seç, ölçünün yerine tıkla.'
+};
 /* yeni kimlik: döndürme ekseni olarak başka bir özelliğin kullandığı kimlik (öğe silinmiş olsa da) yeni öğeye verilmez;
    yoksa silinen eksenin yerine çizilen herhangi bir çizgi sessizce döndürme ekseni olurdu */
 function axisRefs(f){return state.features.filter(x=>x.type==='revolve'&&x.sketch===f.id&&x.axis).map(x=>x.axis)}
@@ -873,15 +889,15 @@ function renderSketchPM(){
   const dof=sk.an?sk.an.dof:null;
   const stc=sk.ok===false?'over':(dof===0?'full':'under');
   const stt=stc==='over'?'Aşırı tanımlı: çelişen ölçü/ilişkiler var':(dof===0?'Tam tanımlı':`Tam tanımlanmamış (${dof} serbestlik derecesi)`);
-  let b=`<div class="grp"><div class="stat ${stc}"><i></i>${stt}</div><p class="note" style="margin-top:6px">Mavi öğeler henüz tanımlanmamış, siyahlar tam tanımlı. Ölçü ve ilişki ekleyerek çizimi tam tanımla.</p></div>`;
-  if(sk.unsat&&sk.unsat.length)b+=`<div class="grp"><p class="note confnote">Sarı işaretli ${sk.unsat.length} ölçü/ilişki birbiriyle çelişiyor ve aynı anda sağlanamıyor. Birini sil, değerini değiştir veya referans ölçü yap.</p></div>`;
-  if(sk.issues&&sk.issues.n&&showIssues())b+=`<div class="grp"><p class="note warnnote">${esc(issueText(sk.issues)+' '+issueHint(sk.issues))}</p></div>`;
+  let b=`<div class="grp"><div class="stat ${stc}"><i></i>${stt}</div><p class="note" style="margin-top:6px" data-tip="Mavi öğeler henüz tanımlanmamış, siyahlar tam tanımlı. Ölçü ve ilişki ekleyerek çizimi tam tanımla.">Mavi: tanımsız, siyah: tam tanımlı.</p></div>`;
+  if(sk.unsat&&sk.unsat.length)b+=`<div class="grp"><p class="note confnote" data-tip="Sarı işaretli ölçü/ilişkiler aynı anda sağlanamıyor. Birini sil, değerini değiştir veya referans ölçü yap.">Sarı işaretli ${sk.unsat.length} ölçü/ilişki çelişiyor.</p></div>`;
+  if(sk.issues&&sk.issues.n&&showIssues())b+=`<div class="grp"><p class="note warnnote"${tipA(issueHint(sk.issues))}>${esc(issueText(sk.issues))}</p></div>`;
   if(sk.op)b+=skOpBody();
   if(sk.tool){
-    let o=`<p class="note">${esc(TOOLHELP[sk.tool]||'')}</p>`;
+    let o=TOOLSHORT[sk.tool]?`<p class="note">${esc(TOOLSHORT[sk.tool])}</p>`:'';
     if(sk.tool==='polygon')o+=fNum('Kenar sayısı','polyN','adet',sk.opts);
     if(sk.tool==='sfillet')o+=fNum('Radyus yarıçapı','filletR','mm',sk.opts);
-    b+=grp('Etkin araç',o);
+    b+=grp('Etkin araç',o,TOOLHELP[sk.tool]);
   }
   if(sk.sel.length){
     const {P,Ls,Cs,Cn}=selGroups();
@@ -895,13 +911,13 @@ function renderSketchPM(){
     if(Cn.length===1){const c=f.cons.find(x=>x.id===Cn[0]);if(c&&DIMT.has(c.t)){if(!c.driven)ops+=`<button data-skop="editdim">Değeri düzenle</button>`;if(c.t!=='doff')ops+=`<button data-skop="drv">${c.driven?'Sürücü ölçü yap':'Referans ölçü yap'}</button>`}}
     ops+=`<button data-skop="del" class="danger">Sil</button></div>`;b+=grp('İşlemler',ops);
   }else if(!sk.tool){
-    b+=grp('Nasıl çalışır?',`<p class="note">1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.<br>2. Akıllı Ölçülendirme ile ölçüleri gir.<br>3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).<br>4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.</p><p class="note">Çizim düzleme dik ve perspektifsiz (2B) görünür. Fare: orta veya sağ tuş kaydır, tekerlek yakınlaştır, F ekrana sığdır. Bir öğeye çift tıklamak bağlı zinciri seçer. Dokunmatik: iki parmakla kaydır ve yakınlaştır.</p><p class="note">Arkadaki modelin bir kenarına veya başka bir çizimin öğesine tıklayınca o kenar referans olarak (mor, kesikli) seçilir; çizdiğin öğelerle birlikte seçip çakışık, paralel, teğet gibi ilişkiler ver ya da ölçülendir. Kullanılmayan referanslar çizimden çıkınca silinir.</p>`);
+    b+=grp('Nasıl çalışır?',`<p class="note">Çiz, ölçülendir, ilişki ekle.</p>`,'1. Şeritten bir çizim aracı seç (Çizgi, Dikdörtgen, Daire…) ve yaklaşık şekli çiz.\n2. Akıllı Ölçülendirme ile ölçüleri gir.\n3. Seç aracıyla öğelere tıkla, gerekirse ilişki ekle (Yatay, Teğet, Eşit…).\n4. Çizim tam tanımlanınca Özellikler sekmesinden Ekstrüzyon, Kesme veya Döndürme seç.\n\nÇizim düzleme dik ve perspektifsiz (2B) görünür. Fare: orta veya sağ tuş kaydır, tekerlek yakınlaştır, F ekrana sığdır. Bir öğeye çift tıklamak bağlı zinciri seçer. Dokunmatik: iki parmakla kaydır ve yakınlaştır.\n\nArkadaki modelin bir kenarına veya başka bir çizimin öğesine tıklayınca o kenar referans olarak (mor, kesikli) seçilir; çizdiğin öğelerle birlikte seçip çakışık, paralel, teğet gibi ilişkiler ver ya da ölçülendir. Kullanılmayan referanslar çizimden çıkınca silinir.');
   }
   const dims=f.cons.filter(c=>DIMT.has(c.t));
   const dnm=dims.map(dimName),dup=n=>dnm.filter(x=>x===n).length>1;
   const hasDrv=dims.some(c=>c.driven);
-  if(dims.length)b+=grp(`Ölçüler (${dims.length})`,`<div class="dimlist">${dims.map((c,i)=>`<label class="dimrow${sk.sel.some(h=>h.k==='con'&&h.id===c.id)||sk.hl===c.id?' on':''}${isConf(c.id)?' conf':''}${c.driven?' drv':''}" data-dimrow="${c.id}" title="${esc(dnm[i]+' – '+dimWhere(c)+(c.driven?' (referans ölçü)':''))}"><span>${esc(dnm[i])}${dup(dnm[i])?` <small>${esc(dimWhere(c))}</small>`:''}</span>${c.driven?`<input readonly tabindex="-1" aria-label="Referans ölçü" value="(${esc(fmt(c.val,3))})">`:`<input inputmode="decimal" autocomplete="off" data-dimin="${c.id}" value="${esc(String(Math.round(c.val*1e4)/1e4).replace('.',','))}">`}<em>${c.t==='dang'?'°':'mm'}</em>${c.t!=='doff'?`<button type="button" class="drvbtn" data-drv="${c.id}" title="${c.driven?'Sürücü ölçü yap':'Referans ölçü yap (geometriyi sürmez)'}" aria-label="${c.driven?'Sürücü ölçü yap':'Referans ölçü yap'}">${c.driven?'↺':'( )'}</button>`:''}</label>`).join('')}</div><p class="note">Değeri yazıp Enter'a bas; çizim yeni ölçüye göre güncellenir. Satırın üzerine gelince ölçü çizimde turuncu görünür.${hasDrv?' Parantez içindeki referans ölçüler geometriyi sürmez, değerleri çizimden gelir.':''}</p>`);
-  else if(f.ents.length)b+=grp('Ölçüler',`<p class="note">Bu çizimde ölçü yok. Şeritten <b>Tam Tanımla</b> ile ölçüleri otomatik ekle veya Akıllı Ölçülendirme ile kendin ver.</p>`);
+  if(dims.length)b+=grp(`Ölçüler (${dims.length})`,`<div class="dimlist">${dims.map((c,i)=>`<label class="dimrow${sk.sel.some(h=>h.k==='con'&&h.id===c.id)||sk.hl===c.id?' on':''}${isConf(c.id)?' conf':''}${c.driven?' drv':''}" data-dimrow="${c.id}" title="${esc(dnm[i]+' – '+dimWhere(c)+(c.driven?' (referans ölçü)':''))}"><span>${esc(dnm[i])}${dup(dnm[i])?` <small>${esc(dimWhere(c))}</small>`:''}</span>${c.driven?`<input readonly tabindex="-1" aria-label="Referans ölçü" value="(${esc(fmt(c.val,3))})">`:`<input inputmode="decimal" autocomplete="off" data-dimin="${c.id}" value="${esc(String(Math.round(c.val*1e4)/1e4).replace('.',','))}">`}<em>${c.t==='dang'?'°':'mm'}</em>${c.t!=='doff'?`<button type="button" class="drvbtn" data-drv="${c.id}" title="${c.driven?'Sürücü ölçü yap':'Referans ölçü yap (geometriyi sürmez)'}" aria-label="${c.driven?'Sürücü ölçü yap':'Referans ölçü yap'}">${c.driven?'↺':'( )'}</button>`:''}</label>`).join('')}</div><p class="note">Değeri yaz, Enter'a bas.</p>`,'Değeri yazıp Enter\'a bas; çizim yeni ölçüye göre güncellenir. Satırın üzerine gelince ölçü çizimde turuncu görünür.'+(hasDrv?' Parantez içindeki referans ölçüler geometriyi sürmez, değerleri çizimden gelir.':''));
+  else if(f.ents.length)b+=grp('Ölçüler',`<p class="note">Ölçü yok.</p>`,'Şeritten Tam Tanımla ile ölçüleri otomatik ekle veya Akıllı Ölçülendirme ile kendin ver.');
   b+=grp('Seçenekler',`<label class="chk"><input type="checkbox" data-opt="grid" ${sk.opts.grid?'checked':''}> Izgaraya yakala</label><label class="chk"><input type="checkbox" data-opt="rels" ${sk.opts.rels?'checked':''}> İlişki simgelerini göster</label><label class="chk"><input type="checkbox" data-opt="autodef" ${autoDefOn()?'checked':''}> Çizime girerken ve çıkarken eksik ölçüleri otomatik ekle</label>`);
   el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${esc(f.name)}</div><div class="pm-sub">Çizim düzenleniyor</div></div><div class="pm-actions"><button class="ok" data-skx="ok" title="Çizimden çık" aria-label="Çizimden çık">${IC.ok}</button><button data-skx="cancel" title="Değişiklikleri at" aria-label="Değişiklikleri at">${IC.x}</button></div></div><div class="pm-body">${b}</div>`;
 }

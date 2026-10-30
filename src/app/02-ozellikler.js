@@ -262,11 +262,32 @@ function afterChange(){
 }
 const getPath=(o,p)=>p.split('.').reduce((a,k)=>a==null?a:a[k],o);
 const setPath=(o,p,v)=>{const ks=p.split('.');let a=o;for(let i=0;i<ks.length-1;i++)a=a[ks[i]];a[ks[ks.length-1]]=v};
-function fNum(label,path,unit='mm',obj){const v=getPath(obj||pm.draft,path);return `<label class="fld"><span>${label}</span><div class="inp"><input inputmode="decimal" autocomplete="off" data-k="${path}" data-num="1" value="${esc(v==null?'':String(v).replace('.',','))}"><em>${unit}</em></div></label>`}
-function fSel(label,path,opts,obj){const v=getPath(obj||pm.draft,path);return `<label class="fld"><span>${label}</span><select data-k="${path}" data-rr="1">${opts.map(([k,t])=>`<option value="${esc(k)}" ${String(k)===String(v)?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`}
+/* panel açıklamaları kısa tutulur; ayrıntı, alan başlığının üzerine gelince ipucu kutusunda görünür (data-tip) */
+const tipA=t=>t?` data-tip="${esc(t)}"`:'';
+function fNum(label,path,unit='mm',obj,tip){const v=getPath(obj||pm.draft,path);return `<label class="fld"><span${tipA(tip)}>${label}</span><div class="inp"><input inputmode="decimal" autocomplete="off" data-k="${path}" data-num="1" value="${esc(v==null?'':String(v).replace('.',','))}"><em>${unit}</em></div></label>`}
+function fSel(label,path,opts,obj,tip){const v=getPath(obj||pm.draft,path);return `<label class="fld"><span${tipA(tip)}>${label}</span><select data-k="${path}" data-rr="1">${opts.map(([k,t])=>`<option value="${esc(k)}" ${String(k)===String(v)?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`}
 function fSeg(path,opts){const v=getPath(pm.draft,path);return `<div class="seg">${opts.map(([k,t])=>`<button type="button" data-seg="${path}" data-v="${k}" class="${String(k)===String(v)?'on':''}">${esc(t)}</button>`).join('')}</div>`}
-function fChk(label,path){return `<label class="chk"><input type="checkbox" data-chk="${path}" ${getPath(pm.draft,path)?'checked':''}> ${label}</label>`}
-const grp=(t,b)=>`<div class="grp">${t?`<div class="grp-t">${t}</div>`:''}${b}</div>`;
+function fChk(label,path,tip){return `<label class="chk"${tipA(tip)}><input type="checkbox" data-chk="${path}" ${getPath(pm.draft,path)?'checked':''}> ${label}</label>`}
+const grp=(t,b,tip)=>`<div class="grp">${t?`<div class="grp-t"${tipA(tip)}>${t}</div>`:''}${b}</div>`;
+/* ipucu kutusu: [data-tip] öğesinin üzerine gelince kısa bir gecikmeyle altında (yer yoksa üstünde) açılır */
+const tipBox=document.createElement('div');tipBox.className='tip-box';tipBox.setAttribute('role','tooltip');document.body.appendChild(tipBox);
+let tipEl=null,tipTimer=0;
+function hideTip(){clearTimeout(tipTimer);tipEl=null;tipBox.classList.remove('on')}
+function showTip(t){
+  if(!t.isConnected){hideTip();return}
+  tipBox.textContent=t.dataset.tip;tipBox.classList.add('on');
+  const r=t.getBoundingClientRect(),w=tipBox.offsetWidth,h=tipBox.offsetHeight,W=innerWidth,H=innerHeight;
+  const x=Math.max(6,Math.min(r.left,W-w-6)),y=r.bottom+6+h<=H-6?r.bottom+6:Math.max(6,r.top-6-h);
+  tipBox.style.left=x+'px';tipBox.style.top=y+'px';
+}
+document.addEventListener('mouseover',e=>{
+  const t=e.target.closest&&e.target.closest('[data-tip]');
+  if(t===tipEl)return;hideTip();if(!t||!t.dataset.tip)return;
+  tipEl=t;tipTimer=setTimeout(()=>showTip(t),250);
+});
+document.addEventListener('mouseout',e=>{if(tipEl&&!(e.relatedTarget&&tipEl.contains(e.relatedTarget)))hideTip()});
+for(const ev of ['pointerdown','keydown','wheel'])document.addEventListener(ev,hideTip,true);
+document.addEventListener('scroll',hideTip,true);
 const DIR_OPTS=[['x','+X'],['-x','−X'],['y','+Y'],['-y','−Y'],['z','+Z'],['-z','−Z']];
 function eligible(f){const i=state.features.findIndex(x=>x.id===f.id);const lim=i<0?state.features.length:i;return state.features.slice(0,lim).filter(x=>(x.type==='extrude'||x.type==='revolve'||x.type==='hole')&&!x.suppressed)}
 function planeOpts(f){const i=state.features.findIndex(x=>x.id===f.id);const lim=i<0?state.features.length:i;return [['front','Ön Düzlem'],['top','Üst Düzlem'],['right','Sağ Düzlem'],...state.features.slice(0,lim).filter(x=>x.type==='plane').map(x=>[x.id,x.name])]}
@@ -286,9 +307,9 @@ function renderPM(){
     b+=fSel('Çizim (profil)','sketch',sks.map(x=>[x.id,x.name+(model.dof[x.id]>0?' (tam tanımlı değil)':'')]));
     b=grp('',b);
     if(f.type==='extrude'){
-      let d=fSel('Bitiş koşulu','end',[['blind','Kör'],['through','Tümünden geç'],['mid','Orta düzlem']].concat(f.op==='add'?[['body','Gövdeye kadar']]:[]));
+      let d=fSel('Bitiş koşulu','end',[['blind','Kör'],['through','Tümünden geç'],['mid','Orta düzlem']].concat(f.op==='add'?[['body','Gövdeye kadar']]:[]),null,'Kör: girilen derinlik kadar. Tümünden geç: bütün gövde boyunca. Orta düzlem: derinlik çizim düzleminin iki yanına eşit bölünür.'+(f.op==='add'?'\nGövdeye kadar: profil, önündeki gövdeye tamamen değene kadar uzatılır; gövde değişince uzunluk da güncellenir. Ör. referans düzlemden aşağı inen çıkıntı.':''));
       if(f.end!=='mid')d+=`<button type="button" class="sbtn" data-flip="1" style="margin-bottom:8px">⇅ Ters yön${f.flip?' (açık)':''}</button>`;
-      if(f.end==='body')d+=`<p class="note">Profil, önündeki gövdeye tamamen değene kadar uzatılır; gövde değişince uzunluk da güncellenir. Ör. referans düzlemden aşağı inen çıkıntı.</p>`;
+      if(f.end==='body')d+=`<p class="note">Gövdeye değene kadar uzatılır.</p>`;
       else if(f.end!=='through')d+=fNum('Derinlik','depth');
       b+=grp('Yön 1',d);
       if(f.end!=='mid'){
@@ -296,40 +317,39 @@ function renderPM(){
         if(f.dir2){d2+=fSel('Bitiş koşulu','end2',[['blind','Kör'],['through','Tümünden geç']]);if(f.end2!=='through')d2+=fNum('Derinlik','depth2')}
         b+=grp('Yön 2',d2);
       }
-      b+=grp('Başlangıç',fNum('Çizim düzleminden ofset','fromOff')+`<p class="note">0: özellik çizim düzleminden başlar. Ör. 34 yazarsan normal yönünde 34 mm ötedeki paralel düzlemden başlar (negatif değer ters taraf); ayrı referans düzlem gerekmez.</p>`);
+      b+=grp('Başlangıç',fNum('Çizim düzleminden ofset','fromOff','mm',null,'0: özellik çizim düzleminden başlar. Ör. 34 yazarsan normal yönünde 34 mm ötedeki paralel düzlemden başlar (negatif değer ters taraf); ayrı referans düzlem gerekmez.'));
       let t=fChk('İnce özellik (kalınlık ver)','thin');
       if(f.thin)t+=`<div class="row2">${fSel('Yön','thinSide',[['a','Tek yön'],['b','Ters yön'],['mid','Orta düzlem']])}${fNum('Kalınlık','thick')}</div>`;
-      t+=`<p class="note">Açık bir çizgi/yay zinciri (ör. bükülmüş sac, U profil) seçilen kalınlıkta şerit olarak ekstrüde edilir; kapalı kontur halkaya dönüşür.</p>`;
-      b+=grp('İnce özellik',t);
+      b+=grp('İnce özellik',t,'Açık bir çizgi/yay zinciri (ör. bükülmüş sac, U profil) seçilen kalınlıkta şerit olarak ekstrüde edilir; kapalı kontur halkaya dönüşür.');
     }else{
       const s=byId(f.sketch);const lines=s?s.ents.filter(e=>e.t==='line'):[];
-      b+=grp('Döndürme ekseni',fSel('Eksen (çizimdeki çizgi)','axis',lines.length?lines.map((e,i)=>[e.id,(e.cons?'Merkez çizgisi ':'Çizgi ')+(i+1)]):[['','(çizimde çizgi yok)']])+`<p class="note">Çizime bir merkez çizgisi ekleyip ekseni burada seç.</p>`);
+      b+=grp('Döndürme ekseni',fSel('Eksen (çizimdeki çizgi)','axis',lines.length?lines.map((e,i)=>[e.id,(e.cons?'Merkez çizgisi ':'Çizgi ')+(i+1)]):[['','(çizimde çizgi yok)']],null,'Çizime bir merkez çizgisi ekleyip ekseni burada seç.'));
       let d=fSel('Tür','mode',[['one','Tek yön'],['mid','Orta düzlem']])+fNum('Açı','angle','°');
       if(f.mode!=='mid')d+=`<button type="button" class="sbtn" data-flip="1">⇅ Ters yön${f.flip?' (açık)':''}</button>`;
       b+=grp('Yön 1',d);
     }
-    if(!f.thin)b+=grp('Profil bölgeleri',(f.regions&&f.regions.length?`<p class="note" style="color:var(--ink)">${f.regions.length} bölge seçili; yalnızca bunlar kullanılıyor.</p><button type="button" class="sbtn" data-regclr="1">Tüm bölgeleri kullan</button>`:`<p class="note" style="color:var(--ink)">Tüm kapalı bölgeler kullanılıyor.</p>`)+`<p class="note">Birbirini kesen şekiller otomatik birleşir. Yalnızca bazı bölgeleri kullanmak için ekranda çizimin içindeki bölgelere tıkla; tekrar tıklamak seçimi kaldırır.</p>`);
+    if(!f.thin)b+=grp('Profil bölgeleri',(f.regions&&f.regions.length?`<p class="note" style="color:var(--ink)">${f.regions.length} bölge seçili; yalnızca bunlar kullanılıyor.</p><button type="button" class="sbtn" data-regclr="1">Tüm bölgeleri kullan</button>`:`<p class="note" style="color:var(--ink)">Tüm kapalı bölgeler kullanılıyor.</p>`),'Birbirini kesen şekiller otomatik birleşir. Yalnızca bazı bölgeleri kullanmak için ekranda çizimin içindeki bölgelere tıkla; tekrar tıklamak seçimi kaldırır.');
   }else if(f.type==='fillet'||f.type==='chamfer'){
     b=grp('',b)+grp(f.type==='fillet'?'Radyus parametreleri':'Pah parametreleri',f.type==='fillet'?fNum('Yarıçap','r'):fNum('Mesafe (eşit)','d'));
-    b+=grp(`Kenarlar (${f.edges.length})`,(f.edges.length?`<div class="lst">${f.edges.map((e,i)=>`<div><span>Kenar ${i+1}: ${edgeLabel(e)}</span><button data-rmedge="${i}" aria-label="Kaldır">✕</button></div>`).join('')}</div>`:'')+`<p class="note">Modelde düz veya dairesel kenarlara tıkla. Tekrar tıklarsan seçim kalkar.</p>`);
+    b+=grp(`Kenarlar (${f.edges.length})`,(f.edges.length?`<div class="lst">${f.edges.map((e,i)=>`<div><span>Kenar ${i+1}: ${edgeLabel(e)}</span><button data-rmedge="${i}" aria-label="Kaldır">✕</button></div>`).join('')}</div>`:'')+`<p class="note">Modelde kenarlara tıkla.</p>`,'Modelde düz veya dairesel kenarlara tıkla. Tekrar tıklarsan seçim kalkar.');
   }else if(['lpattern','cpattern','mirror'].includes(f.type)){
     const tg=eligible(f);
-    b=grp('',b)+grp('Çoğaltılacak özellikler',tg.length?`<div class="lst">${tg.map(x=>`<label class="chk" style="margin:0"><input type="checkbox" data-tg="${x.id}" ${f.targets.includes(x.id)?'checked':''}> ${esc(x.name)}</label>`).join('')}</div><p class="note">Ağaçtaki özelliklere tıklayarak da seçebilirsin.</p>`:'<p class="note">Uygun özellik yok.</p>');
+    b=grp('',b)+grp('Çoğaltılacak özellikler',tg.length?`<div class="lst">${tg.map(x=>`<label class="chk" style="margin:0"><input type="checkbox" data-tg="${x.id}" ${f.targets.includes(x.id)?'checked':''}> ${esc(x.name)}</label>`).join('')}</div>`:'<p class="note">Uygun özellik yok.</p>','Ağaçtaki özelliklere tıklayarak da seçebilirsin.');
     if(f.type==='lpattern'){
       // yön: dünya ekseni veya modelde seçilen düz kenar (SolidWorks gibi); kenar yönü “Ters” ile çevrilir
-      const dirSel=(k,extra)=>{const o=typeof f[k]==='object';return fSel('Yön',k,[...extra,...(o?[['__edge','Seçilen kenar']]:[]),...DIR_OPTS],{[k]:o?'__edge':f[k]})+
+      const dirSel=(k,extra)=>{const o=typeof f[k]==='object';return fSel('Yön',k,[...extra,...(o?[['__edge','Seçilen kenar']]:[]),...DIR_OPTS],{[k]:o?'__edge':f[k]},'Yönü modelden almak için “Kenar seç”e basıp ekranda düz bir kenara tıkla.')+
         `<div class="row2"><button type="button" class="sbtn${(pm.dirSlot||1)===(k==='dir1'?1:2)?' on':''}" data-dslot="${k==='dir1'?1:2}">Kenar seç</button>${o?`<button type="button" class="sbtn" data-drev="${k}">⇄ Ters</button>`:''}</div>`};
       b+=grp('Yön 1',dirSel('dir1',[])+`<div class="row2">${fNum('Aralık','sp1')}${fNum('Adet','n1','adet')}</div>`);
       let s2=dirSel('dir2',[['none','Kullanma']]);if(f.dir2!=='none')s2+=`<div class="row2">${fNum('Aralık','sp2')}${fNum('Adet','n2','adet')}</div>`;
-      b+=grp('Yön 2',s2+`<p class="note">Yönü modelden almak için “Kenar seç”e basıp ekranda düz bir kenara tıkla.</p>`);
+      b+=grp('Yön 2',s2);
     }else if(f.type==='cpattern'){
       const o=typeof f.axis==='object';
-      b+=grp('Parametreler',fSel('Eksen','axis',[...(o?[['__sel',f.axis.r?`Seçilen silindir (Ø${fmt(f.axis.r*2)})`:'Seçilen kenar']]:[]),['x','X ekseni (orijin)'],['y','Y ekseni (orijin)'],['z','Z ekseni (orijin)']],{axis:o?'__sel':f.axis})+`<p class="note">Ekranda bir silindirik yüze (delik, göbek), dairesel kenara veya düz bir kenara tıklayarak ekseni seçebilirsin.</p><div class="row2">${fNum('Adet','n','adet')}${fNum('Toplam açı','angle','°')}</div><p class="note">360° girersen kopyalar eşit dağıtılır.</p>`);
+      b+=grp('Parametreler',fSel('Eksen','axis',[...(o?[['__sel',f.axis.r?`Seçilen silindir (Ø${fmt(f.axis.r*2)})`:'Seçilen kenar']]:[]),['x','X ekseni (orijin)'],['y','Y ekseni (orijin)'],['z','Z ekseni (orijin)']],{axis:o?'__sel':f.axis},'Ekranda bir silindirik yüze (delik, göbek), dairesel kenara veya düz bir kenara tıklayarak ekseni seçebilirsin.')+`<p class="note">Ekseni modelde seçebilirsin.</p><div class="row2">${fNum('Adet','n','adet')}${fNum('Toplam açı','angle','°',null,'360° girersen kopyalar eşit dağıtılır.')}</div>`);
     }else{const face=typeof f.plane==='object';if(face)pm.mirFace=f.plane;
-      b+=grp('Ayna düzlemi',fSel('Düzlem','plane',(pm.mirFace?[['__face','Seçilen model yüzeyi']]:[]).concat(planeOpts(f)),{plane:face?'__face':f.plane})+`<p class="note">Ekranda bir düzleme, ağaçta bir düzleme veya modelin düz bir yüzeyine tıklayabilirsin.</p>`)}
+      b+=grp('Ayna düzlemi',fSel('Düzlem','plane',(pm.mirFace?[['__face','Seçilen model yüzeyi']]:[]).concat(planeOpts(f)),{plane:face?'__face':f.plane},'Ekranda bir düzleme, ağaçta bir düzleme veya modelin düz bir yüzeyine tıklayabilirsin.')+`<p class="note">Ekranda düzleme veya yüze tıkla.</p>`)}
   }else if(f.type==='plane'){
     const face=typeof f.base==='object';if(face)pm.baseFace=f.base;
-    b=grp('',b)+grp('İlk referans',fSel('Paralel düzlem','base',(pm.baseFace?[['__face','Seçilen model yüzeyi']]:[]).concat(planeOpts(f)),{base:face?'__face':f.base})+fNum('Ofset mesafesi','offset')+fChk('Ters taraf','flip')+`<p class="note">Ekranda bir düzleme, ağaçta bir düzleme veya modelin düz bir yüzeyine tıklayabilirsin; yüzeyden ofsette pozitif değer yüzeyin dışına doğrudur.</p>`);
+    b=grp('',b)+grp('İlk referans',fSel('Paralel düzlem','base',(pm.baseFace?[['__face','Seçilen model yüzeyi']]:[]).concat(planeOpts(f)),{base:face?'__face':f.base},'Ekranda bir düzleme, ağaçta bir düzleme veya modelin düz bir yüzeyine tıklayabilirsin.')+fNum('Ofset mesafesi','offset','mm',null,'Yüzeyden ofsette pozitif değer yüzeyin dışına doğrudur.')+fChk('Ters taraf','flip')+`<p class="note">Ekranda düzleme veya yüze tıkla.</p>`);
   }
   el.innerHTML=`<div class="pm-head"><div><div class="pm-title">${esc(typeLabel(f))}</div><div class="pm-sub">${pm.isNew?'Yeni özellik':'Özellik düzenleniyor (geri sarıldı)'}</div></div><div class="pm-actions"><button class="ok" data-pm="ok" title="Tamam (Enter)" aria-label="Tamam">${IC.ok}</button><button data-pm="cancel" title="İptal (Esc)" aria-label="İptal">${IC.x}</button></div></div><div class="pm-body">${b}<div class="pm-err" id="pmErr"></div></div>`;
 }

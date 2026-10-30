@@ -485,15 +485,15 @@ function renderAsmPM(){
   else if(P.type==='interf'){title='Girişim Algılama';b=interfPMBody()}
   else if(P.type==='insert'){
     title='Bileşen Ekle';
-    b=grp('Proje parçaları',`<div class="lst">${project.parts.map(p=>{const d=partData(p);return `<div><span>${esc(p.partName)}${d.polys.length?'':' (gövde yok)'}</span><button class="sbtn" data-addp="${p.id}" style="width:auto;height:auto">Ekle</button></div>`}).join('')}</div><p class="note">İlk eklenen bileşen sabitlenir (f). Aynı parçayı birden çok kez ekleyebilirsin (örneğin 4 cıvata). Yeni parça çizmek için Parça sekmesine geç.</p>`);
+    b=grp('Proje parçaları',`<div class="lst">${project.parts.map(p=>{const d=partData(p);return `<div><span>${esc(p.partName)}${d.polys.length?'':' (gövde yok)'}</span><button class="sbtn" data-addp="${p.id}" style="width:auto;height:auto">Ekle</button></div>`}).join('')}</div><p class="note">İlk eklenen bileşen sabitlenir.</p>`,'İlk eklenen bileşen sabitlenir (f). Aynı parçayı birden çok kez ekleyebilirsin (örneğin 4 cıvata). Yeni parça çizmek için Parça sekmesine geç.');
   }else{
     const d=P.draft;title=P.isNew?'Eşleştir':'Eşleştirmeyi düzenle';
     let s=`<div class="lst">`;
     s+=d.a?`<div><span>1. ${esc(selLabel(d.a))}</span><button data-mclr="a" aria-label="Seçimi kaldır">✕</button></div>`:`<div><span style="color:var(--muted)">1. Bir bileşende yüzey veya silindir seç</span></div>`;
     s+=d.b?`<div><span>2. ${esc(selLabel(d.b))}</span><button data-mclr="b" aria-label="Seçimi kaldır">✕</button></div>`:`<div><span style="color:var(--muted)">2. Başka bir bileşende yüzey veya silindir seç</span></div>`;
-    s+=`</div><p class="note">Düz yüzeye tıklarsan düzlem, delik veya mil yüzeyine tıklarsan ekseni seçilir. Arkada kalan bileşen için <b>Alt</b> + tıkla.</p>`;
+    s+=`</div>`;
     if(P.last)b+=`<div class="pm-ok">✓ ${esc(P.last)} eklendi. Sonraki eşleştirme için seçim yap; bitirmek için ✓ veya Esc.</div>`;
-    b+=grp('Eşleştirme seçimleri',s);
+    b+=grp('Eşleştirme seçimleri',s,'Düz yüzeye tıklarsan düzlem, delik veya mil yüzeyine tıklarsan ekseni seçilir. Arkada kalan bileşen için Alt + tıkla.');
     if(d.a&&d.b){
       const types=mateTypesFor(d.a,d.b);
       let t=`<div class="relbtns">${types.map(k=>`<button data-mtype="${k}" style="${d.type===k?'border-color:var(--accent);background:var(--accent-soft)':''}"><b>${MATE_G[k]}</b>${MATE_T[k]}</button>`).join('')}</div>`;
@@ -503,7 +503,7 @@ function renderAsmPM(){
       if(d.type==='coincident'&&pa&&pb)t+=`<button type="button" class="sbtn" data-mflip="1">⇅ Hizalamayı ters çevir</button>`;
       if(d.type==='distance'&&(pa||pb))t+=`<button type="button" class="sbtn" data-mflip="1">⇅ Ölçüyü ters çevir</button>`;
       if(d.type==='distance'&&pa&&pb)t+=`<button type="button" class="sbtn" data-malign="1" style="margin-top:6px">⇄ Hizalamayı ters çevir (${d.align?'aynı yön':'karşılıklı'})</button>`;
-      if(d.type==='concentric')t+=`<label class="chk"><input type="checkbox" data-mlock ${d.lock?'checked':''}> Dönmeyi kilitle</label><p class="note">Bileşen eksen etrafında dönmez (ör. cıvata, pim); şimdiki açısı korunur.</p>`;
+      if(d.type==='concentric')t+=`<label class="chk" data-tip="Bileşen eksen etrafında dönmez (ör. cıvata, pim); şimdiki açısı korunur."><input type="checkbox" data-mlock ${d.lock?'checked':''}> Dönmeyi kilitle</label>`;
       b+=grp('Standart eşleştirmeler',t);
     }
     if(P.err)b+=`<div class="pm-err on">${esc(P.err)}</div>`;

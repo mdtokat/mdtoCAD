@@ -219,9 +219,11 @@ function entDist(e,q){
 function skHit(q,tol){
   const f=sk.feat;let best=null,bd=tol;
   for(const id of ['O',...Object.keys(f.pts)]){const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={k:'pt',id}}}
-  if(best)return best;bd=tol;
-  for(const e of f.ents){const [d]=entDist(e,q);if(d<bd){bd=d;best={k:'ent',id:e.id}}}
-  return best;
+  // nokta çok yakın değilse ve imleç bir öğenin üzerindeyse öğe seçilir (SolidWorks gibi): küçük dairenin çevresine
+  // tıklayınca merkez noktası seçilmesin
+  let be=null,bed=tol;for(const e of f.ents){const [d]=entDist(e,q);if(d<bed){bed=d;be={k:'ent',id:e.id}}}
+  if(best&&be&&bd>tol*0.45&&bed<bd)return be;
+  return best||be;
 }
 function skSnap(q,tol,from,exclude,fromId){
   const f=sk.feat;let best=null,bd=tol;

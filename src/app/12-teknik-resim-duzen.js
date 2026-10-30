@@ -34,7 +34,7 @@ const footOn=(e,P)=>{const s=(P[0]-e.A[0])*e.u[0]+(P[1]-e.A[1])*e.u[1];return [e
 const snapObj=(view,P)=>{const v=dctx.views[view];const [x,y]=v.map(P[0],P[1]);return {view,a:P[0],b:P[1],x,y}};
 /* kenardan sonraki tıklama: nokta → noktanın kenara uzaklığı; paralel kenar → aralık; açılı kenar → açı; boşluk → kenar uzunluğu */
 function edgeSecond(p,tol){
-  const e=dimSt.e;const s=nearestSnap(p,tol);
+  const e=dimSt.e;const s=dimSnap(p,tol);
   if(s&&s.view===e.view){const f=footOn(e,[s.a,s.b]);if(Math.hypot(f[0]-s.a,f[1]-s.b)<1e-6)return null;return {st:{stage:2,p1:snapObj(e.view,f),p2:s}}}
   const f=pickLine(p,pxToSheet(tol));
   if(f&&f.view===e.view&&!sameLine(e,f)){
@@ -61,7 +61,7 @@ function dimStageOverlay(p){
   if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);h+=`<circle cx="${f2(C[0])}" cy="${f2(C[1])}" r="${f2(c.r*v.s)}" fill="none" stroke="${acc}" stroke-width="${w}"/>`;
     if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]]},v))}
   if(dimSt.stage==='edge'){h+=edge(dimSt.e);
-    if(p){const s=nearestSnap(p,9),f=s?null:pickLine(p,pxToSheet(9));
+    if(p){const s=dimSnap(p,9),f=s?null:pickLine(p,pxToSheet(9));
       if(f&&!sameLine(f,dimSt.e))h+=edge(f);
       else if(!s){const r=edgeSecond(p,9);if(r&&r.dim)h+=toBlue(dimRender(r.dim,dctx.views[r.dim.view]))}}}
   if(dimSt.stage==='ang'){h+=edge(dimSt.e1)+edge(dimSt.e2);if(p){const d=angFromCursor(dimSt.e1,dimSt.e2,p);if(d)h+=toBlue(dimRender(d,dctx.views[d.view]))}}

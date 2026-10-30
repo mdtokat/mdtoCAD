@@ -101,7 +101,8 @@ function asmPick(e,opt){
   asmRoot.updateMatrixWorld();camera.updateMatrixWorld();ray.setFromCamera(ndc(e),camera);const ms=[...asmView.groups.values()].filter(v=>v.g.visible&&v.m.visible).map(v=>v.m);
   // Alt + tıklama (SolidWorks'teki “Diğerini seç” gibi): öndeki bileşenin arkasında kalan ilk bileşenin yüzeyi
   const hs=ray.intersectObjects(ms);const h=e.altKey&&hs.length?hs.find(x=>x.object.userData.comp!==hs[0].object.userData.comp):hs[0];
-  if(opt&&opt.edges&&!e.altKey){const ed=pickAsmEdge(e,h,6);if(ed)return ed}
+  // imleç bir yüzün üzerindeyse kenar ancak çok yakınsa seçilir (SolidWorks gibi): küçük yüzlerin (mil ucu) ortası kenar sayılmasın
+  if(opt&&opt.edges&&!e.altKey){const ed=pickAsmEdge(e,h,h?4:6);if(ed)return ed}
   if(!h)return null;
   const cid=h.object.userData.comp,v=asmView.groups.get(cid);const pi=v.d.tp[h.faceIndex],poly=v.d.polys[pi];if(!poly)return {comp:cid,point:h.point};
   const lp=h.point.clone().applyMatrix4(new T.Matrix4().copy(v.g.matrix).invert());const n=poly.plane.n;

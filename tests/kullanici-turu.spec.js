@@ -109,3 +109,16 @@ test('montaj: düz yüzey + dairesel kenar çakışığında daire yüzeyin üze
   expect(await page.evaluate(() => __tz.curAsm().mates.length)).toBe(1);
   expect(errors).toEqual([]);
 });
+
+test('teknik resim 2B çizim: konturu iki yandan aşan eksen çizgisi görünüşe bağlanır (görünüşle taşınır)', async ({ page }) => {
+  const errors = await openApp(page);
+  await plate(page, 40, 40, 30);
+  await page.click('[data-tab="drawing"]');
+  await page.waitForFunction(() => !!__tz.getCtx() && !!__tz.getCtx().views.front);
+  await page.click('#dwTabs [data-dwcm="sketch"]');
+  const scr = (a, b) => page.evaluate(([a, b]) => { const p = __tz.getCtx().views.front.map(a, b), s = document.querySelector('#sheet'), pt = s.createSVGPoint(); pt.x = p[0]; pt.y = p[1]; const q = pt.matrixTransform(s.getScreenCTM()); return [q.x, q.y]; }, [a, b]);
+  await page.click('#drawRibbon [data-dcmd="scen"]');
+  for (const [a, b] of [[0, -6], [0, 36]]) { const [x, y] = await scr(a, b); await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.up(); await page.waitForTimeout(150); }
+  expect(await page.evaluate(() => __tz.dwS().sk2d.map(e => e.view))).toEqual(['front']);
+  expect(errors).toEqual([]);
+});

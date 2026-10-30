@@ -85,6 +85,29 @@ orada da 1 sn civarında kalması beklenir.
 - Aynı gövde yeniden gösterilirken (önbellekten gelen sonuç) gölgeli ağ ve kenarlar yeniden kurulmaz.
 - Çizimlerin serbestlik derecesi çizim değişmedikçe yeniden hesaplanmaz.
 
+### Kısıt çözücü (çizim)
+
+Çizimde her fare hareketinde (sürükleme), her ölçü/ilişki eklemede ve çizime girip çıkarken kısıt çözücü çalışır. Önceki çözücü
+tüm değişkenler için yoğun (dense) matrislerle çalışıyordu: Jacobian her adımda bütün artıkları her değişken için yeniden
+hesaplıyor, normal denklemler tam Gauss eliminasyonuyla çözülüyor, aşırı tanımlama denetimi ve otomatik tam tanımlama her aday
+kısıt için bütün matrisin rütbesini baştan buluyordu. 144 noktalı dişli çiziminde (Node.js, ortanca):
+
+| İşlem | Önce | Sonra |
+|---|---:|---:|
+| Bir noktayı sürüklemek (tek kare) | 930 ms | 38 ms |
+| Serbestlik analizi (her değişiklikte) | 121 ms | 11 ms |
+| Otomatik tam tanımlama (çizime giriş/çıkış) | 4,1 s | 40 ms |
+
+- **Seyrek Jacobian:** her artığın okuduğu değişkenler bir kez bulunur (`resDeps`); türev yalnızca bu değişkenler için alınır.
+- **Alt sistemler:** birbirine bağlı olmayan değişken grupları ayrı çözülür; değişmeyen gruplara dokunulmaz (`sysComps`).
+- **Seyrek Cholesky:** normal denklemler az bağlı değişkenler önce gelecek sırayla çarpanlara ayrılır (`cholSolve`).
+- **Artımlı rütbe:** satırlar basamak biçimindeki bir tabana tek tek eklenir (`basisAdd`); aday kısıt yalnızca tabana göre indirgenir.
+  Aynı taban, eklenen ölçünün hangi mevcut ölçü/ilişkilerin birleşimi olduğunu da verir (çelişkide sarı gösterilenler).
+- **Sürükleme kare başına bir kez çözülür:** hızlı fare hareketinde olaylar birikip arayüzü kilitlemez.
+
+Örneklerin 58 çiziminde serbestlik derecesi, tanımlı noktalar, rütbe, otomatik tam tanımlamanın eklediği ölçü/ilişkiler ve
+ölçü değişikliği sonrası nokta konumları önceki çözücüyle birebir aynıdır.
+
 ## 4. Ayarlar
 
 Ayarlar tarayıcıda saklanır (`localStorage`, anahtar `tocad-ayarlar-v1`), proje dosyasına yazılmaz.

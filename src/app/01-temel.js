@@ -148,25 +148,33 @@ function normProject(o){o.version=3;const pid=new Set();o.parts=(Array.isArray(o
   o.asms=(Array.isArray(o.asms)?o.asms:[]).filter(isObj).map(normAsm);if(!isObj(o.cur))o.cur={};if(!o.parts.length)o.parts.push(newPart('Parça1'));if(!o.parts.some(p=>p.id===o.cur.part))o.cur.part=o.parts[0].id;if(o.asms.length&&!o.asms.some(a=>a.id===o.cur.asm))o.cur.asm=o.asms[0].id;return o}
 function emptyProject(){const p=newPart('Parça1');return normProject({parts:[p],asms:[],cur:{part:p.id}})}
 const LS_KEY='tezgah-cad-v3',LS_OLD='tezgah-cad-v2';
+/* loadFailed: kayıt vardı ama okunamadı (bozuk); kopyası “-bozuk” anahtarında saklanır, veritabanı yedeği denenir (recoverCheck) */
+let loadFailed=false;
 function loadProject(){
+  let s=null;
   try{
-    const s=localStorage.getItem(LS_KEY);if(s){const o=JSON.parse(s);if(o&&Array.isArray(o.parts)&&o.parts.length)return normProject(o)}
+    s=localStorage.getItem(LS_KEY);if(s){const o=JSON.parse(s);if(o&&Array.isArray(o.parts)&&o.parts.length)return normProject(o)}
     const old=localStorage.getItem(LS_OLD);if(old){const o=JSON.parse(old);if(o&&Array.isArray(o.features)){const p=normPart({partName:o.partName,material:o.material,features:o.features,drawing:o.drawing});return normProject({parts:[p],asms:[],cur:{part:p.id}})}}
-  }catch(e){}
+  }catch(e){loadFailed=true;try{if(s)localStorage.setItem(LS_KEY+'-bozuk',s)}catch(e2){}}
   return null;
 }
 const cleanR=(k,v)=>k.startsWith('_')?undefined:v;
-let saveT=0,saveWarned=false;
-function writeState(){saveT=0;try{localStorage.setItem(LS_KEY,JSON.stringify(project,cleanR))}catch(e){if(!saveWarned){saveWarned=true;toast('Tarayıcı depolama alanı doldu. Projeyi Dosya menüsünden .json olarak kaydet.')}}}
-function saveState(){clearTimeout(saveT);saveT=setTimeout(writeState,300)}
-/* sayfa kapanırken/yenilenirken: bekleyen kayıt hemen yazılır; açık çizimin o anki hâli de kaydedilir
-   (yeni ve boş çizim hariç), böylece yeniden açınca çizime devam edilebilir */
-function flushState(){
-  const empty=!!sk&&sk.isNew&&!sk.feat.ents.length;
-  if(!saveT&&!(sk&&!empty))return;clearTimeout(saveT);
+let saveT=0,saveWarned=false,lsOk=null;
+/* proje tarayıcı deposuna ve veritabanına (backupState) yazılır. Açık çizimin o anki hâli de kaydedilir (yeni ve boş çizim hariç):
+   sayfa kapanır, tarayıcı çöker veya elektrik kesilirse yeniden açınca çizime devam edilir */
+function writeState(){
+  clearTimeout(saveT);saveT=0;const t=Date.now();
+  const empty=!!sk&&sk.isNew&&!sk.feat.ents.length&&!Object.values(sk.feat.pts).some(p=>p.sp);
   const i=empty?state.features.indexOf(sk.feat):-1;if(i>=0)state.features.splice(i,1);
-  try{writeState()}finally{if(i>=0)state.features.splice(i,0,sk.feat)}
+  let json;try{json=JSON.stringify(project,cleanR)}finally{if(i>=0)state.features.splice(i,0,sk.feat)}
+  try{localStorage.setItem(LS_KEY,json);localStorage.setItem(LS_KEY+'-t',String(t));lsOk=true}
+  catch(e){lsOk=false;if(!saveWarned){saveWarned=true;toast(typeof indexedDB!=='undefined'?'Tarayıcı deposu doldu; otomatik kayıt tarayıcı veritabanına yazılıyor. Projeyi ayrıca Ctrl+S ile dosyaya kaydetmen önerilir.':'Tarayıcı depolama alanı doldu. Projeyi Ctrl+S ile dosyaya kaydet.')}}
+  backupState(json,t);
 }
+/* en geç 300 ms sonra yazılır (sürekli değişiklikte de kayıt ertelenmez) */
+function saveState(){if(!saveT)saveT=setTimeout(writeState,300)}
+/* sayfa kapanırken/gizlenirken bekleyen kayıt ve açık çizim hemen yazılır */
+function flushState(){if(saveT||sk)writeState()}
 addEventListener('pagehide',flushState);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushState()});
 let project=loadProject()||demoProject();
@@ -427,6 +435,7 @@ function loop(){
   const ck=camera.position.toArray().map(v=>v.toFixed(3)).join()+controls.target.toArray().map(v=>v.toFixed(3)).join()+camera.aspect.toFixed(3)+camera.zoom.toPrecision(6);
   const moved=ck!==lastCamKey;
   if(moved){lastCamKey=ck;if(sk)sk.dirty=true}
+  if(sk&&sk.dragTg)flushDrag();
   if(sk&&sk.dirty){sk.dirty=false;renderSketch();requestRender()}
   if(sk)placeLabels();
   if(!shouldRender(moved||!!camAnim))return;

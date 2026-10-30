@@ -13,11 +13,12 @@
 - **İnce özellik** dallanmayan zincirlerle çalışır; köşeler sivri (gönye) birleşir, yay yarıçapı kalınlıktan küçük olamaz.
 - **STEP/IGES** desteği yok (B-rep çekirdeği gerektirir). STL içe aktarılan parçalar düzenlenemez.
 - **Performans:** CSG ana iş parçacığında çalışır. Yeniden hesaplama önbelleği yalnızca değişen özellik ve sonrasını hesaplar; yine de ağacın başındaki bir ölçü değişince çok sayıda radyus/delik içeren parçalarda hesap bir saniyeyi aşabilir. Zayıf bilgisayarlarda Ayarlar → Hızlı profili önerilir. Ayrıntılar: [PERFORMANS.md](PERFORMANS.md).
-- **Tarayıcı belleği:** Otomatik kayıt `localStorage` kullanır (yaklaşık 5 MB). Büyük projeleri `.json` olarak kaydet.
+- **Tarayıcı belleği:** Otomatik kayıt `localStorage`'a (yaklaşık 5 MB) ve tarayıcı veritabanına (IndexedDB) yazılır; tarayıcı deposu dolsa da veritabanındaki kayıt açılışta geri gelir. İki sekmede aynı proje açıksa son değiştiren diğerinin kaydının üzerine yazar (uyarılır; önceki sürümler saklanır). Tarayıcının site verisini silmesine karşı projeyi Ctrl+S ile dosyaya da kaydet.
 - **Dokunmatik:** Telefonda çalışır, ancak ölçü verme ve eşleştirme fareyle daha rahattır.
 
 ## Olası sonraki adımlar
 
+- Çizimde SolidWorks'teki SketchXpert gibi çelişkiyi otomatik çözme önerileri (şimdi çelişen ölçüler sarı gösterilir, biri referansa çevrilebilir).
 - CSG ve teknik resim hesaplarını bir Web Worker'a taşımak (arayüzün donmasını tamamen engeller, ilerleme ve iptal); uzun vadede WebAssembly CSG çekirdeği (ör. manifold-3d). Değerlendirme: [PERFORMANS.md](PERFORMANS.md#5-değerlendirilen-diğer-seçenekler).
 - Yüz/kenar kimliklerini topolojik olarak izlemek (eşleştirme ve radyusların model değişince korunması).
 - Kabuk (Shell), Süpürme (Sweep), Loft, Kaburga (Rib), Taslak açısı.

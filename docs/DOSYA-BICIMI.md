@@ -53,7 +53,7 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
 
 **İlişkiler:** `h`, `v` (`e` çizgi veya `p`,`q` nokta) · `pol` nokta-çizgi · `poc` nokta-eğri · `mid` (`p`,`e`) · `par`, `perp`, `coll`, `eq`, `tan` (`e1`,`e2`; `tan` için eğri-eğri `int`) · `sym` (`p`,`q`, eksen `e`) · `fix` (`p`) · `offd` ofset izleyicisi (`e1` kaynak, `e2` ofset, `sg` yön ±1, `dim` sürücü `doff` ölçüsünün id'si) · `tr` doğrusal çoğaltma (`q = p + k·(s − r)`) · `rot` dairesel çoğaltma (`q`, `p`'nin `o` merkezi etrafında `r`→`s` açısının `k` katı döndürülmüşü).
 
-**Ölçüler** (`val` sürücü değer, `lp` etiket konumu `[x,y]`): `d` iki nokta, `dh`/`dv` yatay/dikey, `dpl` nokta-çizgi, `dll` paralel çizgiler, `ddia` çap, `drad` yarıçap, `dang` açı (`r1`,`r2` yön çevirme), `doff` ofset mesafesi (`e1` kaynak, `e2` ofset öğe, `sg` yön ±1).
+**Ölçüler** (`val` sürücü değer, `lp` etiket konumu `[x,y]`): `d` iki nokta, `dh`/`dv` yatay/dikey, `dpl` nokta-çizgi, `dll` paralel çizgiler, `ddia` çap, `drad` yarıçap, `dang` açı (`r1`,`r2` yön çevirme), `doff` ofset mesafesi (`e1` kaynak, `e2` ofset öğe, `sg` yön ±1). `driven: true` ölçü **referans (güdümlü) ölçüdür**: çözücüye girmez, geometriyi sürmez; `val` çizimdeki ölçülen değerdir ve her değişiklikte güncellenir (ekranda parantez içinde). `doff` referans olamaz.
 
 ### `extrude`
 ```jsonc

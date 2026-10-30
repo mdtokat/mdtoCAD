@@ -309,3 +309,29 @@ button:disabled{cursor:default}
   .ibtn{padding:0 4px;min-width:28px}
 }
 @media (prefers-reduced-motion: reduce){.toast{transition:none}}
+/* ölçü çelişkisi (aşırı tanımlama): sarı */
+.dlab.conf{color:#3A2C00;background:#FFD84D;box-shadow:0 0 0 1.5px #C99A00}
+.dlab.pend{pointer-events:none;opacity:.92}
+.dlab.drv{color:var(--muted);font-style:italic}
+.dlab.drv.sel{color:#fff}
+.rlab.conf{background:#E3AE00;color:#2A2000;box-shadow:0 0 0 1.5px #A87F00}
+.dimrow.conf{background:#FFF2BF;box-shadow:inset 3px 0 0 #E3AE00}
+.dimrow.drv input{color:var(--muted);font-style:italic;background:transparent}
+.dimrow .drvbtn{flex:none;width:26px;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--muted);font:600 11px/1 'Barlow',Arial,sans-serif;padding:0}
+.dimrow .drvbtn:hover{color:var(--ink);border-color:var(--accent)}
+.confnote{color:#7A5A00;background:#FFF2BF;border-left:3px solid #E3AE00;padding:6px 8px;border-radius:4px}
+.confpop{flex-direction:column;align-items:stretch;gap:6px;max-width:340px;padding:10px 12px;border:1.5px solid #E3AE00}
+.confpop p{margin:0;font-size:13px;line-height:1.35}
+.confpop .cf-title{font-weight:600;color:#9A7000}
+.confpop .cf-btns{display:flex;flex-wrap:wrap;gap:6px}
+.confpop .cf-btns button{width:auto;height:auto;min-height:30px;padding:4px 10px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dimrow.conf,:root:not([data-theme="light"]) .confnote{background:rgba(255,210,63,.14);color:#FFE38A}
+  :root:not([data-theme="light"]) .confpop .cf-title{color:#FFD23F}}
+:root[data-theme="dark"] .dimrow.conf,:root[data-theme="dark"] .confnote{background:rgba(255,210,63,.14);color:#FFE38A}
+:root[data-theme="dark"] .confpop .cf-title{color:#FFD23F}
+/* Dosya menüsü kısayolları ve sürüm listesi */
+#fileMenu kbd{float:right;margin-left:18px;font:500 11px/1.6 'Barlow',Arial,sans-serif;color:var(--muted)}
+.reclist{display:flex;flex-direction:column;gap:6px;max-height:min(52vh,420px);overflow:auto;margin-top:8px}
+.recrow{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:var(--panel-2)}
+.recinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.recinfo small{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}

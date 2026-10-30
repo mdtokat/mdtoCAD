@@ -21,7 +21,8 @@ for (const [dosya, ad, kutu, etiketler] of [
   ['duz-disli', 'Düz dişli', [51.98, 51.98, 30], ['Ø25', 'Ø40']],
   ['flansli-boru', 'Flanşlı boru', [165, 165, 300], ['Ø52,5', '2× Ø165', '8× Ø18', 'Ø125']],
   ['pompa-carki', 'Pompa çarkı', [200, 46, 200], ['Ø200', 'Ø25', 'Ø60', 'Ø90']],
-  ['kademeli-mil', 'Kademeli mil', [305, 50, 50], ['Ø25', 'Ø35', 'Ø40', 'Ø50', 'Ø30', 'Ø6', 'M10×1,5']]]) {
+  ['kademeli-mil', 'Kademeli mil', [305, 50, 50], ['Ø25', 'Ø35', 'Ø40', 'Ø50', 'Ø30', 'Ø6', 'M10×1,5']],
+  ['kuyruk-yildizi', 'Kuyruk', [813, 813, 215], ['813', '215', 'Ø230']]]) {
   test(`örnek: ${dosya} hatasız, tam tanımlı ve teknik resmi ölçülü çizilir`, async ({ page }) => {
     const errors = await openApp(page);
     await openSample(page, dosya, ad);

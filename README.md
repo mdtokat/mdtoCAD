@@ -106,6 +106,7 @@ Dosya indirme (PDF, STL, proje), Claude ortamında Claude'un indirme yeteneğiyl
 `ornekler/` klasöründeki `*.tocad.json` dosyaları **Dosya → Aç** ile açılır.
 
 - `dort-kanatli-disk.tocad.json` — Ø813 dört kanatlı disk (Ø200 göbek, Ø143 delik, 38 mm kama kanalı). Çizimler teknik resimdeki ölçülerle (Ø813, Ø772, 147,5, R41,2, 20°, 318,5) ve dört katlı simetriyle tam tanımlıdır; bir ölçüyü değiştirmek dört kanadı birlikte günceller. Teknik resimde verilmeyen levha kalınlığı (25 mm) ve göbek çıkıntısı (90 mm) varsayımdır; özellik ağacından değiştirilebilir ya da `node ornekler/dort-kanatli-disk.mjs` ile yeniden üretilebilir.
+- `kuyruk-yildizi.tocad.json` — 2 nolu zincirli bant kuyruk yıldızı: dört kanatlı diskle aynı Ø813 kanat geometrisi, 35 mm levha, levhanın iki yanından 90'ar mm taşan Ø230 göbek (toplam 215), Ø166 delik (orijinali Ø167; mile göre ayar payı) ve 38 × 13 kama kanalı. Resimdeki 295 (komşu R41,2 merkezleri arası) Ø772 ve 147,5 ile zaten belirli olduğundan çizimde referans ölçüdür (295,86). `node ornekler/kuyruk-yildizi.mjs` ile yeniden üretilir.
 
 Aşağıdaki üç örnek, eklerdeki teknik resimlerden programın kendi araçlarıyla çizildi. `npm run ornekler` (önce `npm install`) aynı adımları uygulamada yeniden oynatıp dosyaları üretir; adımlar `ornekler/ornekleri-ciz.mjs` içinde bir kullanıcının izleyeceği sırayla yazılıdır.
 

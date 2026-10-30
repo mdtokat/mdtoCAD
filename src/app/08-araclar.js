@@ -298,18 +298,20 @@ function skOpBody(){
   return grp(SKOP_T[o.t],b,tip);
 }
 function skOpClick(e){if(e.target.closest('[data-opgo]')){applySkOp();return true}if(e.target.closest('[data-opx]')){sk.op=null;renderSketchPM();renderRibbon();return true}return false}
-function skOpInput(e){const t=e.target;if(!sk.op)return false;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.op[t.dataset.k]=v;return true}if(t.hasAttribute('data-opflip')){sk.op.flip=t.checked;return true}if(t.hasAttribute('data-opboth')){sk.op.both=t.checked;renderSketchPM();return true}return false}
+function skOpInput(e){const t=e.target;if(!sk.op)return false;sk.dirty=true;if(t.dataset.k&&t.dataset.num){const v=num(t.value);if(isFinite(v))sk.op[t.dataset.k]=v;return true}if(t.hasAttribute('data-opflip')){sk.op.flip=t.checked;return true}if(t.hasAttribute('data-opboth')){sk.op.both=t.checked;renderSketchPM();return true}return false}
+/* işlemi sk.feat üzerinde yapar (önizlemede çizimin kopyasında) */
+function runSkOp(o,ents){
+  if(o.t==='offset'){const d=num(o.d);if(o.both){const drv=doOffset(ents,d);doOffset(ents,-d,drv)}else doOffset(ents,d*(o.flip?-1:1))}
+  else if(o.t==='mirror')doMirror(ents);
+  else if(o.t==='lpat')doLinPattern(ents,Math.round(num(o.n)),num(o.sp),num(o.ang));
+  else if(o.t==='cpat'){const pt=sk.sel.find(h=>h.k==='pt');doCircPattern(ents,Math.round(num(o.n)),num(o.tot),pt?pt.id:'O')}
+}
 function selEnts(){const E=entMap(sk.feat);return sk.sel.filter(h=>h.k==='ent').map(h=>E[h.id]).filter(Boolean)}
 function applySkOp(){
   const o=sk.op,f=sk.feat;let ents=selEnts();
   if(!ents.length){toast('Önce Seç aracıyla öğeleri seç.');return}
   skPush();
-  try{
-    if(o.t==='offset'){const d=num(o.d);if(o.both){const drv=doOffset(ents,d);doOffset(ents,-d,drv)}else doOffset(ents,d*(o.flip?-1:1))}
-    else if(o.t==='mirror')doMirror(ents);
-    else if(o.t==='lpat')doLinPattern(ents,Math.round(num(o.n)),num(o.sp),num(o.ang));
-    else if(o.t==='cpat'){const pt=sk.sel.find(h=>h.k==='pt');doCircPattern(ents,Math.round(num(o.n)),num(o.tot),pt?pt.id:'O')}
-  }catch(err){skRestore(sk.hist.pop());toast(err.message||String(err));return}
+  try{runSkOp(o,ents)}catch(err){skRestore(sk.hist.pop());toast(err.message||String(err));return}
   if(!solveSketch(f)){skRestore(sk.hist.pop());toast('İşlem sonrası çizim çözülemedi; geri alındı.');skChanged();return}
   sk.sel=[];skChanged();toast(SKOP_T[o.t]+' uygulandı.');
 }

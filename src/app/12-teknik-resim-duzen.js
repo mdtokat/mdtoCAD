@@ -9,40 +9,47 @@ const dwViews=()=>dctx?Object.values(dctx.views).filter(v=>v.key!=='iso'):[];
 const vSegs=v=>v.sk&&v.sk.segs.length?v.d.vis.concat(v.d.hid,v.sk.segs):v.d.vis.concat(v.d.hid);
 function nearestCircle(p,tol){
   let best=null,bd=tol;
-  for(const v of dwViews())for(const q of v.sk?v.d.circ.concat(v.sk.circ):v.d.circ){const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r}}}
+  // annotasyonlu daireler, kenarlarından bulunan tam daireler (pah/radyus dairesi) ve görünüşe bağlı 2B çizim daireleri
+  for(const v of dwViews())for(const q of v.d.circ.concat(extraCircs(v.d),v.sk?v.sk.circ:[])){const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r,gid:q.gid,sig:q.sig}}}
   return best;
 }
 /* tıklanan kenar ve onunla aynı doğru üzerinde uç uca devam eden parçalar (görünür ve gizli) tek kenar sayılır */
 function pickLine(p,tol){
   let best=null,bd=tol;
-  for(const v of dwViews())for(const q of vSegs(v)){
+  // yayın kirişleri kenar sayılmaz (yaya tıklamak yarıçap verir; önceden 3 mm'lik bir kirişin boyu ölçülüyordu)
+  for(const v of dwViews())for(const q of vSegs(v)){if(q.arc)continue;
     const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;if(L2<1e-8)continue;
     let t=((p[0]-A[0])*dx+(p[1]-A[1])*dy)/L2;t=Math.max(0,Math.min(1,t));const d=Math.hypot(A[0]+dx*t-p[0],A[1]+dy*t-p[1]);
     if(d<bd){bd=d;best={v,q,t}}}
   if(!best)return null;
   const {v,q,t}=best;let ux=q[2]-q[0],uy=q[3]-q[1];const l=Math.hypot(ux,uy);ux/=l;uy/=l;
   const tol2=1e-3*Math.max(1,l);const iv=[];
-  for(const r of vSegs(v)){const d1=Math.abs((r[0]-q[0])*uy-(r[1]-q[1])*ux),d2=Math.abs((r[2]-q[0])*uy-(r[3]-q[1])*ux);if(d1>tol2||d2>tol2)continue;
+  for(const r of vSegs(v)){if(r.arc)continue;const d1=Math.abs((r[0]-q[0])*uy-(r[1]-q[1])*ux),d2=Math.abs((r[2]-q[0])*uy-(r[3]-q[1])*ux);if(d1>tol2||d2>tol2)continue;
     const s1=(r[0]-q[0])*ux+(r[1]-q[1])*uy,s2=(r[2]-q[0])*ux+(r[3]-q[1])*uy;iv.push([Math.min(s1,s2),Math.max(s1,s2)])}
   iv.sort((a,b)=>a[0]-b[0]);let lo=0,hi=l,grow=true;
   while(grow){grow=false;for(const [a,b] of iv){if(a<=hi+tol2&&b>hi+tol2&&b>=lo){hi=b;grow=true}if(b>=lo-tol2&&a<lo-tol2&&a<=hi){lo=a;grow=true}}}
   const X=[q[0]+(q[2]-q[0])*t,q[1]+(q[3]-q[1])*t];
-  return {view:v.key,A:[q[0]+ux*lo,q[1]+uy*lo],B:[q[0]+ux*hi,q[1]+uy*hi],u:[ux,uy],X};
+  return {view:v.key,A:[q[0]+ux*lo,q[1]+uy*lo],B:[q[0]+ux*hi,q[1]+uy*hi],u:[ux,uy],X,sig:q[5]||''};
 }
 const sameLine=(e,f)=>e.view===f.view&&Math.abs(e.u[0]*f.u[1]-e.u[1]*f.u[0])<1e-3&&Math.abs((f.X[0]-e.X[0])*e.u[1]-(f.X[1]-e.X[1])*e.u[0])<1e-3;
 const footOn=(e,P)=>{const s=(P[0]-e.A[0])*e.u[0]+(P[1]-e.A[1])*e.u[1];return [e.A[0]+e.u[0]*s,e.A[1]+e.u[1]*s]};
 const snapObj=(view,P)=>{const v=dctx.views[view];const [x,y]=v.map(P[0],P[1]);return {view,a:P[0],b:P[1],x,y}};
 /* kenardan sonraki tıklama: nokta → noktanın kenara uzaklığı; paralel kenar → aralık; açılı kenar → açı; boşluk → kenar uzunluğu */
+/* uçlara kimlik (ref) eklenir: model değişince ölçü aynı kenarı/noktayı bulur */
 function edgeSecond(p,tol){
-  const e=dimSt.e;const s=dimSnap(p,tol);
-  if(s&&s.view===e.view){const f=footOn(e,[s.a,s.b]);if(Math.hypot(f[0]-s.a,f[1]-s.b)<1e-6)return null;return {st:{stage:2,p1:snapObj(e.view,f),p2:s}}}
+  const e=dimSt.e;const s=dimSnap(p,tol),er=edgeRefOf(e);
+  const toPt=s=>{const f=footOn(e,[s.a,s.b]);if(Math.hypot(f[0]-s.a,f[1]-s.b)<1e-6)return null;return {st:{stage:2,p1:Object.assign(snapObj(e.view,f),{ref:er}),p2:s}}};
+  if(s&&s.view===e.view)return toPt(s);
+  // kenardan sonra daire veya yay: merkezin kenara uzaklığı (SolidWorks'te varsayılan merkez)
+  const c=nearestCircle(p,pxToSheet(tol*.6))||nearestArc(p,pxToSheet(tol*.6));
+  if(c&&c.view===e.view)return toPt(Object.assign(snapObj(c.view,[c.a,c.b]),{c:true,ref:c.arc?{k:'ac',s:c.sig,ss:c.sigs,r:c.r}:c.gid!=null?{k:'c',g:circKey(c.gid)}:null}));
   const f=pickLine(p,pxToSheet(tol));
   if(f&&f.view===e.view&&!sameLine(e,f)){
-    if(Math.abs(e.u[0]*f.u[1]-e.u[1]*f.u[0])<1e-3){const Y=footOn(f,e.X);return {st:{stage:2,p1:snapObj(e.view,e.X),p2:snapObj(e.view,Y)}}}
+    if(Math.abs(e.u[0]*f.u[1]-e.u[1]*f.u[0])<1e-3){const Y=footOn(f,e.X);return {st:{stage:2,p1:Object.assign(snapObj(e.view,e.X),{ref:er}),p2:Object.assign(snapObj(e.view,Y),{ref:edgeRefOf(f)})}}}
     return {st:{stage:'ang',e1:e,e2:f}};
   }
-  const v=dctx.views[e.view];const c=v.inv(p[0],p[1]);const r=dimFromCursor(e.A,e.B,c);
-  return {dim:{view:e.view,p1:e.A.slice(),p2:e.B.slice(),kind:r.kind,pos:r.pos}};
+  const v=dctx.views[e.view];const c2=v.inv(p[0],p[1]);const r=dimFromCursor(e.A,e.B,c2);
+  return {dim:{view:e.view,p1:e.A.slice(),p2:e.B.slice(),kind:r.kind,pos:r.pos,ref:er?{len:er}:undefined}};
 }
 function angFromCursor(e1,e2,p){
   const v=dctx.views[e1.view];const c=v.inv(p[0],p[1]);
@@ -58,8 +65,8 @@ function angFromCursor(e1,e2,p){
 function dimStageOverlay(p){
   const acc='#1F6FEB',w=f2(pxToSheet(2));let h='';
   const edge=e=>{const v=dctx.views[e.view];const A=v.map(e.A[0],e.A[1]),B=v.map(e.B[0],e.B[1]);return `<path d="${Lp(A[0],A[1],B[0],B[1])}" stroke="${acc}" stroke-width="${w}" fill="none"/>`};
-  if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);h+=`<circle cx="${f2(C[0])}" cy="${f2(C[1])}" r="${f2(c.r*v.s)}" fill="none" stroke="${acc}" stroke-width="${w}"/>`;
-    if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]]},v))}
+  if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);h+=curveHi(c,acc,w);
+    if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]],rad:!!c.arc,arc:c.arc},v))}
   if(dimSt.stage==='edge'){h+=edge(dimSt.e);
     if(p){const s=dimSnap(p,9),f=s?null:pickLine(p,pxToSheet(9));
       if(f&&!sameLine(f,dimSt.e))h+=edge(f);

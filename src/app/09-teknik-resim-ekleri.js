@@ -24,7 +24,16 @@ function sectionSrc(src,viewKey,S){
     for(const [k,ps] of groups)polys=polys.concat(skip.has(partOf(k))?ps:csgSubtract(ps,cutter('SEC:'+k)))}
   else polys=csgSubtract(src.polys,cutter('SEC'));
   for(const v of secCache.values())if(v.g)v.g.dispose();secCache.clear();
-  const res={kind:src.kind,key,polys,ann:src.ann,box:polys.length?bboxPolys(polys):src.box,g:polysToBuffers(polys).g,sec:true,P};
+  /* kesilip atılan taraftaki deliklerin/millerin eksen çizgileri ve merkez işaretleri çizilmez (önceden montaj kesitinde
+     kesicinin önünde kalan cıvataların eksenleri boşlukta duruyordu). Kesilmeyecek parçalarınkiler kalır */
+  const R=VIEWS[viewKey].R,d3=(X,U)=>X[0]*U[0]+X[1]*U[1]+X[2]*U[2];
+  const keep=an=>{if(src.kind==='asm'&&skip.has(partOf(String(an.gid).split(':')[0])))return true;
+    const A=[an.A.x,an.A.y,an.A.z],E=[0,1].map(i=>{const t=i?an.t1:an.t0;return [an.C.x+A[0]*t-P[0],an.C.y+A[1]*t-P[1],an.C.z+A[2]*t-P[2]]});
+    const ext=U=>an.r*Math.sqrt(Math.max(0,1-d3(A,U)**2));
+    if(Math.max(d3(E[0],D),d3(E[1],D))+ext(D)>-1e-6)return true;
+    return half&&Math.min(d3(E[0],R),d3(E[1],R))-ext(R)<1e-6};
+  const partOf=id=>{const c=src.kind==='asm'&&src.a.comps.find(c=>c.id===id);return c&&c.part};
+  const res={kind:src.kind,key,polys,ann:src.ann.filter(keep),box:polys.length?bboxPolys(polys):src.box,g:polysToBuffers(polys).g,sec:true,P};
   secCache.set(key,res);return res;
 }
 function hatchMarkup(sp,v,isAsm){

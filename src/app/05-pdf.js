@@ -108,7 +108,7 @@ function viewBasis(view){
 }
 function projExtents(z,up){
   const R=new T.Vector3().crossVectors(up,z);let a0=Infinity,a1=-Infinity,b0=Infinity,b1=-Infinity,c0=Infinity,c1=-Infinity;
-  for(const p of dwSrc().polys)for(const v of p.verts){const a=v.x*R.x+v.y*R.y+v.z*R.z,b=v.x*up.x+v.y*up.y+v.z*up.z,c=v.x*z.x+v.y*z.y+v.z*z.z;if(a<a0)a0=a;if(a>a1)a1=a;if(b<b0)b0=b;if(b>b1)b1=b;if(c<c0)c0=c;if(c>c1)c1=c}
+  for(const p of dwSrc(true).polys)for(const v of p.verts){const a=v.x*R.x+v.y*R.y+v.z*R.z,b=v.x*up.x+v.y*up.y+v.z*up.z,c=v.x*z.x+v.y*z.y+v.z*z.z;if(a<a0)a0=a;if(a>a1)a1=a;if(b<b0)b0=b;if(b>b1)b1=b;if(c<c0)c0=c;if(c>c1)c1=c}
   return {R,a0,a1,b0,b1,c0,c1};
 }
 function render3DImage(o){
@@ -142,7 +142,7 @@ function build3DPage(opt,preview){
   const {W,H}=opt;const info=sheetInfo(opt.paper);
   let o=[`<style>${SHEET_CSS}</style>`,`<rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/>`,frameMarkup(W,H,opt.layout)];
   const VN={iso:'izometrik',dimetric:'dimetrik',current:'ekran görünümü',front:'önden',top:'üstten',right:'sağdan',back:'arkadan'};
-  if(!dwSrc().polys.length){info.scale='—';o.push(footerMarkup(W,H,opt.layout,info));return {markup:o.join(''),images:[],scale:null}}
+  if(!dwSrc(true).polys.length){info.scale='—';o.push(footerMarkup(W,H,opt.layout,info));return {markup:o.join(''),images:[],scale:null}}
   let [x0,y0,x1,y1]=areaFor(W,H,opt.layout);
   const {z,up}=viewBasis(opt.view);const E=projExtents(z,up);
   const ew=Math.max(E.a1-E.a0,1e-3),eh=Math.max(E.b1-E.b0,1e-3);const aw=x1-x0,ah=y1-y0;

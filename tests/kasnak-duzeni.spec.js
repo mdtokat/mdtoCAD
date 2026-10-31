@@ -177,6 +177,8 @@ test('teknik resim: mil, burç ve kasnakta kademe boyları zincir ölçüyle yaz
   }
   expect(out).toEqual({ Mil: 3, Burç: 2, Kasnak: 3 });
   const txt = await page.evaluate(() => [...document.querySelectorAll('#sheet text')].map(t => t.textContent.trim()));
-  for (const e of ['Ø60', 'Ø52', '60']) expect(txt).toContain(e);
+  // genel boy kasnağın dış çapıdır: “60” değil “Ø60” yazılır; gizli kalan iç çaplar (göbek deliği dahil) üst görünüşte kılavuzla
+  for (const e of ['Ø60', 'Ø52', 'Ø40', 'Ø20']) expect(txt).toContain(e);
+  expect(txt).not.toContain('60');
   expect(errors).toEqual([]);
 });

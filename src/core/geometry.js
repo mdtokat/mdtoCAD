@@ -1143,7 +1143,12 @@ function revolveTool(f,sk,F){
     const q=loop.map(loc);for(let i=0;i<q.length;i++){const a=q[i],b=q[(i+1)%q.length];const r=Math.abs(a[0]);
       if(r>1e-6&&Math.abs(Math.abs(a[0])-Math.abs(b[0]))<1e-6&&Math.abs(a[1]-b[1])>1e-6){const k=r.toFixed(4)+'_'+Math.min(a[1],b[1]).toFixed(4);if(cyl.has(k))continue;cyl.add(k);
         ann.push({C:v3(P3),A:v3(A3),r,t0:Math.min(a[1],b[1]),t1:Math.max(a[1],b[1]),gid:f.id,op:f.op,label:false,cyl:true})}}}
-  return {polys,ann,cap:null};
+  /* eksene dik profil çizgileri = düz omuz yüzeyleri: yüzeye bağlı çizim ve delikler, ölçü değişince yüzeyle birlikte taşınır
+     (ekstrüzyon uç yüzlerindeki gibi). Çizgi kimliğiyle saklanır */
+  const rv={P:P3,A:A3,ents:{}};
+  for(const e of sk.ents){if(e.t!=='line'||e.cons)continue;const p=skP(sk,e.a),q=skP(sk,e.b),la=loc([p.x,p.y]),lb=loc([q.x,q.y]);
+    if(Math.abs(la[1]-lb[1])<1e-6&&Math.abs(Math.abs(la[0])-Math.abs(lb[0]))>1e-6)rv.ents[e.id]={t:la[1],r0:Math.min(Math.abs(la[0]),Math.abs(lb[0])),r1:Math.max(Math.abs(la[0]),Math.abs(lb[0]))}}
+  return {polys,ann,cap:{rv}};
 }
 
 /* ============ Kenarlar ============ */
@@ -1430,7 +1435,8 @@ function sketchFrame(sk,ctx){
   if(on.kind==='plane'){const F=ctx.frames[on.id];if(!F)throw new Error('Çizim düzlemi bulunamadı.');return F}
   if(on.kind==='face'){
     const c=on.feat&&ctx.caps[on.feat];
-    if(c&&on.which){const z=on.which==='far'?c.zf:c.zn;const n=vk(c.F.n,on.sgn||1);return faceFrame(n,fpt(c.F,0,0,z))}
+    if(c&&on.which==='rev'){const e=c.rv&&c.rv.ents[on.ent];if(e)return faceFrame(vk(c.rv.A,on.sgn||1),va(c.rv.P,vk(c.rv.A,e.t)))}
+    else if(c&&c.F&&on.which){const z=on.which==='far'?c.zf:c.zn;const n=vk(c.F.n,on.sgn||1);return faceFrame(n,fpt(c.F,0,0,z))}
     if(on.frame)return on.frame;
   }
   throw new Error('Çizim düzlemi çözülemedi.');
@@ -1439,9 +1445,14 @@ function clipAnn(a,box,polys){
   let lo=a.t0,hi=a.t1;const C=[a.C.x,a.C.y,a.C.z],A=[a.A.x,a.A.y,a.A.z];
   for(let k=0;k<3;k++){if(Math.abs(A[k])<1e-9){if(C[k]<box.min[k]-1e-6||C[k]>box.max[k]+1e-6)return null;continue}const ta=(box.min[k]-C[k])/A[k],tb=(box.max[k]-C[k])/A[k];lo=Math.max(lo,Math.min(ta,tb));hi=Math.min(hi,Math.max(ta,tb))}
   if(hi-lo<1e-6)return null;
-  const r=a.r*1.002+1e-3;let l2=Infinity,h2=-Infinity;
-  for(const p of polys)for(const v of p.verts){const dx=v.x-C[0],dy=v.y-C[1],dz=v.z-C[2];const t=dx*A[0]+dy*A[1]+dz*A[2];if(t<lo-1e-6||t>hi+1e-6)continue;const px=dx-A[0]*t,py=dy-A[1]*t,pz=dz-A[2]*t;if(px*px+py*py+pz*pz<=r*r){if(t<l2)l2=t;if(t>h2)h2=t}}
-  if(!(h2-l2>1e-6))return null;a.t0=l2;a.t1=h2;
+  const r=a.r*1.002+1e-3,rs=a.r*0.998-1e-3;let l2=Infinity,h2=-Infinity,on=0;
+  for(const p of polys)for(const v of p.verts){const dx=v.x-C[0],dy=v.y-C[1],dz=v.z-C[2];const t=dx*A[0]+dy*A[1]+dz*A[2];if(t<lo-1e-6||t>hi+1e-6)continue;const px=dx-A[0]*t,py=dy-A[1]*t,pz=dz-A[2]*t,q=px*px+py*py+pz*pz;if(q<=r*r){if(t<l2)l2=t;if(t>h2)h2=t;if(q>=rs*rs)on++}}
+  if(!(h2-l2>1e-6))return null;
+  // silindirik yüzey gövdede yoksa (ör. döndürme kesmenin gövdeye değmeyen dış kenarı, somun köşe pahında r=12) silindir sayılmaz:
+  // teknik resimde anlamsız Ø ölçüsü ve kademe üretiyordu
+  if(a.cyl&&on<3)a.cyl=false;
+  // profilden gelen boy (yalnızca gövde kutusuyla kırpılmış): teknik resimde kademe sınırları radyus/pah geçişlerinden etkilenmesin
+  a.s0=Math.max(a.t0,lo);a.s1=Math.min(a.t1,hi);a.t0=l2;a.t1=h2;
   // diş de gövde içinde kalır (tümünden geçen delikte araç boyu değil, gövde kalınlığı)
   if(a.thread){const t0=Math.max(a.thread.t0,l2),t1=Math.min(a.thread.t1,h2);a.thread=t1-t0>1e-6?{...a.thread,t0,t1}:null}
   return a;

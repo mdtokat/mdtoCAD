@@ -151,7 +151,7 @@ function cmd(c){
   if(c==='sketch'){if(sk)exitSketch(true);else beginSketchCommand(null,null);return}
   if(['extrude','cut','revolve','revcut'].includes(c)){
     const type=(c==='extrude'||c==='cut')?'extrude':'revolve',op=(c==='cut'||c==='revcut')?'cut':'add';
-    if(sk){const id=sk.feat.id;if(!exitSketch(true))return;openNewProfile(type,op,id);return}
+    if(sk){const id=sk.feat.id;if(!exitSketch(true,type))return;openNewProfile(type,op,id);return}
     if(pm)closePM(true);
     const sid=selectedFreeSketch();if(sid){openNewProfile(type,op,sid);return}
     beginSketchCommand({type,op},null);return;

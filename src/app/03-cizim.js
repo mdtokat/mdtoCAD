@@ -90,7 +90,7 @@ function beginSession(f,F,isNew){
   if(!isNew&&autoDefOn())autoDefineSketch(true);
   updUndo();updSbar();
 }
-function exitSketch(accept){
+function exitSketch(accept,next){
   if(!sk)return true;const f=sk.feat,wasNew=sk.isNew;
   endChainIfAny();closeSketchToast();
   // değişiklik yoksa çizime girerken eklenen geri alma adımı kaldırılır, yinele listesi geri gelir
@@ -99,7 +99,9 @@ function exitSketch(accept){
   else{pruneRefs(f);cleanupOrphans(f);if(wasNew&&skEmpty(f)){state.features=state.features.filter(x=>x!==f);drop();pending=null}
     else{let msg=fixRevolveAxes(f,JSON.parse(sk.orig));
       if(autoDefOn()&&!skEmpty(f)){try{const n=autoDefine(f,{px:sk.px}).length;if(n){solveSketch(f);msg=(msg?msg+' ':'')+`Çizim tam tanımlandı: ${n} ölçü/ilişki otomatik eklendi.`}}catch(e){}}
-      const iss=skIssues(f);if(iss.n)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
+      // açık zincir doğrudan Ekstrüzyona gidiyorsa uyarılmaz: panel ince özellikle açılır (SolidWorks gibi)
+      const iss=skIssues(f),thin=(next||(pending&&pending.type))==='extrude'&&!iss.ok&&iss.open.length&&!iss.multi.length&&!iss.cross.length;
+      if(iss.n&&!thin)msg=issueText(iss)+' '+issueHint(iss)+(msg?' '+msg:'');
       if(msg)toast(msg);
       if(!wasNew&&snapshot()===hist.undo[hist.undo.length-1])drop()}}
   clearConf();sk=null;closeDimPop();closeSkInput();closeSizePop();solidTone();

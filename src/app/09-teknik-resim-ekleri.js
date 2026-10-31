@@ -77,9 +77,12 @@ function sectionLineMarkup(si,ctx,s){
     o=`<path class="d-cen" d="${Lp(Cp[0],Cp[1],far[0],far[1])}"/><path class="d-vis" style="stroke-width:.7" d="${Lp(far[0],far[1],far[0]+ux*6*k,far[1]+uy*6*k)}${Lp(Cp[0]-ax*3,Cp[1]-ay*3,Cp[0]+ax*3,Cp[1]+ay*3)}"/>`;
   }
   else o=`<path class="d-cen" d="${Lp(E1[0],E1[1],E2[0],E2[1])}"/><path class="d-vis" style="stroke-width:.7" d="${Lp(E1[0],E1[1],E1[0]+ux*6,E1[1]+uy*6)}${Lp(E2[0],E2[1],E2[0]-ux*6,E2[1]-uy*6)}"/>`;
-  for(const E of ends){const tip=[E[0]+ax*8,E[1]+ay*8];o+=`<path class="d-thin" d="${Lp(E[0],E[1],tip[0],tip[1])}"/>`+arrow(tip,ax,ay)+`<text class="d-t" x="${f2(tip[0]+ax*3.5)}" y="${f2(tip[1]+ay*3.5+1.8)}" font-size="5" text-anchor="middle">A</text>`}
+  // ok, harf ve başlık yerleri ayrılır: delik etiketleri ve ölçüler üstlerine binmesin (önceden “4× Ø9” sağdaki A'nın üstüne düşüyordu)
+  const keep=(xs,ys)=>{if(occ)occ.push([Math.min(...xs)-1.5,Math.min(...ys)-1.5,Math.max(...xs)+1.5,Math.max(...ys)+1.5])};
+  for(const E of ends){const tip=[E[0]+ax*8,E[1]+ay*8],T=[tip[0]+ax*3.5,tip[1]+ay*3.5+1.8];o+=`<path class="d-thin" d="${Lp(E[0],E[1],tip[0],tip[1])}"/>`+arrow(tip,ax,ay)+`<text class="d-t" x="${f2(T[0])}" y="${f2(T[1])}" font-size="5" text-anchor="middle">A</text>`;
+    keep([E[0],tip[0],T[0]-2,T[0]+2,E[0]+ux*6,E[0]-ux*6],[E[1],tip[1],T[1]-4,T[1]+.5,E[1]+uy*6,E[1]-uy*6])}
   const sb=sv.d.bb;const top=sv.map((sb.minA+sb.maxA)/2,sb.maxB);
-  o+=`<text class="d-t" x="${f2(top[0])}" y="${f2(top[1]-6)}" font-size="5" text-anchor="middle">KESİT A-A</text>`;
+  o+=`<text class="d-t" x="${f2(top[0])}" y="${f2(top[1]-6)}" font-size="5" text-anchor="middle">KESİT A-A</text>`;keep([top[0]-13,top[0]+13],[top[1]-10.5,top[1]-5]);
   if(si.half){// iki yarı arasında eksen çizgisi
     const a=dot3(P,VIEWS[si.key].R);const A=sv.map(a,sb.minB),B=sv.map(a,sb.maxB);
     o+=`<path class="d-cen" d="${Lp(A[0],A[1]+3,B[0],B[1]-3)}"/>`}

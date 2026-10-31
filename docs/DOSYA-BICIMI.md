@@ -39,7 +39,11 @@ Her özellikte `id`, `type`, `name` ve isteğe bağlı `suppressed: true` bulunu
   "type": "sketch",
   "on": { "kind": "std", "key": "front" | "top" | "right" }
       | { "kind": "plane", "id": "<referans düzlem id>" }
-      | { "kind": "face", "feat": "<ekstrüzyon id>", "which": "far" | "near", "sgn": 1 | -1, "frame": {o,u,v,n} },
+      | { "kind": "face", "feat": "<ekstrüzyon id>", "which": "far" | "near", "sgn": 1 | -1, "frame": {o,u,v,n} }
+      | { "kind": "face", "feat": "<döndürme id>", "which": "rev", "ent": "<eksene dik profil çizgisi id>", "sgn": 1 | -1, "frame": {o,u,v,n} }
+      | { "kind": "face", "feat": "<id>", "which": null, "frame": {o,u,v,n} },   // diğer yüzeyler: sabit konum
+  // "rev": döndürmenin omuz yüzeyi; profil ölçüsü değişince yüzeyle birlikte taşınır. Çizgi silinmişse "frame" kullanılır.
+  // Delik Sihirbazı ("hole".on) ve yüzeyden ayna/referans düzlem de aynı yüzey referansını kullanır.
   "pts":  { "p1": {"x": 0, "y": 0}, "p7": {"x": 5, "y": 8, "sp": true}, ... },  // "O" = orijin (sabit, burada yazılmaz)
   "ents": [ {"id":"e1","t":"line","a":"p1","b":"p2","cons":false},
             {"id":"e2","t":"circle","c":"p3","r":5},

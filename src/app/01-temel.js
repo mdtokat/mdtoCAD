@@ -556,7 +556,11 @@ function pickPlane(e){
 function faceRef(f){
   // Seçilen yüzeyi, onu oluşturan ekstrüzyonun uç yüzüne bağla (model değişince çizim de taşınır)
   const c=model.caps[f.feat];
-  if(c){const dn=vd(f.n,c.F.n);if(Math.abs(dn)>0.9999){const z=vd(vs(f.pt,c.F.o),c.F.n);
+  // döndürmenin eksene dik omuz yüzeyi: onu oluşturan profil çizgisine bağlanır
+  if(c&&c.rv){const A=c.rv.A,dn=vd(f.n,A);if(Math.abs(dn)>0.9999){const w=vs(f.pt,c.rv.P),t=vd(w,A),rho=vl(vs(w,vk(A,t)));let best=null,bd=1e-3;
+    for(const id in c.rv.ents){const e=c.rv.ents[id],d=Math.abs(e.t-t);if(d<bd&&rho>e.r0-1e-3&&rho<e.r1+1e-3){bd=d;best=id}}
+    if(best)return {kind:'face',feat:f.feat,which:'rev',ent:best,sgn:Math.sign(dn),frame:faceFrame(f.n,f.pt)}}}
+  if(c&&c.F){const dn=vd(f.n,c.F.n);if(Math.abs(dn)>0.9999){const z=vd(vs(f.pt,c.F.o),c.F.n);
     if(Math.abs(z-c.zf)<1e-3)return {kind:'face',feat:f.feat,which:'far',sgn:Math.sign(dn),frame:faceFrame(f.n,f.pt)};
     if(Math.abs(z-c.zn)<1e-3)return {kind:'face',feat:f.feat,which:'near',sgn:Math.sign(dn),frame:faceFrame(f.n,f.pt)}}}
   return {kind:'face',feat:f.feat,which:null,frame:faceFrame(f.n,f.pt)};

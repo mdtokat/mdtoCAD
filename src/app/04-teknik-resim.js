@@ -68,9 +68,12 @@ function viewData(key,alt){
   for(const an of src.ann){
     const A=[an.A.x,an.A.y,an.A.z],C=[an.C.x,an.C.y,an.C.z];const dd=dot3(A,D);
     if(an.thread){const th=an.thread;if(Math.abs(dd)>.99)threads.push({t:'arc',a:dot3(C,R),b:dot3(C,U),R:th.R});else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*th.t0,C[1]+A[1]*th.t0,C[2]+A[2]*th.t0],P1=[C[0]+A[0]*th.t1,C[1]+A[1]*th.t1,C[2]+A[2]*th.t1];const a0=dot3(P0,R),b0=dot3(P0,U),a1=dot3(P1,R),b1=dot3(P1,U);const L=Math.hypot(a1-a0,b1-b0)||1;const nx=-(b1-b0)/L,ny=(a1-a0)/L;for(const sg of [1,-1])threads.push({t:'line',s:[a0+nx*th.R*sg,b0+ny*th.R*sg,a1+nx*th.R*sg,b1+ny*th.R*sg]})}}
-    if(Math.abs(dd)>.99)circ.push({a:dot3(C,R),b:dot3(C,U),r:an.r,gid:an.gid,op:an.op,label:an.label,txt:an.txt,call:an.call});
-    else if(Math.abs(dd)<.02){const P0=[C[0]+A[0]*an.t0,C[1]+A[1]*an.t0,C[2]+A[2]*an.t0],P1=[C[0]+A[0]*an.t1,C[1]+A[1]*an.t1,C[2]+A[2]*an.t1];axRaw.push([dot3(P0,R),dot3(P0,U),dot3(P1,R),dot3(P1,U)]);
-      if(an.cyl)cyls.push({a0:dot3(P0,R),b0:dot3(P0,U),a1:dot3(P1,R),b1:dot3(P1,U),r:an.r,id:an.gid+'_'+an.r.toFixed(3)+'_'+Math.round(dot3(C,R)+dot3(C,U)+an.t0)})}
+    // görünüşten bağımsız daire anahtarı: yandan görülen silindir, uç görünüşteki dairesiyle eşleşir
+    const ck=an.gid+'_'+an.r.toFixed(3)+'_'+C.map(x=>x.toFixed(2)).join(',')+'_'+A.map(x=>Math.abs(x).toFixed(3)).join(',');
+    if(Math.abs(dd)>.99)circ.push({a:dot3(C,R),b:dot3(C,U),r:an.r,gid:an.gid,op:an.op,label:an.label,txt:an.txt,call:an.call,ck});
+    else if(Math.abs(dd)<.02){const at=t=>[C[0]+A[0]*t,C[1]+A[1]*t,C[2]+A[2]*t];const P0=at(an.t0),P1=at(an.t1);axRaw.push([dot3(P0,R),dot3(P0,U),dot3(P1,R),dot3(P1,U)]);
+      if(an.cyl){const S0=at(an.s0!==undefined?an.s0:an.t0),S1=at(an.s1!==undefined?an.s1:an.t1);
+        cyls.push({a0:dot3(P0,R),b0:dot3(P0,U),a1:dot3(P1,R),b1:dot3(P1,U),sa0:dot3(S0,R),sb0:dot3(S0,U),sa1:dot3(S1,R),sb1:dot3(S1,U),r:an.r,ck,id:an.gid+'_'+an.r.toFixed(3)+'_'+Math.round(dot3(C,R)+dot3(C,U)+an.t0)})}}
   }
   const mm=new Map();for(const q of circ){const k=Math.round(q.a*100)+'_'+Math.round(q.b*100);const o=mm.get(k);if(!o||o.r<q.r)mm.set(k,{a:q.a,b:q.b,r:q.r})}
   const lines=new Map();
@@ -103,14 +106,24 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
   // yardımcı çizgi ölçülen noktadan başlar (geometriye değer), ölçü çizgisini 2 mm geçer
   const ext=(P,Q)=>{const dx=Q[0]-P[0],dy=Q[1]-P[1],l=Math.hypot(dx,dy);if(l<1e-3)return '';const ux=dx/l,uy=dy/l;return Lp(P[0],P[1],Q[0]+ux*2,Q[1]+uy*2)};
   const dx=Q2[0]-Q1[0],dy=Q2[1]-Q1[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;
-  let s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0],Q1[1],Q2[0],Q2[1])}"/>`+arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy);
   let ang=Math.atan2(dy,dx)*180/Math.PI;if(ang>=90)ang-=180;if(ang<-90)ang+=180;
   const r=ang*Math.PI/180,upx=Math.sin(r),upy=-Math.cos(r);
-  const mx=(Q1[0]+Q2[0])/2+upx*1.1,my=(Q1[1]+Q2[1])/2+upy*1.1;
   if(tol&&tol.tt!=='dev')txt=tolText(txt,tol);
   const tw=tol&&tol.tt==='dev'?txt.length*1.72+6:textWidth(txt,3.5);
-  {const c=Math.abs(Math.cos(r)),sn=Math.abs(Math.sin(r)),hw=tw/2+.6,hh=2.3,bx=mx+upx*1.2,by=my+upy*1.2;
-   lastBox=[bx-(c*hw+sn*hh),by-(sn*hw+c*hh),bx+(c*hw+sn*hh),by+(sn*hw+c*hh)];if(occ)occ.push(lastBox)}
+  const boxAt=(mx,my)=>{const c=Math.abs(Math.cos(r)),sn=Math.abs(Math.sin(r)),hw=tw/2+.6,hh=2.3,bx=mx+upx*1.2,by=my+upy*1.2;
+    return [bx-(c*hw+sn*hh),by-(sn*hw+c*hh),bx+(c*hw+sn*hh),by+(sn*hw+c*hh)]};
+  /* yazı oklar arasına sığmıyorsa (dar kademe, kısa zincir ölçü) SolidWorks gibi oklar dışarıdan gösterir, yazı ölçü çizgisinin
+     uzantısında boş olan yana (önce başa: zincirde öncekiler yerleşmiştir) konur; önceden yan yana iki dar ölçünün yazıları üst üste biniyordu */
+  let sh=0,lift=0;
+  if(tw+1.5>l){const d0=l/2+2+tw/2+.6;const free=([t,h])=>{const B=boxAt((Q1[0]+Q2[0])/2+ux*t+upx*(1.1+h),(Q1[1]+Q2[1])/2+uy*t+upy*(1.1+h));return !occ||!occ.some(b=>boxOv(B,b)>0.05)};
+    // yanlar doluysa (zincirde iki dar kademe yan yana) yazı bir satır yukarı alınır
+    const c=[[-d0,0],[d0,0],[0,5],[-d0,5],[d0,5]];[sh,lift]=c.find(free)||c[1]}
+  const mx=(Q1[0]+Q2[0])/2+ux*sh+upx*(1.1+lift),my=(Q1[1]+Q2[1])/2+uy*sh+upy*(1.1+lift);
+  let s;
+  if(tw+1.5<=l)s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0],Q1[1],Q2[0],Q2[1])}"/>`+arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy);
+  else{const e1=sh<0&&!lift?tw+3.2:3.5,e2=sh>0&&!lift?tw+3.2:3.5;
+    s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0]-ux*e1,Q1[1]-uy*e1,Q2[0]+ux*e2,Q2[1]+uy*e2)}"/>`+arrow(Q1,ux,uy)+arrow(Q2,-ux,-uy)}
+  lastBox=boxAt(mx,my);if(occ)occ.push(lastBox);
   if(tol&&tol.tt==='dev'){
     const sgn=v=>{const n=num(v);if(!isFinite(n)||n===0)return '0';return (n>0?'+':'−')+fmt(Math.abs(n),3)};
     const up=sgn(tol.tu),lo=sgn(tol.tl);const wm=txt.length*1.72,wd=Math.max(up.length,lo.length)*1.25+.6,tot=wm+wd;
@@ -270,6 +283,14 @@ function sheetInfo(paperLabel){
   return {drawn:S.drawn,checked:S.checked,date:new Date().toLocaleDateString('tr-TR'),mat:src.matName,part:src.name,company:S.company,dno:S.dno,mass:src.massG?massText(src.massG):'',scale:'',method:S.method,paper:paperLabel||S.paper};
 }
 /* otomatik delik konum ölçüleri: her delik grubu onu gösteren ilk görünüşte (üst, ön, yan sırasıyla) ölçülür */
+/* yandan görülen silindirin iki dış çizgisinin görünür kısmı boyunun dörtte birinden azsa (delik, iç oyuk) gizli sayılır */
+function cylHidden(d,c,ua,ub,L){
+  let vis=0;const na=-ub,nb=ua;
+  for(const q of d.vis){const dx=q[2]-q[0],dy=q[3]-q[1],l=Math.hypot(dx,dy);if(l<1e-9||Math.abs(dx*ub-dy*ua)/l>1e-3)continue;
+    const off=(q[0]-c.a0)*na+(q[1]-c.b0)*nb;if(Math.abs(Math.abs(off)-c.r)>Math.max(2e-3,c.r*1e-3))continue;
+    const t0=(q[0]-c.a0)*ua+(q[1]-c.b0)*ub,t1=(q[2]-c.a0)*ua+(q[3]-c.b0)*ub;vis+=Math.max(0,Math.min(L,Math.max(t0,t1))-Math.max(0,Math.min(t0,t1)))}
+  return vis<0.25*2*L;
+}
 function holePlan(vd,order){const plan=new Map();
   for(const k of order){const seen=[];for(const q of vd[k].circ){if(!q.label)continue;
     // farklı özelliklerin görünüşte üst üste düşen aynı çaplı daireleri (borunun ve flanşın aynı deliği, arka disk ve ön örtü) tek etiket olur;
@@ -435,6 +456,8 @@ function buildSheet(forExport,opts){
   }
   /* otomatik ölçüler (Model öğeleri): önce sabit konumlu ölçüler, sonra etiketler boş yere yerleştirilir */
   const autoDim=(key,P1,P2,Q1,Q2,txt)=>{if(hide.has(key))return;o.push(dimMarkup(P1,P2,Q1,Q2,txt));ctx.hits.push({t:'auto',k:key,box:lastBox})};
+  // kesit çizgisi etiketlerden önce hesaplanır (ok ve harf yerleri ayrılır), çizim sırası değişmez
+  const secM=secInfo?sectionLineMarkup(secInfo,ctx,s):'';
   if(S.autodims&&!isoOnly){
     const order=['top','front',side].filter(k=>ctx.views[k]);const plan=holePlan(vd,order);
     /* delik konumları: simetrik çift merkezden merkeze, diğerleri görünüşün sol/alt kenarından; delik dairesindekiler delik dairesi çapıyla */
@@ -454,39 +477,57 @@ function buildSheet(forExport,opts){
       };
       axis(hs.map(q=>q.a),bb.minA,bb.maxA,true);axis(hs.map(q=>q.b),bb.minB,bb.maxB,false);
     }
-    /* genel boyutlar */
+    /* genel boyutlar. Boyut, ortasından geçen eksenli bir silindirin (veya uç görünüşteki dairenin) çapıysa SolidWorks gibi
+       Ø ile yazılır; aynı çap ayrıca profilin içine yazılmaz (kasnakta “60” ve “Ø60” birlikte çıkıyordu) */
+    const shownCk=new Set(),odimCk=new Set();
+    const diaFor=(k,horiz)=>{const d=vd[k],bb=d.bb,lo=horiz?bb.minA:bb.minB,hi=horiz?bb.maxA:bb.maxB,tol=1e-3*(1+hi-lo);
+      for(const c of d.cyls||[]){if(horiz?Math.abs(c.a1-c.a0)>1e-6:Math.abs(c.b1-c.b0)>1e-6)continue;const m=horiz?c.a0:c.b0;
+        if(Math.abs(m-c.r-lo)<tol&&Math.abs(m+c.r-hi)<tol)return c}
+      for(const q of d.circ){const m=horiz?q.a:q.b;if(Math.abs(m-q.r-lo)<tol&&Math.abs(m+q.r-hi)<tol)return q}
+      return null};
+    const odim=(k,horiz,v)=>{const c=hide.has((horiz?'ow:':'oh:')+vk2(k))?null:diaFor(k,horiz);if(c){shownCk.add(c.ck);odimCk.add(c.ck);return 'Ø'+fmt(v)}return fmt(v)};
     const vF=ctx.views.front,dF=vd.front.bb;
     const yB=vF.map(0,dF.minB)[1]+9,xL=vF.map(dF.minA,0)[0]-9;
     const BL=vF.map(...edgePt(vd.front,0,dF.minA,dF.minB)),BR=vF.map(...edgePt(vd.front,0,dF.maxA,dF.minB));
-    autoDim('ow:front',BL,BR,[BL[0],yB],[BR[0],yB],fmt(dF.maxA-dF.minA));
+    autoDim('ow:front',BL,BR,[BL[0],yB],[BR[0],yB],odim('front',true,dF.maxA-dF.minA));
     const LB=vF.map(...edgePt(vd.front,1,dF.minB,dF.minA)),LT=vF.map(...edgePt(vd.front,1,dF.maxB,dF.minA));
-    autoDim('oh:front',LB,LT,[xL,LB[1]],[xL,LT[1]],fmt(dF.maxB-dF.minB));
+    autoDim('oh:front',LB,LT,[xL,LB[1]],[xL,LT[1]],odim('front',false,dF.maxB-dF.minB));
     const vS=ctx.views[side];
     if(vS){const dS=vd[side].bb;const SL=vS.map(...edgePt(vd[side],0,dS.minA,dS.minB)),SR=vS.map(...edgePt(vd[side],0,dS.maxA,dS.minB)),y=vS.map(0,dS.minB)[1]+9;
-      autoDim('ow:side',SL,SR,[SL[0],y],[SR[0],y],fmt(dS.maxA-dS.minA))}
+      autoDim('ow:side',SL,SR,[SL[0],y],[SR[0],y],odim(side,true,dS.maxA-dS.minA))}
     /* döndürmeyle oluşan silindirlerin çapları (mil kademeleri, burç delikleri): eksenin görüldüğü ilk görünüşte profilin içinden;
        yazı başka bir ölçüye değmeyecek yere (kademenin ortası, sonra kenarlarına yakın) konur, sığmazsa yazılmaz */
+    /* gizli kalan (delik, iç oyuk) veya profilin içine sığmayan çaplar uç görünüşteki dairesine kılavuzla yazılır (aşağıda) */
+    const cdLead=[];
     {const done=new Set();
       for(const k of ['front','top',side]){const v=ctx.views[k];if(!v||!vd[k].cyls||!vd[k].cyls.length)continue;
         const lns=[];for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);lns.push([A[0],A[1],B[0],B[1]])}
-        vd[k].cyls.forEach((c,i)=>{if(done.has(c.id))return;done.add(c.id);const key='cd:'+vk2(k)+':'+i;if(hide.has(key))return;
-          const L=Math.hypot(c.a1-c.a0,c.b1-c.b0);if(L*s<5||c.r*2*s<7)return;const ua=(c.a1-c.a0)/L,ub=(c.b1-c.b0)/L;const txt='Ø'+fmt(c.r*2),tw=textWidth(txt,3.5)/2+.8;
+        vd[k].cyls.forEach((c,i)=>{if(done.has(c.id))return;done.add(c.id);const key='cd:'+vk2(k)+':'+i;if(hide.has(key)||odimCk.has(c.ck))return;
+          const L=Math.hypot(c.a1-c.a0,c.b1-c.b0);if(L*s<5||c.r*2*s<7){cdLead.push({c,key});return}const ua=(c.a1-c.a0)/L,ub=(c.b1-c.b0)/L;const txt='Ø'+fmt(c.r*2),tw=textWidth(txt,3.5)/2+.8;
+          // görünüşte kenarları (dış çizgileri) çoğunlukla gizliyse kesikli çizgiye ölçü verilmez
+          if(cylHidden(v.d,c,ua,ub,L)){cdLead.push({c,key});return}
           for(const f of [.5,.35,.65,.2,.8]){const ma=c.a0+(c.a1-c.a0)*f,mb=c.b0+(c.b1-c.b0)*f;const P1=v.map(ma-ub*c.r,mb+ua*c.r),P2=v.map(ma+ub*c.r,mb-ua*c.r);
             const M=[(P1[0]+P2[0])/2,(P1[1]+P2[1])/2],vert=Math.abs(P1[0]-P2[0])<Math.abs(P1[1]-P2[1]);
             const B=vert?[M[0]-3.6,M[1]-tw,M[0]+1,M[1]+tw]:[M[0]-tw,M[1]-3.6,M[0]+tw,M[1]+1];
-            if(occ.some(b=>boxOv(B,b)>0)||lns.some(g=>segHitsBox(g[0],g[1],g[2],g[3],B)))continue;autoDim(key,P1,P2,P1,P2,txt);break}})}}
+            if(occ.some(b=>boxOv(B,b)>0)||lns.some(g=>segHitsBox(g[0],g[1],g[2],g[3],B)))continue;autoDim(key,P1,P2,P1,P2,txt);shownCk.add(c.ck);return}
+          cdLead.push({c,key})})}}
     /* kademe boyları (mil, burç, kasnak): tüm silindirleri aynı eksende olan parçada, eksenin yatay/dikey görüldüğü ilk görünüşte
        kademe sınırları arasında zincir ölçü; genel boyun karşı tarafına konur (genel boy alttaysa üstte, soldaysa sağda) */
     for(const k of ['front','top',side]){const v=ctx.views[k],cs=v&&vd[k].cyls;if(!cs||cs.length<2)continue;
       const c0=cs[0],hz=Math.abs(c0.b1-c0.b0)<1e-6&&Math.abs(c0.a1-c0.a0)>1e-6,vt=Math.abs(c0.a1-c0.a0)<1e-6&&Math.abs(c0.b1-c0.b0)>1e-6;if(!hz&&!vt)continue;
       const ax=hz?c0.b0:c0.a0;if(!cs.every(c=>hz?Math.abs(c.b0-ax)<1e-3&&Math.abs(c.b1-ax)<1e-3:Math.abs(c.a0-ax)<1e-3&&Math.abs(c.a1-ax)<1e-3))continue;
       const sp=c=>hz?[Math.min(c.a0,c.a1),Math.max(c.a0,c.a1)]:[Math.min(c.b0,c.b1),Math.max(c.b0,c.b1)];
-      const xs=[];for(const c of cs)for(const x of sp(c))if(!xs.some(y=>Math.abs(y-x)<1e-3))xs.push(x);xs.sort((p,q)=>p-q);
+      // kademe sınırları profildeki boylardan: radyus ve pah geçişleri (silindirin kısalan ucu) kademe sayılmaz
+      const ps=c=>hz?[Math.min(c.sa0,c.sa1),Math.max(c.sa0,c.sa1)]:[Math.min(c.sb0,c.sb1),Math.max(c.sb0,c.sb1)];
+      const xs=[];for(const c of cs)for(const x of ps(c))if(!xs.some(y=>Math.abs(y-x)<1e-3))xs.push(x);xs.sort((p,q)=>p-q);
       if(xs.length<3||xs.length>9)break;
-      // uzatma çizgisi o sınırdaki en büyük silindirin dış çizgisinden çıkar
-      const rAt=x=>Math.max(...cs.filter(c=>{const [p,q]=sp(c);return x>p-1e-3&&x<q+1e-3}).map(c=>c.r));
+      // uzatma çizgisi o sınırdaki en büyük silindirin dış çizgisinden çıkar (pahlı/radyuslu uçta gövdenin bittiği silindirden)
+      const rAt=x=>{const on=cs.filter(c=>{const [p,q]=sp(c);return x>p-1e-3&&x<q+1e-3});return Math.max(...(on.length?on:cs.filter(c=>{const [p,q]=ps(c);return x>p-1e-3&&x<q+1e-3})).map(c=>c.r))};
       const bb=vd[k].bb,off=k==='front'||!hz?9:16;
-      for(let i=0;i<xs.length-1;i++){const key='kb:'+vk2(k)+':'+i;
+      // yazısı sığan kademeler önce: dar kademelerin dışarı alınan yazıları komşularınkine binmesin
+      const fitsIn=i=>textWidth(fmt(xs[i+1]-xs[i]),3.5)+1.5<=(xs[i+1]-xs[i])*s;
+      const ord=[...xs.keys()].slice(0,-1);ord.sort((p,q)=>fitsIn(q)-fitsIn(p));
+      for(const i of ord){const key='kb:'+vk2(k)+':'+i;
         if(hz){const P1=v.map(xs[i],ax+rAt(xs[i])),P2=v.map(xs[i+1],ax+rAt(xs[i+1])),y=v.map(0,bb.maxB)[1]-off;autoDim(key,P1,P2,[P1[0],y],[P2[0],y],fmt(xs[i+1]-xs[i]))}
         else{const P1=v.map(ax+rAt(xs[i]),xs[i]),P2=v.map(ax+rAt(xs[i+1]),xs[i+1]),x=v.map(bb.maxA,0)[0]+off;autoDim(key,P1,P2,[x,P1[1]],[x,P2[1]],fmt(xs[i+1]-xs[i]))}}
       break}
@@ -507,6 +548,15 @@ function buildSheet(forExport,opts){
         const c=leaderM(C,R,['Ø'+fmt(P.R*2)],K);c.sc=score(c.box)+dA(th)/3+(L-7)/22;if(!r||c.sc<r.sc)r=c;if(r.sc<0.6)break search}
       o.push(r.m);occ.push(r.box);ctx.hits.push({t:'auto',k:key,box:r.box});
     }
+    /* gizli ya da profile sığmayan döndürme çapları: uç görünüşteki dairesine kılavuzla (delik etiketleri gibi) */
+    {const put=[];
+      for(const {c,key} of cdLead){if(shownCk.has(c.ck))continue;
+        let hit=null;for(const k of ['top','front',side]){const v=ctx.views[k];if(!v)continue;const q=vd[k].circ.find(q=>q.ck===c.ck);if(q){hit={k,v,q};break}}
+        if(!hit)continue;const {v,q}=hit;if(put.some(p=>p.k===hit.k&&Math.abs(p.q.a-q.a)<1e-3&&Math.abs(p.q.b-q.b)<1e-3&&Math.abs(p.q.r-q.r)<1e-3))continue;
+        const C=v.map(q.a,q.b),R=q.r*v.s;if(R<1)continue;let r=null;
+        search:for(const L of [6,10,15,21])for(const dA of [0,-20,20,-40,40,-60,60,90,-90,120,-120,180]){const th=(45+dA)*Math.PI/180;const K=[C[0]+Math.cos(th)*(R+L),C[1]-Math.sin(th)*(R+L)];
+          const m=leaderM(C,R,['Ø'+fmt(q.r*2)],K);m.sc=score(m.box)+Math.abs(dA)/120+(L-6)/22;if(!r||m.sc<r.sc)r=m;if(r.sc<0.05)break search}
+        o.push(r.m);occ.push(r.box);ctx.hits.push({t:'auto',k:key,box:r.box});shownCk.add(c.ck);put.push(hit)}}
     for(const [gid,g] of plan){
       const key='L:'+gid;if(hide.has(key))continue;
       const v=ctx.views[g.k];const cut=g.list[0].op==='cut';
@@ -529,7 +579,7 @@ function buildSheet(forExport,opts){
   ctx.stale=new Set();
   S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;const st=dimStale(dm,v.d,v.sk);if(st)ctx.stale.add(i);let m=dimRender(dm,v);if(st&&!forExport)m=tint(m,'#D0342C');
     o.push(`<g data-dim="${i}">${m}</g>`);ctx.hits.push({t:'dim',i,box:lastBox})});
-  if(secInfo)o.push(sectionLineMarkup(secInfo,ctx,s));
+  if(secInfo)o.push(secM);
   o.push(detailsMarkup(S,ctx,s));
   o.push(surfMarkup(S,ctx));
   o.push(gdtMarkup(S,ctx));

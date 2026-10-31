@@ -107,7 +107,7 @@ const arcIsBig=ar=>!!ar&&Math.abs(ar.sw)>Math.PI+1e-3;
 /* imlecin altındaki yay (tam daire değil; daireler nearestCircle ile) */
 function nearestArc(p,tol){
   let best=null,bd=tol;
-  for(const v of dwViews())for(const ar of v.d.arcs||[]){if(ar.full)continue;const C=v.map(ar.a,ar.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-ar.r*v.s);if(d>=bd)continue;
+  for(const v of dwViews())for(const ar of v.d.arcs||[]){if(ar.full||!curveShown(v,null,ar))continue;const C=v.map(ar.a,ar.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-ar.r*v.s);if(d>=bd)continue;
     const th=Math.atan2(-(p[1]-C[1]),p[0]-C[0]);if(!onArcSpan(ar,th,0.02))continue;bd=d;best={view:v.key,a:ar.a,b:ar.b,r:ar.r,arc:{t0:ar.t0,sw:ar.sw},sig:ar.sig,sigs:ar.sigs}}
   return best;
 }
@@ -133,6 +133,41 @@ function curveHi(c,acc,w){
 }
 /* ön ek: R yarıçap, Ø çap yazar (önceden Ø12 ölçüsüne R yazınca “R12” çıkıyordu) */
 const dimRad=d=>/^\s*R/i.test(d.pre||'')?true:/^\s*(Ø|ø|⌀)/.test(d.pre||'')?false:!!d.rad;
+
+/* ================= KENARA DİK ÖLÇÜLER ================= */
+/* A–B kenar parçası üstünde P'ye en yakın nokta: dik ayak parçanın içine kırpılır. Önceden ayak kenarın uzantısına düşüyor,
+   uzatma çizgisi havada başlıyor ve ölçü eklenir eklenmez “modele uymuyor” (kırmızı) görünüyordu */
+function clampOn(A,B,P){const dx=B[0]-A[0],dy=B[1]-A[1],l2=dx*dx+dy*dy;let t=l2?((P[0]-A[0])*dx+(P[1]-A[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return [A[0]+dx*t,A[1]+dy*t]}
+/* kenara dik ölçünün türü: yatay kenar → dikey ölçü (v), dikey kenar → yatay (h), eğik kenar → kenarın normali yönünde hizalı (a, n) */
+function perpKind(u){if(Math.abs(u[1])<1e-6)return {kind:'v'};if(Math.abs(u[0])<1e-6)return {kind:'h'};return {kind:'a',n:[-u[1],u[0]]}}
+/* iki paralel kenar arası ölçünün uçları: kenarların örtüştüğü aralıkta X'e en yakın yer (iki uzatma çizgisi de kenara değer);
+   örtüşmüyorsa birbirine en yakın uçlar */
+function parPair(A1,B1,A2,B2,X){
+  const l=Math.hypot(B1[0]-A1[0],B1[1]-A1[1])||1,u=[(B1[0]-A1[0])/l,(B1[1]-A1[1])/l],sp=P=>(P[0]-A1[0])*u[0]+(P[1]-A1[1])*u[1];
+  const f0=Math.min(sp(A2),sp(B2)),f1=Math.max(sp(A2),sp(B2)),lo=Math.max(0,f0),hi=Math.min(l,f1);let p1;
+  if(lo<=hi+1e-9){const t=Math.max(lo,Math.min(hi,sp(X)));p1=[A1[0]+u[0]*t,A1[1]+u[1]*t]}else p1=f1<0?A1.slice():B1.slice();
+  return [p1,clampOn(A2,B2,p1)];
+}
+/* iki paralel kenar yandan görülen bir silindirin (mil, göbek, delik) dış çizgileriyse ölçü çaptır: SolidWorks ve ISO 129-1 gibi
+   Ø ile yazılır (önceden ön görünüşte gövdenin iki kenarı arası “46”, üst görünüşte “Ø46” yazılıyordu) */
+function silDia(v,p1,p2,u){
+  const n=[-u[1],u[0]],w=(p2[0]-p1[0])*n[0]+(p2[1]-p1[1])*n[1],M=[(p1[0]+p2[0])/2,(p1[1]+p2[1])/2];
+  for(const c of v.d.side||[]){const L=Math.hypot(c[2]-c[0],c[3]-c[1]);if(L<1e-6)continue;const a=[(c[2]-c[0])/L,(c[3]-c[1])/L],tl=1e-3*(1+c[4]);
+    if(Math.abs(a[0]*u[1]-a[1]*u[0])>1e-3||Math.abs(Math.abs(w)-2*c[4])>tl)continue;
+    // eksen iki kenarın ortasından geçer
+    if(Math.abs((M[0]-c[0])*a[1]-(M[1]-c[1])*a[0])>tl)continue;
+    const t=(M[0]-c[0])*a[0]+(M[1]-c[1])*a[1],e=Math.max(tl,0.05*L);if(t<-e||t>L+e)continue;
+    return true}
+  return false;
+}
+/* delik etiketi (SolidWorks: Hole Callout): deliğin açıklaması (Ø9 ↧12, ⌴Ø18 ↧2…), görünüşteki aynı delikler n× ile */
+function hcLines(d,v){
+  const q=v.d.circ.filter(q=>Math.hypot(q.a-d.c[0],q.b-d.c[1])<1e-3&&Math.abs(q.r-d.r)<1e-3).sort((x,y)=>(y.call?1:0)-(x.call?1:0))[0];
+  if(!q)return [parTxt(d,(d.pre||'Ø')+fmt(2*d.r))];
+  const key=circKey(q.gid),same=[];for(const o of v.d.circ)if(circKey(o.gid)===key&&Math.abs(o.r-q.r)<1e-3&&!same.some(x=>Math.hypot(x.a-o.a,x.b-o.b)<0.01))same.push(o);
+  const lines=(q.call||[q.txt||('Ø'+fmt(2*q.r))]).slice();if(same.length>1)lines[0]=same.length+'× '+lines[0];
+  if(d.pre)lines[0]=d.pre+lines[0];return lines;
+}
 
 /* ================= ELLE ÖLÇÜLERİN MODELE BAĞLANMASI ================= */
 /* nokta kimliği: seçilen nokta (snap) veya kenar üzerindeki nokta */
@@ -191,9 +226,13 @@ function reattachDim(dm,v,snaps){
       if((r1.k!=='e'&&!p1)||(r2.k!=='e'&&!p2))return false;
       const L1=r1.k==='e'?lineBySig(v,r1,o1):null,L2=r2.k==='e'?lineBySig(v,r2,o2):null;
       if((r1.k==='e'&&!L1)||(r2.k==='e'&&!L2))return false;
-      // kenar üstündeki uç: diğer uç noktaysa ondan kenara dik ayak; iki uç da kenarsa ilki kendi kenarında kalır, ikincisi ona dik
-      if(L1&&L2){p1=L1.foot(o1);p2=L2.foot(p1)}
-      else if(L1)p1=L1.foot(p2);else if(L2)p2=L2.foot(p1)}
+      /* kenar üstündeki uç: diğer uç noktaysa ondan kenara dik ayak (kenar parçasının içine kırpılır); iki uç da kenarsa
+         örtüştükleri aralıkta. Eski hizalı (n'siz) ölçüler doğrunun uzantısındaki ayakla kalır */
+      const old=dm.kind==='a'&&!dm.n;
+      if(L1&&L2){if(old){p1=L1.foot(o1);p2=L2.foot(p1)}else [p1,p2]=parPair(L1.A,L1.B,L2.A,L2.B,o1)}
+      else if(L1)p1=old?L1.foot(p2):clampOn(L1.A,L1.B,p2);else if(L2)p2=old?L2.foot(p1):clampOn(L2.A,L2.B,p1);
+      // eğik kenar döndüyse ölçü yönü de döner
+      const L=L1||L2;if(dm.n&&L){const nn=[-L.u[1],L.u[0]];dm.n=nn[0]*dm.n[0]+nn[1]*dm.n[1]<0?[-nn[0],-nn[1]]:nn}}
     if(!p1||!p2||Math.hypot(p2[0]-p1[0],p2[1]-p1[1])<1e-6)return false;
     // ölçü çizgisi en yakın ucuyla birlikte kayar (parça büyüyünce çizgi parçanın içinde kalmasın)
     if(dm.kind==='h'){const near=Math.abs(o1[1]-dm.pos)<Math.abs(o2[1]-dm.pos)?p1[1]-o1[1]:p2[1]-o2[1];dm.pos+=near}
@@ -211,7 +250,7 @@ function mirrorSideItems(S,from,to){
   for(const d of S.dims||[]){if(!mv(d))continue;
     if(d.kind==='dia'){d.c=fa(d.c);if(d.off)d.off=[-d.off[0],d.off[1]];if(d.arc)d.arc={t0:Math.PI-d.arc.t0,sw:-d.arc.sw}}
     else if(d.kind==='ang'){d.v=fa(d.v);d.u1=[-d.u1[0],d.u1[1]];d.u2=[-d.u2[0],d.u2[1]]}
-    else{d.p1=fa(d.p1);d.p2=fa(d.p2);if(d.kind==='v')d.pos=-d.pos;else if(d.kind==='a')d.pos=-d.pos}
+    else{d.p1=fa(d.p1);d.p2=fa(d.p2);if(d.kind==='v')d.pos=-d.pos;else if(d.kind==='a'){d.pos=-d.pos;if(d.n)d.n=[-d.n[0],d.n[1]]}}
     if(d.ref&&d.ref.len)d.ref.len.u=[-d.ref.len.u[0],d.ref.len.u[1]];
     if(Array.isArray(d.ref))for(const r of d.ref)if(r&&r.u)r.u=[-r.u[0],r.u[1]];
     // imzalardaki normaller görünüşten bağımsızdır (model koordinatı); değişmez

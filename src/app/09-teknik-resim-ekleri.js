@@ -196,10 +196,14 @@ function datumMarkup(S,ctx){
 const inSt='height:26px;border:1px solid var(--line);border-radius:4px;background:var(--field);padding:0 5px;font-size:12px';
 function tolEditor(d,i){
   const tt=d.tt||'none';
+  // delik etiketi: yalnızca ön ek (açıklama delik özelliğinden gelir, tolerans yazılmaz)
+  if(d.hc)return `<div style="display:flex;gap:4px;width:100%;margin-top:4px"><input data-dpre="${i}" value="${esc(d.pre||'')}" placeholder="Ön ek" style="${inSt};width:52px" aria-label="Ön ek"></div>`;
   let h=`<div style="display:flex;gap:4px;width:100%;margin-top:4px;flex-wrap:wrap"><input data-dpre="${i}" value="${esc(d.pre||'')}" placeholder="Ön ek" style="${inSt};width:52px" aria-label="Ön ek"><select data-dtt="${i}" style="${inSt}">${[['none','Tolerans yok'],['sym','±'],['dev','Sapma'],['fit','Geçme']].map(([k,t])=>`<option value="${k}" ${k===tt?'selected':''}>${t}</option>`).join('')}</select>`;
   if(tt==='sym')h+=`<input data-dtu="${i}" inputmode="decimal" value="${esc(String(d.tu??'0,1').replace('.',','))}" style="${inSt};width:56px" aria-label="Tolerans">`;
   if(tt==='dev')h+=`<input data-dtu="${i}" inputmode="decimal" value="${esc(String(d.tu??'0,1').replace('.',','))}" placeholder="üst" style="${inSt};width:52px" aria-label="Üst sapma"><input data-dtl="${i}" inputmode="decimal" value="${esc(String(d.tl??'-0,1').replace('.',','))}" placeholder="alt" style="${inSt};width:52px" aria-label="Alt sapma">`;
   if(tt==='fit')h+=`<input data-dtf="${i}" value="${esc(d.tf||'H7')}" style="${inSt};width:56px" aria-label="Geçme">`;
+  // yardımcı (referans) ölçü: parantez içinde, toleranssız (SolidWorks: Parantez)
+  if(!d.hc)h+=`<label style="font-size:12px;display:flex;gap:3px;align-items:center" title="Yardımcı ölçü: parantez içinde yazılır, toleransı gösterilmez"><input type="checkbox" data-dpar="${i}" ${d.par?'checked':''}>Parantez</label>`;
   return h+`</div>`;
 }
 function extraPanel(S){
@@ -223,6 +227,7 @@ function quickRedraw(){clearTimeout(xT);xT=setTimeout(()=>{const r=buildSheet(fa
 function extraPanelInput(e,isChange){
   const t=e.target,S=dwS(),ds=t.dataset;let hit=true;
   if(ds.dpre!==undefined)S.dims[+ds.dpre].pre=t.value;
+  else if(ds.dpar!==undefined){if(!isChange)return true;pushDwHist();S.dims[+ds.dpar].par=t.checked;saveState();renderDwPanel();quickRedraw();return true}
   else if(ds.dtt!==undefined){if(!isChange)return true;S.dims[+ds.dtt].tt=t.value;const d=S.dims[+ds.dtt];if(t.value==='sym'&&d.tu==null)d.tu=0.1;if(t.value==='dev'){if(d.tu==null)d.tu=0.1;if(d.tl==null)d.tl=-0.1}if(t.value==='fit'&&!d.tf)d.tf='H7';saveState();renderDwPanel();quickRedraw();return true}
   else if(ds.dtu!==undefined)S.dims[+ds.dtu].tu=num(t.value);
   else if(ds.dtl!==undefined)S.dims[+ds.dtl].tl=num(t.value);

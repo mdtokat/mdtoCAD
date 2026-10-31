@@ -144,7 +144,7 @@ test('teknik resim kendi geri al geçmişini kullanır; parçada geri almak resi
   expect(errors).toEqual([]);
 });
 
-test('teknik resim: model değişince artık geometriye oturmayan elle ölçü işaretlenir', async ({ page }) => {
+test('teknik resim: model değişince elle ölçü yeni geometriye taşınır; taşınamayan (eski dosyadaki) ölçü işaretlenir', async ({ page }) => {
   const errors = await openApp(page);
   await page.click('[data-tab="drawing"]');
   await sheetReady(page);
@@ -159,6 +159,14 @@ test('teknik resim: model değişince artık geometriye oturmayan elle ölçü i
   expect(await page.evaluate(() => __tz.getCtx().stale.size)).toBe(0);
   await page.click('[data-tab="model"]');
   await page.evaluate(() => { const T = __tz; T.editSketch('s1'); T.setDimVal(T.sk.feat.cons.find(c => c.val === 120).id, 150); T.exitSketch(true); });
+  await page.click('[data-tab="drawing"]');
+  // SolidWorks gibi ölçü modele bağlıdır: aynı köşeleri yeni yerlerinde bulur (150), işaretlenmez
+  await page.waitForFunction(() => __tz.getCtx().stale && __tz.getCtx().stale.size === 0 && Math.abs(Math.abs(__tz.dwS().dims[0].p2[0] - __tz.dwS().dims[0].p1[0]) - 150) < 1e-6);
+  await expect(page.locator('#sheet g[data-dim="0"] text')).toHaveText('150');
+  // kimliği olmayan ölçü (önceki sürümlerin dosyaları) taşınamaz: model değişince işaretlenir
+  await page.evaluate(() => { delete __tz.dwS().dims[0].ref; });
+  await page.click('[data-tab="model"]');
+  await page.evaluate(() => { const T = __tz; T.editSketch('s1'); T.setDimVal(T.sk.feat.cons.find(c => c.val === 150).id, 200); T.exitSketch(true); });
   await page.click('[data-tab="drawing"]');
   await page.waitForFunction(() => __tz.getCtx().stale && __tz.getCtx().stale.size === 1);
   await expect(page.locator('#dwPanel')).toContainText('modele uymuyor');

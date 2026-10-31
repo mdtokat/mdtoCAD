@@ -42,11 +42,11 @@ Kurulum gerektirmez: derlenmiş uygulama **tek bir HTML dosyasıdır** ve herhan
 - Ön, üst, yan ve izometrik görünüşler; gizli çizgiler, eksen çizgileri; ISO E/ISO A izdüşüm.
 - Görünüşler sürüklenerek taşınır; ön görünüş izdüşüm görünüşlerini de taşır, üst/yan görünüş hizasını korur. Görünüş, ölçü ve açıklamalar tıklanarak seçilir, **Delete** ile silinir/gizlenir.
 - Otomatik genel ölçüler, delik konumları, döndürmeyle oluşan kademelerin çapları ve boyları (mil, burç, kasnak; zincir ölçü) ve SolidWorks gibi satır satır delik etiketleri (↧ derinlik, ⌴ fatura, ⌵ havşa); etiketler birbirinin üstüne binmeyecek yere konur, sürüklenebilir.
-- Akıllı ölçü: iki nokta, kenar uzunluğu, paralel kenar aralığı, noktadan kenara, çap/yarıçap ve açı (tolerans: ±, sapma, geçme).
+- Akıllı ölçü: iki nokta, kenar uzunluğu, paralel kenar aralığı, noktadan kenara (seçim sırası önemsiz), çap, **yayın yarıçapı** (radyus, kanal ucu) ve açı (tolerans: ±, sapma, geçme). **Ölçüler modele bağlıdır:** parça değişince aynı kenarı, köşeyi, daireyi veya yayı yeniden bulup değerini günceller (SolidWorks gibi). Otomatik ölçülere radyuslar (R) da yazılır.
 - Kesit A-A ön, üst veya yan görünüşte; tam veya yarım kesit (taramalı). Montaj kesitinde bitişik parçalar farklı taranır; cıvata, somun, mil gibi parçalar kesilmeden bırakılabilir. Detay görünüşü (tarama ve eksen çizgileriyle), yüzey işareti, **geometrik tolerans** (ISO 1101, 14 sembol) ve **referans (datum) işareti**, notlar, diş gösterimi.
 - **2B çizim** (şeritte Çizim sekmesi): çizgi, eksen çizgisi (iki paralel kenarın ortasından da), dikdörtgen, daire, yay, merkez işareti; kalın/ince sürekli, kesikli ve eksen çizgi türleri. Köşe, merkez ve kenarlara yakalanır; görünüşe bağlı öğeler görünüşle taşınır. Çizimler yalnızca teknik resme aittir.
-- Montaj resmi: balonlar (ölçü yazılarına binmeyecek yere konur; sürüklenir, Delete ile gizlenir) ve parça listesi; liste görünüşlere değmiyorsa ölçek küçültülmez.
-- Teknik resmin kendi geri al/yinele geçmişi vardır; model değişince geometriye artık oturmayan elle ölçüler kırmızı işaretlenir.
+- Montaj resmi: balonlar (ölçü yazılarına ve çizgilerine binmeyecek yere konur; sürüklenir, Delete ile gizlenir) ve parça listesi; liste görünüşlere değmiyorsa ölçek küçültülmez. **Patlatılmış** düğmesi SolidWorks gibi yalnızca izometrik görünüşü patlatır (montajda patlatma adımı yoksa otomatik oluşturulur). İzdüşüm yöntemi (ISO E/A) değişince yan görünüşteki ölçü ve açıklamalar aynalanarak korunur.
+- Teknik resmin kendi geri al/yinele geçmişi vardır; model değişince elle ölçüler yeni geometriye taşınır, ölçtüğü öğe kaybolan ölçü kırmızı işaretlenir.
 - A4–A0, yatay/dikey; ölçek listeden veya elle (ör. 1:2,5, 3:1); antetli, **antetsiz (çerçeveli)**, “parça adı ve ölçek” veya “yalnızca parça” düzenleri (Teknik Resim şeridinde ve PDF penceresinde).
 - PDF (vektörel 2B, ölçekli 3B görüntü), **DXF** (katmanlı, AutoCAD R12), SVG ve PNG çıktısı.
 

@@ -45,11 +45,13 @@ function asmSrc(a,exploded){
     for(const an of d.ann)ann.push({...an,C:an.C.clone().applyMatrix4(M),A:an.A.clone().transformDirection(M),gid:c.id+':'+an.gid,label:false,cyl:false});
     if(d.props){vol+=d.props.vol;area+=d.props.area;massG+=d.props.vol/1000*(MATERIALS[p.material]||MATERIALS.steel).rho}
   }
-  for(const v of srcCache.values())if(v.g)v.g.dispose();srcCache.clear();
+  while(srcCache.size>=2){const k0=srcCache.keys().next().value,v0=srcCache.get(k0);if(v0.g)v0.g.dispose();srcCache.delete(k0)}
   const src={kind:'asm',key,a,polys,ann,box:polys.length?bboxPolys(polys):null,props:{vol,area},g:polysToBuffers(polys).g,name:a.name,matName:'—',massG,exploded:!!exploded};
   srcCache.set(key,src);return src;
 }
-function dwSrc(){const doc=dwDoc();if(doc.kind==='asm')return asmSrc(doc.a,!!dwS(doc).explode);return partSrc(doc.p)}
+/* montaj resminde patlatılmış durum yalnızca izometrik görünüştedir (SolidWorks'te görünüş başına “patlatılmış durumda göster”):
+   ön, üst ve yan görünüşler (ölçüler, kesit) toplanmış montajı gösterir; yalnızca izometrik düzende tek görünüş patlatılır */
+function dwSrc(forIso){const doc=dwDoc();if(doc.kind==='asm'){const S=dwS(doc);return asmSrc(doc.a,!!S.explode&&(!!forIso||S.asmView==='iso'))}return partSrc(doc.p)}
 
 /* ================= PATLATILMIŞ GÖRÜNÜM ================= */
 asmUI.exf=0;
@@ -76,21 +78,22 @@ function setExplode(on,instant){
 function collapseIfExploded(){const a=curAsm();if(a&&asmUI.exf>0){exState(a).on=false;asmUI.exf=0;updateAsmPoses();renderAsmRibbon();toast('Düzenleme için montaj toplandı.')}}
 function snapAxis(v){const ax=['x','y','z'];let best='y',bv=-1;for(let i=0;i<3;i++){const s=Math.abs(v[i]);if(s>bv){bv=s;best=(v[i]<0?'-':'')+ax[i]}}return best}
 /* bileşenin (kutusunun) dünya yönü u üzerindeki izdüşüm aralığı */
-function compRange(c,u){const v=asmView.groups.get(c.id);const b=v&&v.d.box;if(!b)return null;const M=new T.Matrix4().fromArray(c.T);let lo=Infinity,hi=-Infinity;
+function compRange(c,u){const b=compBox(c,true);if(!b)return null;const M=new T.Matrix4().fromArray(c.T);let lo=Infinity,hi=-Infinity;
   for(let i=0;i<8;i++){const p=new T.Vector3(i&1?b.max[0]:b.min[0],i&2?b.max[1]:b.min[1],i&4?b.max[2]:b.min[2]).applyMatrix4(M);const t=p.x*u[0]+p.y*u[1]+p.z*u[2];lo=Math.min(lo,t);hi=Math.max(hi,t)}
   return [lo,hi]}
 function autoExplode(a){
-  const e=exState(a);const box=asmView.box;const size=box?Math.max(box.max[0]-box.min[0],box.max[1]-box.min[1],box.max[2]-box.min[2]):100;
+  const e=exState(a);const box=(a===curAsm()&&asmView.box)||asmSrc(a,false).box;  // teknik resimdeki montaj 3B görünümdekinden farklı olabilir
+  const size=box?Math.max(box.max[0]-box.min[0],box.max[1]-box.min[1],box.max[2]-box.min[2]):100;
   const base=Math.round(size*0.7/5)*5||50;const fixed=a.comps.filter(c=>c.fixed);
-  const ref=fixed.length?compCenter(fixed[0]):(box?new T.Vector3((box.min[0]+box.max[0])/2,(box.min[1]+box.max[1])/2,(box.min[2]+box.max[2])/2):new T.Vector3());
+  const ref=fixed.length?compCenter(fixed[0],true):(box?new T.Vector3((box.min[0]+box.max[0])/2,(box.min[1]+box.max[1])/2,(box.min[2]+box.max[2])/2):new T.Vector3());
   e.steps=[];const plan=new Map();
   for(const c of a.comps){
-    if(c.fixed||c.pat)continue;let dir=null,partner=null;const cc=compCenter(c);
+    if(c.fixed||c.pat)continue;let dir=null,partner=null;const cc=compCenter(c,true);
     for(const m of a.mates){if(m.suppressed||m.type!=='coincident')continue;
       const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null),oth=mine===m.a?m.b:m.a;if(!mine||oth.ref.t!=='plane'||mine.ref.t!=='plane')continue;
-      const oc=compById(oth.comp);if(!oc)continue;const n=new T.Vector3(...oth.ref.n).transformDirection(new T.Matrix4().fromArray(oc.T));dir=[n.x,n.y,n.z];partner=oc;break}
+      const oc=a.comps.find(x=>x.id===oth.comp);if(!oc)continue;const n=new T.Vector3(...oth.ref.n).transformDirection(new T.Matrix4().fromArray(oc.T));dir=[n.x,n.y,n.z];partner=oc;break}
     if(!dir)for(const m of a.mates){if(m.suppressed||!['concentric','hinge','screw'].includes(m.type))continue;const mine=m.a.comp===c.id?m.a:(m.b.comp===c.id?m.b:null);if(!mine)continue;
-      const ax=new T.Vector3(...mine.ref.d).transformDirection(new T.Matrix4().fromArray(c.T));const s=cc.clone().sub(ref).dot(ax);dir=[ax.x,ax.y,ax.z].map(x=>x*(s<0?-1:1));partner=compById((mine===m.a?m.b:m.a).comp);break}
+      const ax=new T.Vector3(...mine.ref.d).transformDirection(new T.Matrix4().fromArray(c.T));const s=cc.clone().sub(ref).dot(ax);dir=[ax.x,ax.y,ax.z].map(x=>x*(s<0?-1:1));const po=(mine===m.a?m.b:m.a).comp;partner=a.comps.find(x=>x.id===po);break}
     if(!dir){const v=cc.clone().sub(ref);dir=v.length()<1e-6?[0,1,0]:[v.x,v.y,v.z]}
     const ax=snapAxis(dir);let dist=base;
     // bileşen eşleştiği parçadan tamamen ayrılsın (ör. yatağa giren uzun mil yatağın içinde kalmasın)
@@ -356,13 +359,14 @@ function balloonsMarkup(v,bom,area,S,ctx){
   // balon ölçü yazılarına, diğer görünüşlere ve diğer balonlara değmesin: açı ve yarıçap biraz değiştirilerek boş yer aranır
   const busy=(occ||[]).slice();if(ctx)for(const h of ctx.hits)if(h.t==='view'&&h.k!==v.key)busy.push(h.box);
   const clamp=(x,y)=>[Math.max(area[0]+r+1,Math.min(area[2]-r-1,x)),Math.max(area[1]+r+1,Math.min(area[3]-r-1,y))];
-  const free=(x,y)=>{const B=[x-r-1,y-r-1,x+r+1,y+r+1];return !busy.some(b=>B[0]<b[2]&&B[2]>b[0]&&B[1]<b[3]&&B[3]>b[1])};
+  const lines=(dimSegs||[]).slice();
+  const free=(x,y)=>{const B=[x-r-1,y-r-1,x+r+1,y+r+1];return !busy.some(b=>B[0]<b[2]&&B[2]>b[0]&&B[1]<b[3]&&B[3]>b[1])&&!lines.some(g=>segHitsBox(g[0],g[1],g[2],g[3],B))};
   for(const it of items){
     if(hide.has('B:'+it.no))continue;
     let bx,by;const m=mv[it.no];
     if(m)[bx,by]=clamp(cx+R*Math.cos(it.ang)+m[0],cy+R*Math.sin(it.ang)+m[1]);
     else{[bx,by]=clamp(cx+R*Math.cos(it.ang),cy+R*Math.sin(it.ang));
-      if(!free(bx,by))search:for(const dr of [0,6,12,20])for(const da of [0,.12,-.12,.24,-.24,.36,-.36,.5,-.5]){const P=clamp(cx+(R+dr)*Math.cos(it.ang+da),cy+(R+dr)*Math.sin(it.ang+da));if(free(P[0],P[1])){[bx,by]=P;break search}}}
+      if(!free(bx,by))search:for(const dr of [0,6,12,20,30,42])for(const da of [0,.12,-.12,.24,-.24,.36,-.36,.5,-.5,.7,-.7]){const P=clamp(cx+(R+dr)*Math.cos(it.ang+da),cy+(R+dr)*Math.sin(it.ang+da));if(free(P[0],P[1])){[bx,by]=P;break search}}}
     busy.push([bx-r,by-r,bx+r,by+r]);
     if(ctx)ctx.hits.push({t:'bal',k:String(it.no),box:[bx-r,by-r,bx+r,by+r]});
     const dx=it.P[0]-bx,dy=it.P[1]-by,L=Math.hypot(dx,dy)||1;const ex=bx+dx/L*r,ey=by+dy/L*r;

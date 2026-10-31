@@ -9,6 +9,13 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Yataklı stand genel ölçüsü **105,97** (doğrusu 106), dört kanatlı disk **812,21** (doğrusu 813) | Yaylar eşit parçalara bölünüyordu; yayın en dış noktası köşe değildi | Yaylar çeyrek açılarda da bölünür (`arcTs`), sınır kutusu tam çıkar |
 | Yataklı standda Ø24 ve Ø14 etiketleri üst üste | Bütün etiketler aynı yöne (45°/135°) çiziliyordu | Etiketler boş yer bulunana kadar döndürülür; ölçü yazılarına ve görünüş çizgilerine çarpmaz |
 | Braketin delik yazısı (“2× Ø9, faturalı Ø18 derinlik 2 / delik derinliği 12”) görünüşün üstünden taşıyor | Tek satırlık açıklamalı metin | SolidWorks gibi satır satır simgeli etiket: `2× Ø9 ↧12` / `⌴Ø18 ↧2` |
+| L blokta R10 radyusun ortasına akıllı ölçüyle tıklamak bir köşe noktası seçiyordu; yarıçap ölçülemiyordu | Yaylar kısa kirişlerden oluşuyordu, her kiriş köşesi nokta sayılıyordu | Uç uca, aynı çemberde kalan kirişler tek yay sayılır: tıklanınca **R10**; yayın merkezi nokta olarak seçilir, ara köşeleri nokta değildir |
+| Taban kalınlığı 15 → 20, delik Ø12 → Ø14 yapılınca elle verilen ölçüler kırmızı kalıyor, eski değeri yazıyordu | Ölçüler yalnızca görünüş koordinatı saklıyordu | Ölçü, kenarın iki yanındaki yüzeylerin özelliği ve normaliyle (köşe, daire, yay kimliğiyle) aynı öğeyi yeniden bulur: **20**, **Ø14**, **R15** |
+| Delik merkezine tıkladıktan sonra kenara tıklamak hiçbir şey yapmıyordu | İkinci adımda yalnızca nokta aranıyordu | SolidWorks gibi seçim sırası önemsiz: nokta → kenar uzaklık, nokta → daire merkezler arası, kenar → daire merkezin kenara uzaklığı |
+| ISO E → ISO A geçince yan görünüşteki ölçüler, detaylar ve notlar sessizce siliniyordu | Soldan görünüş sağdan görünüşe dönüşüyor, ona bağlı öğeler atılıyordu | Öğeler yatay eksende aynalanarak yeni yan görünüşe taşınır |
+| Menteşe ve kaplin montaj resminde balonlar yan görünüşün genel ölçü çizgisinin üstündeydi | Balonlar yalnızca ölçü yazılarından kaçıyordu | Ölçü, uzatma ve kılavuz çizgilerinden de kaçar |
+| Montaj resminde “Patlatılmış” düğmesi hiçbir şey yapmıyordu (montajda patlatma adımı yoksa); varsa ön/üst/yan görünüşler de patlıyordu, genel ölçüler anlamsızlaşıyordu | Patlatma yalnızca montajda tanımlı adımlarla, bütün görünüşlere uygulanıyordu | Adım yoksa otomatik patlatma adımları oluşturulur; SolidWorks gibi yalnızca izometrik görünüş patlatılır |
+| Yataklı standın üst görünüşünde kademe zincir ölçüsü delik konum ölçüsüyle aynı sıraya düşüyor, iki “20” üst üste biniyordu | İkisi de görünüşün 9 mm sağına konuyordu | Zincir ölçüsü delik ölçülerinin dışındaki sıraya konur |
 
 ## Komut karşılaştırması
 
@@ -22,11 +29,13 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Hizalı / kademeli kesit, kısmi kesit (Broken-out) | ❌ | Yol haritasında |
 | Detay görünüşü | ✅ | Tarama ve eksen çizgileri de (yeni); “DETAY B ÖLÇEK 2:1” |
 | Yardımcı, kırık, kırpılmış görünüş | ❌ | Yol haritasında |
-| Model öğeleri (otomatik ölçüler) | ✅ | Genel ölçüler, delik konumları, delik etiketleri; tek tek gizlenebilir (yeni) |
+| Model öğeleri (otomatik ölçüler) | ✅ | Genel ölçüler, delik konumları, delik etiketleri, **radyuslar (R, yeni)**; tek tek gizlenebilir |
 | Delik etiketi (Hole Callout) | ✅ yeni biçim | ↧ derinlik, ⌴ fatura, ⌵ havşa simgeleri, satır satır |
 | Akıllı ölçü: iki nokta / yatay / dikey / hizalı | ✅ | |
 | Akıllı ölçü: kenar uzunluğu, paralel kenarlar, noktadan kenara | ✅ yeni | |
-| Akıllı ölçü: çap / yarıçap | ✅ yeni | Daireye tıklanır; ön ek R ile yarıçap |
+| Akıllı ölçü: çap / yarıçap | ✅ | Daireye tıklanınca çap, **yaya (radyus, kanal ucu) tıklanınca yarıçap** (yeni); yazı yayın dışındaysa yay uzantısı; ön ek R yarıçapı, Ø çapı yazar |
+| Ölçüler modele bağlı (ilişkisel) | ✅ yeni | Model değişince elle ölçüler aynı kenarı/köşeyi/daireyi/yayı bulur, değeri güncellenir; bulunamazsa kırmızı |
+| Seçim sırası (nokta–kenar, nokta–daire, kenar–daire) | ✅ yeni | Hangi sırayla seçilirse seçilsin aynı ölçü |
 | Akıllı ölçü: açı | ✅ yeni | İki kenar; imlecin bulunduğu bölgenin açısı |
 | Ölçü toleransı (±, sapma, geçme) | ✅ | |
 | Ölçüleri ve açıklamaları sürükleme, silme | ✅ yeni | |
@@ -40,7 +49,8 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Çizgi biçimi (çizgi türü) | ✅ yeni | Kalın sürekli, ince sürekli, kesikli (gizli), eksen (zincir); seçili öğeye de uygulanır |
 | Görünüşe bağlı çizim (görünüşle taşınır) | ✅ yeni | Görünüşün içinde çizilen veya görünüş geometrisine yakalanan öğe görünüşle taşınır/ölçeklenir; diğerleri sayfaya bağlıdır |
 | Yardımcı çizgiler (extension lines) geometriye değer | ✅ yeni | Ölçülen noktadan başlar, ölçü çizgisini 2 mm geçer; genel ölçüler sınır kutusunun köşesinden değil kenardan çıkar |
-| Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar ölçülere binmez, sürüklenir ve gizlenir (yeni) |
+| Balon, otomatik balon, parça listesi (BOM) | ✅ | Montaj resminde; balonlar ölçü yazılarına ve çizgilerine binmez, sürüklenir ve gizlenir |
+| Görünüşü patlatılmış durumda göster | ✅ yeni | Montaj resminde yalnızca izometrik görünüş; montajda adım yoksa otomatik oluşturulur |
 | Kaynak sembolü, delik tablosu, revizyon tablosu | ❌ | Yol haritasında |
 | Antet, kağıt boyutu, ölçek | ✅ | A4–A0, yatay/dikey; ölçek listeden veya elle (1:2,5, 3:1); antetli, antetsiz (çerçeveli), yalnızca parça adı ve ölçek, yalnızca parça |
 | Çok sayfalı resim | ❌ | Yol haritasında |
@@ -50,6 +60,6 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 
 - **Taşıma:** araç seçili değilken görünüşü, ölçüyü, etiketi, notu, detayı, toleransı veya referansı tutup sürükle. Boş yerde sürüklemek sayfayı kaydırır.
 - **Seçme / silme:** öğeye tıkla (mavi çerçeve), **Delete**. Otomatik ölçüler, delik etiketleri ve görünüşler gizlenir; soldaki panelde “Gizlenenler → Tümünü geri getir”.
-- **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık); kenar + açılı kenar + yay yeri (açı); kenar + nokta (uzaklık); daire + yazı yeri (çap).
+- **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık); kenar + açılı kenar + yay yeri (açı); kenar + nokta veya nokta + kenar (uzaklık); nokta + daire, kenar + daire (merkeze); daire + yazı yeri (çap); yay + yazı yeri (yarıçap). Ölçüler model değişince güncellenir.
 - **2B çizim (Çizim sekmesi):** araç seçilir; çizgi türü şeritten veya soldaki panelden. Çizgi: ardışık tıklamalar zincir çizer, aynı noktaya tıklamak veya Esc zinciri bitirir. Eksen çizgisi: iki nokta veya iki paralel kenar. Daire: merkez + yarıçap noktası (delik dairesi için merkeze ve bir deliğin merkezine tıkla); çap panelden yazılır. Yay: merkez, başlangıç, bitiş (fareyi götürdüğün yönde). Öğe seçilip sürüklenir, çizginin ucu veya dairenin çevresi tutulursa boyu/çapı değişir; Delete siler. Görünüşe bağlı öğelerin uçlarına ve merkezlerine akıllı ölçü verilir.
 - **Geometrik tolerans / Referans:** şeritten seç, kenara tıkla; tür, değer ve referans harfleri soldaki panelden.

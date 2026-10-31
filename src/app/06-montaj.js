@@ -238,7 +238,10 @@ function mateRes(m,P){
   }
   return [];
 }
-function compCenter(c){const v=asmView.groups.get(c.id);const b=v&&v.d.box;const ctr=b?new T.Vector3((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2):new T.Vector3();return ctr.applyMatrix4(new T.Matrix4().fromArray(c.T))}
+/* data: 3B montaj görünümü kurulmamışsa (teknik resimden otomatik patlatma) parçanın kutusu hesaplanır. Yalnızca kullanıcı
+   işleminde kullanılır: proje yüklenirken çağrılınca yarım kalmış modeli parça önbelleğine yazıyordu */
+function compBox(c,data){const v=asmView.groups.get(c.id);if(v&&v.d.box)return v.d.box;if(!data)return null;const p=partById(c.part);return p?partData(p).box:null}
+function compCenter(c,data){const b=compBox(c,data);const ctr=b?new T.Vector3((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2):new T.Vector3();return ctr.applyMatrix4(new T.Matrix4().fromArray(c.T))}
 /* only: yalnızca bu bileşenler serbest (sürüklemede sürüklenen bileşenin eşleştirmelerle bağlı olduğu grup) */
 function asmSystem(a,extra,only){
   const live=new Set(a.comps.map(c=>c.id));

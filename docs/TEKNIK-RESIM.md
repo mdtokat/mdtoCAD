@@ -36,6 +36,21 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 
 Bilinen sınır: SolidWorks model öğeleri çizim (sketch) ölçülerini de aktarır; toCAD özelliklerden türetir. Kanal genişliği gibi yalnızca çizimde bulunan ölçüler akıllı ölçüyle eklenir. Düz dişli örneğinde diş uçları modelde düz kiriş olduğundan genel boyut 51,98'dir (Ø52 değil).
 
+## Elle ölçülendirme denetimi — yedinci tur
+
+Otomatik ölçüler (model öğeleri) kapatılıp parça akıllı ölçüyle baştan ölçülendirildi; sonuçlar SolidWorks'ün Smart Dimension davranışıyla karşılaştırıldı. Testler: `tests/yedinci-tur.spec.js`.
+
+| Bulgu | Neden | Düzeltme |
+|---|---|---|
+| R10 köşeli 120 genişlikli tabanın alt kenarı **119,9** | Uç uca kenar birleştirmede 0,05 mm'lik son kiriş tolerans yüzünden atlanıyordu | Bitişik parçalar uzunluklarına bakılmadan eklenir: **120** |
+| Braketin eğik kolunun kalınlığı (paralel kenarlar) imleç yandayken **6,14** | Ölçü türü imlece göre seçiliyordu; dik uzaklık yerine yatay/dikey bileşen | Paralel kenarlar ve noktadan kenara ölçü hep kenara dik: yatay/dikey kenarda dikey/yatay, eğik kenarda hizalı (`n`): **10** |
+| Noktadan eğik kenara uzaklık yanlış ve hemen kırmızı | Ayak kenarın uzantısındaydı, ölçü yatay bileşenle yazılıyordu | Uç kenar parçasına kırpılır, ölçü kenara dik |
+| Uzatma çizgisi havada başlıyordu (kısa kenara noktadan ölçü, kısmen örtüşen paralel kenarlar) | Ayak kenarın sonsuz doğrusunda alınıyordu | Uçlar kenar parçalarının üstünde; paralel kenarlarda örtüşen aralıkta |
+| Gizli çizgiler kapalıyken görünmeyen gizli kenar/köşe/daire seçiliyordu | Seçim gizli kenarları her zaman içeriyordu | Gizli çizgiler çizilmiyorsa (kapalı, kesit görünüşü) seçilmez |
+| Silindirin iki dış çizgisi arası **46** (üst görünüşte Ø46) | Silüet kenarları sıradan paralel kenar sayılıyordu | Eksen iki kenarın ortasından geçiyor ve aralık 2r ise **Ø46** |
+
+Yeni: **Delik etiketi** aracı (Hole Callout; açıklama delik özelliğinden, aynı delikler `4×`), ölçü panelinde **Parantez** (yardımcı ölçü, toleranssız).
+
 ## Komut karşılaştırması
 
 | SolidWorks | toCAD | Not |
@@ -49,7 +64,8 @@ Bilinen sınır: SolidWorks model öğeleri çizim (sketch) ölçülerini de akt
 | Detay görünüşü | ✅ | Tarama ve eksen çizgileri de (yeni); “DETAY B ÖLÇEK 2:1” |
 | Yardımcı, kırık, kırpılmış görünüş | ❌ | Yol haritasında |
 | Model öğeleri (otomatik ölçüler) | ✅ | Genel ölçüler, delik konumları, delik etiketleri, radyuslar (R), **ekstrüzyon derinlikleri (yeni)**; kapalı zincir oluşturmaz, tek tek gizlenebilir |
-| Delik etiketi (Hole Callout) | ✅ yeni biçim | ↧ derinlik, ⌴ fatura, ⌵ havşa simgeleri, satır satır |
+| Delik etiketi (Hole Callout) | ✅ yeni biçim | ↧ derinlik, ⌴ fatura, ⌵ havşa simgeleri, satır satır; otomatik veya şeritteki **Delik etiketi** aracıyla elle (yeni) |
+| Yardımcı ölçü (Parantez) | ✅ yeni | Ölçü panelinde “Parantez”: (120), toleranssız |
 | Akıllı ölçü: iki nokta / yatay / dikey / hizalı | ✅ | Ölçü çizgisi standart uzaklıklara yakalanır (yeni) |
 | Akıllı ölçü: kenar uzunluğu, paralel kenarlar, noktadan kenara | ✅ yeni | |
 | Akıllı ölçü: çap / yarıçap | ✅ | Daireye tıklanınca çap, **yaya (radyus, kanal ucu) tıklanınca yarıçap** (yeni); yazı yayın dışındaysa yay uzantısı; ön ek R yarıçapı, Ø çapı yazar |
@@ -79,6 +95,6 @@ Bilinen sınır: SolidWorks model öğeleri çizim (sketch) ölçülerini de akt
 
 - **Taşıma:** araç seçili değilken görünüşü, ölçüyü, etiketi, notu, detayı, toleransı veya referansı tutup sürükle. Boş yerde sürüklemek sayfayı kaydırır.
 - **Seçme / silme:** öğeye tıkla (mavi çerçeve), **Delete**. Otomatik ölçüler, delik etiketleri ve görünüşler gizlenir; soldaki panelde “Gizlenenler → Tümünü geri getir”.
-- **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık); kenar + açılı kenar + yay yeri (açı); kenar + nokta veya nokta + kenar (uzaklık); nokta + daire, kenar + daire (merkeze); daire + yazı yeri (çap); yay + yazı yeri (yarıçap). Ölçüler model değişince güncellenir.
+- **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık, hep kenara dik; silindirin iki dış çizgisiyse Ø); kenar + açılı kenar + yay yeri (açı); kenar + nokta veya nokta + kenar (uzaklık); nokta + daire, kenar + daire (merkeze); daire + yazı yeri (çap); yay + yazı yeri (yarıçap). Ölçüler model değişince güncellenir.
 - **2B çizim (Çizim sekmesi):** araç seçilir; çizgi türü şeritten veya soldaki panelden. Çizgi: ardışık tıklamalar zincir çizer, aynı noktaya tıklamak veya Esc zinciri bitirir. Eksen çizgisi: iki nokta veya iki paralel kenar. Daire: merkez + yarıçap noktası (delik dairesi için merkeze ve bir deliğin merkezine tıkla); çap panelden yazılır. Yay: merkez, başlangıç, bitiş (fareyi götürdüğün yönde). Öğe seçilip sürüklenir, çizginin ucu veya dairenin çevresi tutulursa boyu/çapı değişir; Delete siler. Görünüşe bağlı öğelerin uçlarına ve merkezlerine akıllı ölçü verilir.
 - **Geometrik tolerans / Referans:** şeritten seç, kenara tıkla; tür, değer ve referans harfleri soldaki panelden.

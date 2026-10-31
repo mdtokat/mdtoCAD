@@ -98,9 +98,8 @@ test('daire biçimli parçalar: genel boyut bir kez Ø ile; 180°\'den büyük y
   await page.click('[data-tab="asm"]');
   await page.click('[data-cmd="adraw"]');
   await page.waitForFunction(() => !!__tz.getCtx() && __tz.getCtx().views.front && __tz.dwSrc().kind === 'asm');
-  await page.waitForTimeout(300);
-  t = await metinler(page);
-  expect(t.filter(x => /^Ø?120$/.test(x))).toEqual(['Ø120']);
+  // montaj resmi yüklü makinede geç çizilebilir: sabit bekleme yerine sonuç yoklanır
+  await expect.poll(async () => (await metinler(page)).filter(x => /^Ø?120$/.test(x))).toEqual(['Ø120']);
   expect(errors).toEqual([]);
 });
 

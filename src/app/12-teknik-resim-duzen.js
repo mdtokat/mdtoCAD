@@ -7,27 +7,34 @@ IC.dxf=sv('<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/><path d="M9 12
 const dwViews=()=>dctx?Object.values(dctx.views).filter(v=>v.key!=='iso'):[];
 /* görünüşün kenarları: görünür, gizli ve görünüşe bağlı 2B çizim çizgileri */
 const vSegs=v=>v.sk&&v.sk.segs.length?v.d.vis.concat(v.d.hid,v.sk.segs):v.d.vis.concat(v.d.hid);
+/* seçilebilir kenarlar: gizli çizgiler çizilmiyorsa (kapalı veya kesit görünüşü) gizli kenarlar seçilmez. Önceden görünmeyen
+   gizli kenara tıklanınca ölçü ona bağlanıyordu */
+const pickSegs=v=>v.hidOn===false?(v.sk&&v.sk.segs.length?v.d.vis.concat(v.sk.segs):v.d.vis):vSegs(v);
+/* daire veya yay bu görünüşte seçilebilir mi: gizli çizgiler kapalıyken tamamen gizli olanlar seçilmez */
+const curveShown=(v,q,arc)=>v.hidOn!==false||(arc?v.d.vis.some(s=>s.arc===arc):circVisFrac(v.d,q)>0.02);
 function nearestCircle(p,tol){
   let best=null,bd=tol;
   // annotasyonlu daireler, kenarlarından bulunan tam daireler (pah/radyus dairesi) ve görünüşe bağlı 2B çizim daireleri
-  for(const v of dwViews())for(const q of v.d.circ.concat(extraCircs(v.d),v.sk?v.sk.circ:[])){const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r,gid:q.gid,sig:q.sig}}}
+  for(const v of dwViews())for(const q of v.d.circ.concat(extraCircs(v.d),v.sk?v.sk.circ:[])){if(!curveShown(v,q))continue;const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r,gid:q.gid,sig:q.sig}}}
   return best;
 }
 /* tıklanan kenar ve onunla aynı doğru üzerinde uç uca devam eden parçalar (görünür ve gizli) tek kenar sayılır */
 function pickLine(p,tol){
   let best=null,bd=tol;
   // yayın kirişleri kenar sayılmaz (yaya tıklamak yarıçap verir; önceden 3 mm'lik bir kirişin boyu ölçülüyordu)
-  for(const v of dwViews())for(const q of vSegs(v)){if(q.arc)continue;
+  for(const v of dwViews())for(const q of pickSegs(v)){if(q.arc)continue;
     const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;if(L2<1e-8)continue;
     let t=((p[0]-A[0])*dx+(p[1]-A[1])*dy)/L2;t=Math.max(0,Math.min(1,t));const d=Math.hypot(A[0]+dx*t-p[0],A[1]+dy*t-p[1]);
     if(d<bd){bd=d;best={v,q,t}}}
   if(!best)return null;
   const {v,q,t}=best;let ux=q[2]-q[0],uy=q[3]-q[1];const l=Math.hypot(ux,uy);ux/=l;uy/=l;
   const tol2=1e-3*Math.max(1,l);const iv=[];
-  for(const r of vSegs(v)){if(r.arc)continue;const d1=Math.abs((r[0]-q[0])*uy-(r[1]-q[1])*ux),d2=Math.abs((r[2]-q[0])*uy-(r[3]-q[1])*ux);if(d1>tol2||d2>tol2)continue;
+  for(const r of pickSegs(v)){if(r.arc)continue;const d1=Math.abs((r[0]-q[0])*uy-(r[1]-q[1])*ux),d2=Math.abs((r[2]-q[0])*uy-(r[3]-q[1])*ux);if(d1>tol2||d2>tol2)continue;
     const s1=(r[0]-q[0])*ux+(r[1]-q[1])*uy,s2=(r[2]-q[0])*ux+(r[3]-q[1])*uy;iv.push([Math.min(s1,s2),Math.max(s1,s2)])}
-  iv.sort((a,b)=>a[0]-b[0]);let lo=0,hi=l,grow=true;
-  while(grow){grow=false;for(const [a,b] of iv){if(a<=hi+tol2&&b>hi+tol2&&b>=lo){hi=b;grow=true}if(b>=lo-tol2&&a<lo-tol2&&a<=hi){lo=a;grow=true}}}
+  /* bitişik (aradaki boşluk tol2'den az) parçalar eklenir; büyüme için toleranstan uzun olmak gerekmez: radyusun kenara
+     değen son kirişi 0,05 mm olabilir, önceden atlanıyor ve 120 genişlikli tabanın alt kenarı 119,9 ölçülüyordu */
+  iv.sort((a,b)=>a[0]-b[0]);let lo=0,hi=l,grow=true;const eg=1e-9;
+  while(grow){grow=false;for(const [a,b] of iv){if(a<=hi+tol2&&b>hi+eg&&b>=lo){hi=b;grow=true}if(b>=lo-tol2&&a<lo-eg&&a<=hi){lo=a;grow=true}}}
   const X=[q[0]+(q[2]-q[0])*t,q[1]+(q[3]-q[1])*t];
   return {view:v.key,A:[q[0]+ux*lo,q[1]+uy*lo],B:[q[0]+ux*hi,q[1]+uy*hi],u:[ux,uy],X,sig:q[5]||''};
 }
@@ -38,14 +45,17 @@ const snapObj=(view,P)=>{const v=dctx.views[view];const [x,y]=v.map(P[0],P[1]);r
 /* uçlara kimlik (ref) eklenir: model değişince ölçü aynı kenarı/noktayı bulur */
 function edgeSecond(p,tol){
   const e=dimSt.e;const s=dimSnap(p,tol),er=edgeRefOf(e);
-  const toPt=s=>{const f=footOn(e,[s.a,s.b]);if(Math.hypot(f[0]-s.a,f[1]-s.b)<1e-6)return null;return {st:{stage:2,p1:Object.assign(snapObj(e.view,f),{ref:er}),p2:s}}};
+  // noktadan kenara: uç kenar parçasının üstünde, ölçü kenara dik (eğik kenarda dik uzaklık)
+  const toPt=s=>{const P=[s.a,s.b],f=footOn(e,P);if(Math.hypot(f[0]-s.a,f[1]-s.b)<1e-6)return null;return {st:{stage:2,p1:Object.assign(snapObj(e.view,clampOn(e.A,e.B,P)),{ref:er}),p2:s,fk:perpKind(e.u)}}};
   if(s&&s.view===e.view)return toPt(s);
   // kenardan sonra daire veya yay: merkezin kenara uzaklığı (SolidWorks'te varsayılan merkez)
   const c=nearestCircle(p,pxToSheet(tol*.6))||nearestArc(p,pxToSheet(tol*.6));
   if(c&&c.view===e.view)return toPt(Object.assign(snapObj(c.view,[c.a,c.b]),{c:true,ref:c.arc?{k:'ac',s:c.sig,ss:c.sigs,r:c.r}:c.gid!=null?{k:'c',g:circKey(c.gid)}:null}));
   const f=pickLine(p,pxToSheet(tol));
   if(f&&f.view===e.view&&!sameLine(e,f)){
-    if(Math.abs(e.u[0]*f.u[1]-e.u[1]*f.u[0])<1e-3){const Y=footOn(f,e.X);return {st:{stage:2,p1:Object.assign(snapObj(e.view,e.X),{ref:er}),p2:Object.assign(snapObj(e.view,Y),{ref:edgeRefOf(f)})}}}
+    /* paralel kenarlar: dik uzaklık; uzatma çizgileri iki kenara da değer. Silindirin iki dış çizgisiyse çap (Ø) */
+    if(Math.abs(e.u[0]*f.u[1]-e.u[1]*f.u[0])<1e-3){const [P1,P2]=parPair(e.A,e.B,f.A,f.B,e.X);if(Math.hypot(P2[0]-P1[0],P2[1]-P1[1])<1e-6)return null;
+      return {st:{stage:2,p1:Object.assign(snapObj(e.view,P1),{ref:er}),p2:Object.assign(snapObj(e.view,P2),{ref:edgeRefOf(f)}),fk:perpKind(e.u),pre:silDia(dctx.views[e.view],P1,P2,e.u)?'Ø':''}}}
     return {st:{stage:'ang',e1:e,e2:f}};
   }
   const v=dctx.views[e.view];const c2=v.inv(p[0],p[1]);const r=dimFromCursor(e.A,e.B,c2,v);
@@ -66,7 +76,7 @@ function dimStageOverlay(p){
   const acc='#1F6FEB',w=f2(pxToSheet(2));let h='';
   const edge=e=>{const v=dctx.views[e.view];const A=v.map(e.A[0],e.A[1]),B=v.map(e.B[0],e.B[1]);return `<path d="${Lp(A[0],A[1],B[0],B[1])}" stroke="${acc}" stroke-width="${w}" fill="none"/>`};
   if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);h+=curveHi(c,acc,w);
-    if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]],rad:!!c.arc&&!arcIsBig(c.arc),arc:c.arc},v))}
+    if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]],rad:!!c.arc&&!arcIsBig(c.arc),arc:c.arc,hc:dimHc},v))}
   if(dimSt.stage==='edge'){h+=edge(dimSt.e);
     if(p){const s=dimSnap(p,9),f=s?null:pickLine(p,pxToSheet(9));
       if(f&&!sameLine(f,dimSt.e))h+=edge(f);
@@ -117,7 +127,7 @@ function dwDragMove(pan,dx,dy){
       const mid=[Math.cos(a1)+Math.cos(a2),Math.sin(a1)+Math.sin(a2)];const ml=Math.hypot(mid[0],mid[1])||1;
       d.rr=Math.max(1/v.s,o.rr+(dx*mid[0]+dy*mid[1])/ml/v.s)}
     else if(d.kind==='h')d.pos=o.pos-dy/v.s;else if(d.kind==='v')d.pos=o.pos+dx/v.s;
-    else{const ex=o.p2[0]-o.p1[0],ey=o.p2[1]-o.p1[1],l=Math.hypot(ex,ey)||1;d.pos=o.pos+(-ey/l*dx-ex/l*dy)/v.s}}
+    else{const ex=o.p2[0]-o.p1[0],ey=o.p2[1]-o.p1[1],l=Math.hypot(ex,ey)||1,t=o.n?[-o.n[1],o.n[0]]:[-ey/l,ex/l];d.pos=o.pos+(t[0]*dx-t[1]*dy)/v.s}}
   else if(h.t==='note'){S.notes[h.i].x=O.notes[h.i].x+dx;S.notes[h.i].y=O.notes[h.i].y+dy}
   else if(h.t==='detail'){const p0=O.details[h.i].pos;S.details[h.i].pos=[p0[0]+dx,p0[1]+dy]}
   else if(h.t==='gdt'||h.t==='datum'){const k=h.t+'s',o=O[k][h.i].off||[0,-12];S[k][h.i].off=[o[0]+dx,o[1]+dy]}

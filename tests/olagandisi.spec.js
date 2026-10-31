@@ -120,7 +120,8 @@ test('kapatıp açınca: son değişiklik ve açık çizim kaybolmaz; çizime de
   const r = await page.evaluate(() => {
     const T = __tz, s = T.state.features[T.state.features.length - 1];
     T.editSketch(s.id); T.setTool('circle'); T.toolClick(20, 0); T.toolClick(24, 0); T.setTool(null); T.exitSketch(true);
-    return { type: s.type, ents: s.ents.length, err: T.model.errors };
+    // (modelin kenarına yakalanan nokta için eklenen referans kenarı sayılmaz)
+    return { type: s.type, ents: s.ents.filter(e => !e.ref).length, err: T.model.errors };
   });
   expect(r).toEqual({ type: 'sketch', ents: 2, err: {} });
   // yeni ve boş çizim kaydedilmez

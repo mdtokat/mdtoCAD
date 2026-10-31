@@ -102,7 +102,7 @@ function detailsMarkup(S,ctx,s){
     const mp=(a,b)=>[dt.pos[0]+(a-ca)*ks,dt.pos[1]-(b-cb)*ks];
     let vis='',hid='',cen='',hat='';
     for(const q of v.d.vis){const c=clipSegCircle(q[0],q[1],q[2],q[3],ca,cb,dt.r);if(c){const A=mp(c[0],c[1]),B=mp(c[2],c[3]);vis+=Lp(A[0],A[1],B[0],B[1])}}
-    if(S.hidden&&!v.d.secPolys.length)for(const q of v.d.hid){const c=clipSegCircle(q[0],q[1],q[2],q[3],ca,cb,dt.r);if(c){const A=mp(c[0],c[1]),B=mp(c[2],c[3]);hid+=Lp(A[0],A[1],B[0],B[1])}}
+    if(S.hidden&&!v.d.secPolys.length){const hs=[];for(const q of v.d.hid){const c=clipSegCircle(q[0],q[1],q[2],q[3],ca,cb,dt.r);if(c)hs.push([...mp(c[0],c[1]),...mp(c[2],c[3])])}hid=chainPath(hs)}
     // kesit görünüşünden alınan detayda tarama, eksen çizgileri de detaya taşınır
     if(v.d.secPolys.length&&S.section&&S.section!=='none')for(const q of hatchSegs(v.d.secPolys,{map:mp},dwSrc().kind==='asm')){const c=clipSegCircle(q[0],q[1],q[2],q[3],dt.pos[0],dt.pos[1],R2);if(c)hat+=Lp(c[0],c[1],c[2],c[3])}
     if(S.centers){const cl=(x1,y1,x2,y2)=>{const c=clipSegCircle(x1,y1,x2,y2,dt.pos[0],dt.pos[1],R2);if(c)cen+=Lp(c[0],c[1],c[2],c[3])};

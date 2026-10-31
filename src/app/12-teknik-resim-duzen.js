@@ -152,11 +152,17 @@ function buildDXF(markup,W,H){
     if(tag==='rect'){const x=+a('x'),y=+a('y'),w=+a('width'),h=+a('height');line(L,x,y,x+w,y);line(L,x+w,y,x+w,y+h);line(L,x+w,y+h,x,y+h);line(L,x,y+h,x,y)}
     else if(tag==='circle')E.push('0','CIRCLE','8',L,'10',n(+a('cx')),'20',Y(+a('cy')),'30','0','40',n(+a('r')));
     else if(tag==='path'){
-      const re=/([MLZ])([^MLZ]*)/gi;let m,st=null,cur=null;const poly=[];
+      // alt yollar; kesikli katmanda (gizli, eksen) çok noktalı alt yol tek POLYLINE olur ve desen köşelerden kesintisiz
+      // sürer (70 = 128), yoksa kısa kirişlerden oluşan gizli daireler DXF'te de düz görünürdü
+      const re=/([MLZ])([^MLZ]*)/gi;let m,cur=null;const poly=[],subs=[];
       while((m=re.exec(a('d')||''))){const k=m[1].toUpperCase();const q=m[2].trim().split(/[\s,]+/).filter(Boolean).map(Number);
-        if(k==='Z'){if(cur&&st)line(L,cur[0],cur[1],st[0],st[1]);cur=st;continue}
-        for(let i=0;i+1<q.length;i+=2){const P=[q[i],q[i+1]];if(k==='M'&&i===0){st=P;cur=P;poly.push(P);continue}if(cls!=='d-ar')line(L,cur[0],cur[1],P[0],P[1]);cur=P;poly.push(P)}}
-      if(cls==='d-ar'&&poly.length>=3){const [p1,p2,p3]=poly;E.push('0','SOLID','8',L,'10',n(p1[0]),'20',Y(p1[1]),'30','0','11',n(p2[0]),'21',Y(p2[1]),'31','0','12',n(p3[0]),'22',Y(p3[1]),'32','0','13',n(p3[0]),'23',Y(p3[1]),'33','0')}}
+        if(k==='Z'){if(cur&&cur.length>1){const s0=cur[0];cur.push(s0.slice());cur=[s0.slice()];subs.push(cur)}continue}
+        for(let i=0;i+1<q.length;i+=2){const P=[q[i],q[i+1]];poly.push(P);if((k==='M'&&i===0)||!cur){cur=[P];subs.push(cur)}else cur.push(P)}}
+      if(cls==='d-ar'){if(poly.length>=3){const [p1,p2,p3]=poly;E.push('0','SOLID','8',L,'10',n(p1[0]),'20',Y(p1[1]),'30','0','11',n(p2[0]),'21',Y(p2[1]),'31','0','12',n(p3[0]),'22',Y(p3[1]),'32','0','13',n(p3[0]),'23',Y(p3[1]),'33','0')}continue}
+      const dashed=ly[2]!=='CONTINUOUS';
+      for(const sp of subs){
+        if(dashed&&sp.length>2){E.push('0','POLYLINE','8',L,'66','1','10','0','20','0','30','0','70','128');for(const P of sp)E.push('0','VERTEX','8',L,'10',n(P[0]),'20',Y(P[1]),'30','0');E.push('0','SEQEND','8',L)}
+        else for(let i=1;i<sp.length;i++)line(L,sp[i-1][0],sp[i-1][1],sp[i][0],sp[i][1])}}
     else if(tag==='text'){const t=c.textContent||'';if(!t.trim())continue;const fs=+a('font-size')||3.5,anc=a('text-anchor')||'start';
       let ang=0;const tr=a('transform');if(tr){const mm=tr.match(/rotate\(([-\d.e]+)/);if(mm)ang=-(+mm[1])}
       const x=+a('x'),y=+a('y'),j=anc==='middle'?1:anc==='end'?2:0;

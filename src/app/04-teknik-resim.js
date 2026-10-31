@@ -194,8 +194,19 @@ let occ=null,lastBox=null;
 let dimSegs=null;const pushSegs=(...L)=>{if(dimSegs)for(const q of L)if(q)dimSegs.push(q)};
 /* görünüşlerin çizgileri (sayfa mm): görünür (geo) ve gizli/eksen (soft). Ölçü yazıları ve etiketler bunların üstüne konmaz */
 let occLn=null;
+/* doğru parçaları için ızgara dizini (sayfa mm): kutu sorguları yalnızca yakındaki parçalara bakar. Yazı ve etiket yerleri
+   yüzlerce aday için binlerce kenara bakıyordu; resim çizimi (buildSheet) ızgarasız 1,5–2 kat yavaşlamıştı */
+function segGrid(list,cell){cell=cell||8;const m=new Map(),key=(i,j)=>i*100003+j,cl=x=>Math.floor(x/cell);
+  list.forEach((g,n)=>{const i1=cl(Math.max(g[0],g[2])),j0=cl(Math.min(g[1],g[3])),j1=cl(Math.max(g[1],g[3]));
+    for(let i=cl(Math.min(g[0],g[2]));i<=i1;i++)for(let j=j0;j<=j1;j++){const k=key(i,j);let L=m.get(k);if(!L)m.set(k,L=[]);L.push(n)}});
+  let stamp=0;const seen=new Uint32Array(list.length);
+  return {near(B){stamp++;const out=[],i1=cl(B[2]),j0=cl(B[1]),j1=cl(B[3]);
+    for(let i=cl(B[0]);i<=i1;i++)for(let j=j0;j<=j1;j++){const L=m.get(key(i,j));if(L)for(const n of L)if(seen[n]!==stamp){seen[n]=stamp;out.push(list[n])}}
+    return out}}}
+const segBox=g=>[Math.min(g[0],g[2]),Math.min(g[1],g[3]),Math.max(g[0],g[2]),Math.max(g[1],g[3])];
 function lineHits(B){
-  for(const L of [occLn&&occLn.geo,occLn&&occLn.soft,dimSegs])if(L)for(const g of L)if(segHitsBox(g[0],g[1],g[2],g[3],B))return true;
+  if(occLn)for(const G of [occLn.geoG,occLn.softG])for(const g of G.near(B))if(segHitsBox(g[0],g[1],g[2],g[3],B))return true;
+  if(dimSegs)for(const g of dimSegs)if(segHitsBox(g[0],g[1],g[2],g[3],B))return true;
   return false;
 }
 /* iki doğru parçası kesişiyor mu; ilk parçanın baş ucu (kılavuzun oku: dairenin üstü) sayılmaz */
@@ -557,6 +568,7 @@ function buildSheet(forExport,opts){
     if(S.hidden&&k!==(secInfo&&secInfo.key))for(const q of d.hid)occLn.soft.push(pg(q));
     if(S.centers){occLn.soft.push(...markSegs(d.marks,v.map));
       for(const q of d.axes){const g=pg(q),dx=g[2]-g[0],dy=g[3]-g[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;occLn.soft.push([g[0]-ux*3,g[1]-uy*3,g[2]+ux*3,g[3]+uy*3])}}}
+  occLn.geoG=segGrid(occLn.geo);occLn.softG=segGrid(occLn.soft);
   /* otomatik ölçüler (Model öğeleri): önce sabit konumlu ölçüler, sonra etiketler boş yere yerleştirilir */
   const autoDim=(key,P1,P2,Q1,Q2,txt)=>{if(hide.has(key))return false;const n0=dimSegs.length;o.push(dimMarkup(P1,P2,Q1,Q2,txt));ctx.hits.push({t:'auto',k:key,box:lastBox,segs:dimSegs.slice(n0)});return true};
   // kesit çizgisi etiketlerden önce hesaplanır (ok ve harf yerleri ayrılır), çizim sırası değişmez
@@ -614,7 +626,7 @@ function buildSheet(forExport,opts){
         const M=[(P1[0]+P2[0])/2,(P1[1]+P2[1])/2],vert=Math.abs(P1[0]-P2[0])<Math.abs(P1[1]-P2[1]);
         // yazı ölçü çizgisinin üst/sol yanında 1,1 + 2,7 mm yer kaplar: dar yakada (Ø50) okların arasına sığan konum aranır
         const B=vert?[M[0]-4.2,M[1]-tw,M[0]+.5,M[1]+tw]:[M[0]-tw,M[1]-4.2,M[0]+tw,M[1]+.5];
-        if(occ.some(b=>boxOv(B,b)>0)||occLn.geo.some(g=>segHitsBox(g[0],g[1],g[2],g[3],B)))continue;autoDim(key,P1,P2,P1,P2,txt);shownCk.add(c.ck);return true}
+        if(occ.some(b=>boxOv(B,b)>0)||occLn.geoG.near(B).some(g=>segHitsBox(g[0],g[1],g[2],g[3],B)))continue;autoDim(key,P1,P2,P1,P2,txt);shownCk.add(c.ck);return true}
       return false};
     const vF=ctx.views.front,dF=vd.front.bb,vS=ctx.views[side];
     /* üst görünüşte dış hat tek daireyse genişlik ve derinlik, yan görünüşte daireyse derinlik ve yükseklik aynı çaptır: ön
@@ -726,11 +738,11 @@ function buildSheet(forExport,opts){
     /* puan: başka yazıya yakınlık (bitişik etiketler “Ø40Ø18” gibi tek yazı okunuyordu), yazıyı kesen görünür/gizli/eksen çizgisi,
        ölçü ve uzatma çizgisi (R16 uzatma çizgisinin, delik etiketi 125 ölçü çizgisinin üstündeydi), kılavuzun kestiği kenar ve
        ölçü çizgisi (R10 kılavuzu göbeği boydan boya kesiyordu) */
-    const geo=occLn.geo,soft=occLn.soft;
+    const {geoG,softG}=occLn;
     const score=(B,c)=>{let sc=0;const Bm=[B[0]-.8,B[1]-.8,B[2]+.8,B[3]+.8];for(const b of occ){const a=boxOv(Bm,b);if(a>0)sc+=6+a}
-      for(const g of geo)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;for(const g of soft)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;
+      for(const G of [geoG,softG])for(const g of G.near(B))if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=1;
       for(const g of dimSegs)if(segHitsBox(g[0],g[1],g[2],g[3],B))sc+=4;
-      const ld=c&&c.segs&&c.segs[0];if(ld){for(const g of geo)if(segCross(ld,g))sc+=.5;for(const g of dimSegs)if(segCross(ld,g))sc+=2}
+      const ld=c&&c.segs&&c.segs[0];if(ld){for(const g of geoG.near(segBox(ld)))if(segCross(ld,g))sc+=.5;for(const g of dimSegs)if(segCross(ld,g))sc+=2}
       if(B[0]<ax0-8||B[2]>ax1+8||B[1]<ay0-8||B[3]>ay1+8)sc+=30;return sc};
     /* delik dairesi: eksen çizgisiyle çizilir, çapı iki delik arasından çıkan kılavuzla yazılır */
     for(const P of pcds){

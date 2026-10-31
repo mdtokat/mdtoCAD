@@ -27,8 +27,11 @@ async function lblok(page) {
   expect(await page.evaluate(() => __tz.state.features.map(f => f.type))).toEqual(['sketch', 'extrude', 'sketch', 'extrude', 'hole', 'hole', 'hole', 'fillet']);
 }
 async function openDrawing(page) {
+  // önceki resmin bağlamı kalmış olabilir (model değişti): sekme değişince yeni resim çizilene kadar beklenir. Resim bir sonraki
+  // karede çizilir; yük altındaki CI makinesinde kare gecikince test eski bağlamdaki eski ölçüleri okuyordu
+  await page.evaluate(() => { window.__oncekiResim = __tz.getCtx(); });
   await page.click('[data-tab="drawing"]');
-  await page.waitForFunction(() => !!__tz.getCtx() && !!__tz.getCtx().views.front);
+  await page.waitForFunction(() => !!__tz.getCtx() && __tz.getCtx() !== window.__oncekiResim && !!__tz.getCtx().views.front);
   await page.waitForTimeout(300);
 }
 /** teknik resimde görünüş koordinatındaki (a, b) noktasına fareyle tıkla (dx, dy: sayfa mm kaydırma) */

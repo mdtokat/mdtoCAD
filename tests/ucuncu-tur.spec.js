@@ -74,11 +74,12 @@ test('teknik resim: genel ölçü çapsa Ø yazılır; gizli delik çapı üst g
   // önceden: “120” ve ayrıca profilin içinde “Ø120”; delik Ø40 hiç yazılmıyordu; zincir 12 / 1,48 / 7,02 / 1,5 (yazılar üst üste)
   expect(t).toContain('Ø120');
   expect(t).not.toContain('120');
-  expect(t.filter(x => x === 'Ø120').length).toBe(2); // ön ve yan görünüş genel ölçüsü; profilin içinde tekrar yok
+  expect(t.filter(x => x === 'Ø120').length).toBe(1); // bir kez (ISO 129-1): önceden ön ve yan görünüşte iki kez yazılıyordu
   for (const e of ['Ø80', 'Ø40', 'Ø100', '4× Ø9']) expect(t).toContain(e);
   const kb = await page.evaluate(() => { const v = __tz.getCtx(); return v.hits.filter(h => h.k && h.k.startsWith('kb:')).length; });
   expect(kb).toBe(2);
-  for (const e of ['12', '10']) expect(t).toContain(e);
+  // 12 + 10 = 22 genel yükseklik: kapalı zincirde göbek boyu yardımcı ölçüdür (ISO 129-1, altıncı tur)
+  for (const e of ['12', '(10)', '22']) expect(t).toContain(e);
   expect(t).not.toContain('1,48');
   // Ø40 delik ön görünüşte gizli: üst görünüşteki dairesine kılavuzla yazılır
   const yer = await page.evaluate(() => { const c = __tz.getCtx(); const t = [...document.querySelectorAll('#sheet text')].find(t => t.textContent === 'Ø40'); const r = t.getBBox();

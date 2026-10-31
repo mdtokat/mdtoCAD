@@ -30,7 +30,7 @@ function dwRedo(){const h=dwHistFor();if(!h.redo.length)return;h.undo.push(dwSna
 function hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36)}
 function partSrc(p){
   const d=partData(p);const mat=MATERIALS[p.material]||MATERIALS.steel;
-  return {kind:'part',key:'P'+p.id+':'+hashStr(d.key),polys:d.polys,ann:d.ann,box:d.box,props:d.props,g:d.g,name:p.partName,matName:p.mesh?'—':mat.name,massG:d.props?d.props.vol/1000*mat.rho:0};
+  return {kind:'part',key:'P'+p.id+':'+hashStr(d.key),polys:d.polys,ann:d.ann,caps:d.caps,feats:p.features,box:d.box,props:d.props,g:d.g,name:p.partName,matName:p.mesh?'—':mat.name,massG:d.props?d.props.vol/1000*mat.rho:0};
 }
 const srcCache=new Map();
 function asmSrc(a,exploded){

@@ -126,7 +126,7 @@ function partData(p){
   const box=r.polys.length?bboxPolys(r.polys):null,props=r.polys.length?massProps(r.polys):null;
   const {g,tp}=polysToBuffers(r.polys);const segs=computeEdges(r.polys,null).filter(e=>e.k===1),eg=segGeom(segs);
   if(c){c.g.dispose();c.eg.dispose()}
-  c={key,polys:r.polys,ann:r.ann||[],box,props,g,tp,eg,segs,err:Object.keys(r.errors||{}).length};pcache.set(p.id,c);return c;
+  c={key,polys:r.polys,ann:r.ann||[],caps:r.caps||{},box,props,g,tp,eg,segs,err:Object.keys(r.errors||{}).length};pcache.set(p.id,c);return c;
 }
 function compName(a,c){const p=partById(c.part);const same=a.comps.filter(x=>x.part===c.part);return (p?p.partName:'?')+'<'+(same.indexOf(c)+1)+'>'}
 function compById(id){const a=curAsm();return a?a.comps.find(c=>c.id===id):null}

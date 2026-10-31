@@ -8,6 +8,14 @@ function edgeSig(s){
   const f=p=>p?p.shared+'~'+[p.plane.n.x,p.plane.n.y,p.plane.n.z].map(x=>{const r=Math.round(x*100)/100;return r===0?0:r}).join(','):'';
   return [f(s.pa),f(s.pb)].filter(Boolean).sort().join('|');
 }
+/* eksen doğrusunun kimliği (model koordinatı): yön işaretsiz, nokta eksene dik izdüşümü; silindirin özelliğinden ve boyundan bağımsız */
+function axisKey(A,C){
+  let a=A.slice();const l=Math.hypot(a[0],a[1],a[2])||1;a=a.map(x=>x/l);
+  const s=Math.abs(a[0])>1e-6?Math.sign(a[0]):Math.abs(a[1])>1e-6?Math.sign(a[1]):Math.sign(a[2])||1;a=a.map(x=>x*s);
+  const t=C[0]*a[0]+C[1]*a[1]+C[2]*a[2],p=[C[0]-a[0]*t,C[1]-a[1]*t,C[2]-a[2]*t];
+  const r=(x,n)=>{const v=Math.round(x*n)/n;return v===0?0:v};
+  return a.map(x=>r(x,1000)).join(',')+'|'+p.map(x=>r(x,100)).join(',');
+}
 /* dairenin özellik kimliği: yarıçap son eki atılır (çap değişince de aynı daire) */
 const circKey=g=>String(g==null?'':g).replace(/:[-\d.]+$/,'');
 
@@ -94,6 +102,8 @@ function onArcSpan(ar,th,pad){
   if(ar.full)return true;let d=th-ar.t0;const s=Math.sign(ar.sw)||1;d*=s;d=((d%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
   const span=Math.abs(ar.sw);return d<=span+(pad||0)||d>=2*Math.PI-(pad||0);
 }
+/* 180°'den büyük yay: çapla ölçülür (ISO 129-1) */
+const arcIsBig=ar=>!!ar&&Math.abs(ar.sw)>Math.PI+1e-3;
 /* imlecin altındaki yay (tam daire değil; daireler nearestCircle ile) */
 function nearestArc(p,tol){
   let best=null,bd=tol;

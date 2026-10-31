@@ -48,7 +48,7 @@ function edgeSecond(p,tol){
     if(Math.abs(e.u[0]*f.u[1]-e.u[1]*f.u[0])<1e-3){const Y=footOn(f,e.X);return {st:{stage:2,p1:Object.assign(snapObj(e.view,e.X),{ref:er}),p2:Object.assign(snapObj(e.view,Y),{ref:edgeRefOf(f)})}}}
     return {st:{stage:'ang',e1:e,e2:f}};
   }
-  const v=dctx.views[e.view];const c2=v.inv(p[0],p[1]);const r=dimFromCursor(e.A,e.B,c2);
+  const v=dctx.views[e.view];const c2=v.inv(p[0],p[1]);const r=dimFromCursor(e.A,e.B,c2,v);
   return {dim:{view:e.view,p1:e.A.slice(),p2:e.B.slice(),kind:r.kind,pos:r.pos,ref:er?{len:er}:undefined}};
 }
 function angFromCursor(e1,e2,p){
@@ -66,7 +66,7 @@ function dimStageOverlay(p){
   const acc='#1F6FEB',w=f2(pxToSheet(2));let h='';
   const edge=e=>{const v=dctx.views[e.view];const A=v.map(e.A[0],e.A[1]),B=v.map(e.B[0],e.B[1]);return `<path d="${Lp(A[0],A[1],B[0],B[1])}" stroke="${acc}" stroke-width="${w}" fill="none"/>`};
   if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);h+=curveHi(c,acc,w);
-    if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]],rad:!!c.arc,arc:c.arc},v))}
+    if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]],rad:!!c.arc&&!arcIsBig(c.arc),arc:c.arc},v))}
   if(dimSt.stage==='edge'){h+=edge(dimSt.e);
     if(p){const s=dimSnap(p,9),f=s?null:pickLine(p,pxToSheet(9));
       if(f&&!sameLine(f,dimSt.e))h+=edge(f);

@@ -46,7 +46,7 @@ test('genel ölçüler yay tessellasyonundan etkilenmez; delik etiketleri SolidW
   await openSample(page, 'dort-kanatli-disk', 'Dört');
   await openDrawing(page);
   txt = await sheetTexts(page);
-  expect(txt).toContain('813');
+  expect(txt).toContain('Ø813'); // kanat uçları aynı çemberde: genişlik ve yükseklik tek çap ölçüsü (önceden 813 / 813)
   expect(errors).toEqual([]);
 });
 

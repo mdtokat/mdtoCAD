@@ -17,6 +17,25 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Montaj resminde “Patlatılmış” düğmesi hiçbir şey yapmıyordu (montajda patlatma adımı yoksa); varsa ön/üst/yan görünüşler de patlıyordu, genel ölçüler anlamsızlaşıyordu | Patlatma yalnızca montajda tanımlı adımlarla, bütün görünüşlere uygulanıyordu | Adım yoksa otomatik patlatma adımları oluşturulur; SolidWorks gibi yalnızca izometrik görünüş patlatılır |
 | Yataklı standın üst görünüşünde kademe zincir ölçüsü delik konum ölçüsüyle aynı sıraya düşüyor, iki “20” üst üste biniyordu | İkisi de görünüşün 9 mm sağına konuyordu | Zincir ölçüsü delik ölçülerinin dışındaki sıraya konur |
 
+## Ölçülendirme kuralları (ISO 129-1) denetimi — altıncı tur
+
+Örnek parçaların resimleri ISO 129-1 / TS 88 ölçülendirme kurallarına ve SolidWorks'ün model öğeleri davranışına göre incelendi. Testler: `tests/altinci-tur.spec.js`.
+
+| Kural | Bulgu | Düzeltme |
+|---|---|---|
+| Kapalı zincir olmaz; biri yardımcı ölçüdür | Mil: 40 + 60 + 90 + … = 305 ve 305 | Ortadaki en uzun kademe **(90)**; ortada kademe yoksa sondaki (kapakta 12 + (10) = 22) |
+| Kısa ölçü içte, uzun dışta | Milde 285 delik ölçüsü 305'in dışında | Genel boyutlar delik ve derinlik ölçülerinin dışında |
+| Her ölçü bir kez | Ø50 iki kez; çarkta 200 / 200 / Ø200; diskte 813 / 813; kapakta iki Ø120; kaplin montaj resminde 120 / 120 | Daire biçimli görünüşte tek çap; aynı eksenin aynı çapı yan görünüşte yazılmaz; üst/yan görünüşü daire olan parçada Ø bir kez |
+| Ölçü yazısını çizgi kesmez | Profil içi çapları eksen, etiketleri ölçü/uzatma/gizli çizgiler kesiyordu; “Ø40Ø18” bitişik | Yazı boş yere kayar, gerekirse oklar dışarıdan; etiket yeri çizgiler ve yakınlık hesaba katılarak seçilir |
+| Gizli çizgiye ölçü verilmez | Standda gizli deliğe 21 / 20 / 21; L destekte Ø27 kesikli daireye | Zincir yalnızca görünür sınırlara ve aynı eksene; Ø27 göbeğin görünen kısmına |
+| 180°'den büyük yay çapla | Diskte kama kanallı Ø143 ölçülmüyordu | Ø143, Ø26, Ø38; akıllı ölçüde de |
+| Yarıçap yalnızca yaya | Dişlide pah kenarına R13,5; braketin yarım yuvarlak ucuna Ø50 | Pah kenarı ölçülmez; yarım yuvarlak uçta genişlik 50 |
+| Eksiksiz ölçülendirme | Taban kalınlığı, kademe yüksekliği yoktu | Ekstrüzyon derinlikleri (15, 9, 60, 6,5, 20); kapalı zincir oluşturanlar eklenmez |
+| Uzatma çizgileri kısa ve kesişmesiz | Milin Ø50'si görünüşün yanında, uzatma çizgileri bütün milin üstünde | Döner parçanın genel çapı silindirin üstüne, profilin içinden |
+| Ölçü çizgileri eşit aralıklı | Elle ölçü tıklanan yerde kalıyordu | Görünüşten 9 mm, sonra 7 mm sıralara yakalanır (SolidWorks gibi) |
+
+Bilinen sınır: SolidWorks model öğeleri çizim (sketch) ölçülerini de aktarır; toCAD özelliklerden türetir. Kanal genişliği gibi yalnızca çizimde bulunan ölçüler akıllı ölçüyle eklenir. Düz dişli örneğinde diş uçları modelde düz kiriş olduğundan genel boyut 51,98'dir (Ø52 değil).
+
 ## Komut karşılaştırması
 
 | SolidWorks | toCAD | Not |
@@ -29,9 +48,9 @@ Teknik resim sekmesi örnek parçalarla (`ornekler/` ve varsayılan Yatak gövde
 | Hizalı / kademeli kesit, kısmi kesit (Broken-out) | ❌ | Yol haritasında |
 | Detay görünüşü | ✅ | Tarama ve eksen çizgileri de (yeni); “DETAY B ÖLÇEK 2:1” |
 | Yardımcı, kırık, kırpılmış görünüş | ❌ | Yol haritasında |
-| Model öğeleri (otomatik ölçüler) | ✅ | Genel ölçüler, delik konumları, delik etiketleri, **radyuslar (R, yeni)**; tek tek gizlenebilir |
+| Model öğeleri (otomatik ölçüler) | ✅ | Genel ölçüler, delik konumları, delik etiketleri, radyuslar (R), **ekstrüzyon derinlikleri (yeni)**; kapalı zincir oluşturmaz, tek tek gizlenebilir |
 | Delik etiketi (Hole Callout) | ✅ yeni biçim | ↧ derinlik, ⌴ fatura, ⌵ havşa simgeleri, satır satır |
-| Akıllı ölçü: iki nokta / yatay / dikey / hizalı | ✅ | |
+| Akıllı ölçü: iki nokta / yatay / dikey / hizalı | ✅ | Ölçü çizgisi standart uzaklıklara yakalanır (yeni) |
 | Akıllı ölçü: kenar uzunluğu, paralel kenarlar, noktadan kenara | ✅ yeni | |
 | Akıllı ölçü: çap / yarıçap | ✅ | Daireye tıklanınca çap, **yaya (radyus, kanal ucu) tıklanınca yarıçap** (yeni); yazı yayın dışındaysa yay uzantısı; ön ek R yarıçapı, Ø çapı yazar |
 | Ölçüler modele bağlı (ilişkisel) | ✅ yeni | Model değişince elle ölçüler aynı kenarı/köşeyi/daireyi/yayı bulur, değeri güncellenir; bulunamazsa kırmızı |

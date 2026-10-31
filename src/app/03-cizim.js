@@ -225,6 +225,11 @@ function skHit(q,tol){
   if(best&&be&&bd>tol*0.45&&bed<bd)return be;
   return best||be;
 }
+/* yalnızca noktalar: köşe bekleyen araçlarda (çizim radyusu) köşeye yakın tıklama çizgiyi değil köşeyi seçer */
+function skPtHit(q,tol){
+  let best=null,bd=tol;for(const id of ['O',...Object.keys(sk.feat.pts)]){const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={k:'pt',id}}}
+  return best;
+}
 function skSnap(q,tol,from,exclude,fromId){
   const f=sk.feat;let best=null,bd=tol;
   for(const id of ['O',...Object.keys(f.pts)]){if(exclude&&exclude.has(id))continue;const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={x:p[0],y:p[1],pid:id}}}
@@ -325,7 +330,7 @@ function skPointerMove(e){
   }
   sk.extHover=null;sk.hoverAxis=null;
   if(sk.tool&&DRAWTOOLS.has(sk.tool))wakeAt(q,tol);
-  if(!sk.tool||sk.tool==='smartdim'||sk.tool==='sfillet'){const h=skHit(q,tol);const k=h?h.k+':'+h.id:null;if(k!==sk.hover){sk.hover=k}
+  if(!sk.tool||sk.tool==='smartdim'||sk.tool==='sfillet'){const h=sk.tool==='sfillet'?skPtHit(q,tol)||skHit(q,tol):skHit(q,tol);const k=h?h.k+':'+h.id:null;if(k!==sk.hover){sk.hover=k}
     if(!h&&(!sk.tool||(sk.tool==='smartdim'&&dimRefOk())))sk.extHover=extPick(q,tol*0.7)}
   else sk.hover=null;
   if(sk.tool==='trim'){
@@ -500,7 +505,7 @@ function toolClick(q,px,tol){
     skPush();const added=[];const id=resolvePt(s,added);f.pts[id].sp=true;finishOp(added);return;
   }
   if(t==='sfillet'){
-    const h=skHit(q,tol);if(!h||h.k!=='pt'){toast('İki çizginin birleştiği köşe noktasına tıkla.');return}
+    const h=skPtHit(q,tol);if(!h){toast('İki çizginin birleştiği köşe noktasına tıkla.');return}
     sketchFillet(h.id);return;
   }
   if(t==="trim"){trimAt(q,tol);return}
@@ -615,14 +620,21 @@ function skDimClick(q,px,tol){
   if(cf.over){st.picks=[];c.val=Math.round(c.val*1e4)/1e4;openConflict(c,cf);return}
   skPush();c.id=newId(f,'c');c.val=Math.round(c.val*1e4)/1e4;f.cons.push(c);solveSketch(f);
   st.picks=[];skChanged();
-  requestAnimationFrame(()=>openDimPop(c.id));
+  dimPopWait=c.id;requestAnimationFrame(()=>{if(dimPopWait===c.id)openDimPop(c.id)});
 }
 
 /* ---------- ölçü düzenleme kutusu ---------- */
-let dimPopEl=null;
+let dimPopEl=null,dimPopWait=null;
 function closeDimPop(){if(dimPopEl){dimPopEl.remove();dimPopEl=null}}
+/* yeni ölçünün kutusu sonraki karede açılır; o kareden önce yazılan tuş kaybolmasın: kutu hemen açılır, tuş kutuya yazılır */
+function dimPopKey(e){
+  if(!dimPopWait||!sk)return false;const cid=dimPopWait;openDimPop(cid);if(!dimPopEl)return false;
+  const inp=dimPopEl.querySelector('input');e.preventDefault();
+  if(e.key==='Enter')inp.dispatchEvent(new KeyboardEvent('keydown',{key:e.key,bubbles:true}));else inp.value=e.key;
+  return true;
+}
 function openDimPop(cid){
-  closeDimPop();if(!sk||confEl)return;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
+  closeDimPop();dimPopWait=null;if(!sk||confEl)return;const c=sk.feat.cons.find(x=>x.id===cid);if(!c)return;
   if(c.driven){toast('Bu bir referans ölçü: değeri geometriden gelir.',{label:'Sürücü yap',fn:()=>setDriven(cid,false)});return}
   const s=skToScreen(c.lp[0],c.lp[1]);const el=document.createElement('div');el.className='pop';
   el.innerHTML=`<input inputmode="decimal" value="${String(Math.round(c.val*1e4)/1e4).replace('.',',')}" aria-label="Ölçü değeri" title="Dört işlem kullanılabilir, ör. 800/2 veya 5+(20+2)*3"><button class="ok" aria-label="Uygula">${IC.ok}</button><button aria-label="Kapat">${IC.x}</button>`;
@@ -789,6 +801,8 @@ function renderSketch(){
   {const s=sk.sel.some(x=>x.k==='pt'&&x.id==='O'),h=sk.hover==='pt:O';pts.push(0,0,0);const k=hex(s?C.sel:h?C.hov:C.origin);ptsC.push(k.r,k.g,k.b)}
   // ölçüler
   const labels=[];
+  // aynı yere düşen ilişki simgeleri (ör. çizginin dikey ve yaya teğet ilişkisi) yan yana dizilir, üst üste binmez
+  const relAt=new Map(),relPos=a=>{const k=Math.round(a[0]/(px*6))+','+Math.round(a[1]/(px*6));const n=relAt.get(k)||0;relAt.set(k,n+1);return [a[0]+n*px*17,a[1]]};
   for(const c of f.cons){
     if(DIMT.has(c.t)){
       const g=dimGeo(f,c,px);const s=sk.sel.some(x=>x.k==='con'&&x.id===c.id)||sk.hl===c.id;const cf=isConf(c.id);const col=s?C.sel:cf?C.conf:c.driven?C.drv:C.def;
@@ -799,7 +813,7 @@ function renderSketch(){
       const involved=sk.sel.some(x=>(x.k==='ent'&&(c.e===x.id||c.e1===x.id||c.e2===x.id))||(x.k==='pt'&&(c.p===x.id||c.q===x.id)));
       const cf=isConf(c.id);
       if((!sk.opts.rels||quietRel(f,c))&&!involved&&!s&&!cf)continue;
-      for(const a of relAnchors(f,c,px))labels.push({x:a[0],y:a[1],cls:'rlab'+(s?' sel':cf?' conf':''),cid:c.id,html:esc((REL[c.t]||['',''])[1])});
+      for(const a0 of relAnchors(f,c,px)){const a=relPos(a0);labels.push({x:a[0],y:a[1],cls:'rlab'+(s?' sel':cf?' conf':''),cid:c.id,html:esc((REL[c.t]||['',''])[1])})}
     }
   }
   // eklenmek istenen ve çelişen ölçü (çelişki penceresi açıkken)

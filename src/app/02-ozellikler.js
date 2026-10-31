@@ -116,7 +116,8 @@ $('#tree').addEventListener('change',e=>{
 });
 
 /* ================= KOMUT YÖNETİCİSİ (CommandManager) ================= */
-function rb(cmd,icon,label,cls='',title=''){return `<button class="rb ${cls}" data-cmd="${cmd}" title="${esc(title||label)}">${IC[icon]}<span>${label}</span></button>`}
+// dar şeritte "Katman/Taban" gibi boşluksuz etiketler eğik çizgiden bölünür (yan düğmeye taşmaz)
+function rb(cmd,icon,label,cls='',title=''){return `<button class="rb ${cls}" data-cmd="${cmd}" title="${esc(title||label)}">${IC[icon]}<span>${label.replace(/\//g,'/<wbr>')}</span></button>`}
 const SKTOOLS=['smartdim','line','centerline','rect','crect','circle','arc','arc3','tarc','slot','polygon','point','sfillet','trim'];
 function renderRibbon(){
   $('#cmTabs').classList.toggle('hidden',activeTab==='asm');

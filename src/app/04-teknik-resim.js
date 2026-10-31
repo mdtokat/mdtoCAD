@@ -246,7 +246,9 @@ function titleBlock(x0,y0,info){
   s+=lab(x0+142,y0+3.4,'Ölçek')+val(x0+160,y0+10,info.scale,4,'middle');
   s+=projSymbol(x0+160,y0+18,info.method);
   s+=lab(x0+142,y0+27.4,'Kağıt '+info.paper)+val(x0+178,y0+33.4,'Sayfa 1/1',2.6,'end');
-  s+=`<text class="d-l" x="${f2(x0-3)}" y="${f2(y0+34.5)}" font-size="2.4" text-anchor="end">Ölçüler mm. Belirtilmeyen toleranslar ISO 2768-m.</text>`;
+  // genel not antetin (montajda parça listesinin) üstünde, sağa hizalı: dikey A4'te antet çerçeve genişliğindedir, solunda yer yoktur;
+  // yatay sayfalarda da alt kenarın orta işaretine binmez
+  s+=`<text class="d-l" x="${f2(x0+178.5)}" y="${f2(y0-(info.bomRows||0)*6-1.5)}" font-size="2.4" text-anchor="end">Ölçüler mm. Belirtilmeyen toleranslar ISO 2768-m.</text>`;
   return s;
 }
 function paperWH(key,orient){const P=PAPERS[key]||PAPERS.A3;return orient==='portrait'?{W:P.H,H:P.W}:{W:P.W,H:P.H}}
@@ -537,6 +539,7 @@ function buildSheet(forExport,opts){
     if(S.balloons!==false){const bv=ctx.views.iso?'iso':'front';o.push(balloonsMarkup(ctx.views[bv],bom,[ax0,ay0,ax1,ay1],S,ctx))}
     o.push(bomMarkup(bom,layout,W,H,[ax0,ay0,ax1,ay1]));
   }
+  info.bomRows=bom&&bomLow?bom.length+1:0;
   o.push(footerMarkup(W,H,layout,info));
   occ=null;
   return {markup:o.join(''),ctx};

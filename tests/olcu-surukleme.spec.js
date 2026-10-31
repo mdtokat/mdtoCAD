@@ -19,8 +19,8 @@ async function drag(page, from, dx, dy, button = 'left') {
 }
 /** genel genişlik ölçüsünün (ow:front) ölçü çizgisi üstünde, yazıdan uzak bir nokta ve yazının merkezi (sayfa mm) */
 const owFront = page => page.evaluate(() => {
-  const h = __tz.getCtx().hits.find(x => x.t === 'auto' && x.k === 'ow:front'); const b = h.tb;
-  return { line: [h.box[0] + 4, h.box[3] - 0.0], text: [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], tb: b };
+  const h = __tz.getCtx().hits.find(x => x.t === 'auto' && x.k === 'ow:front'); const b = h.box;
+  return { line: [h.gb[0] + 4, h.gb[3]], text: [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], tb: b };
 });
 
 test('otomatik ölçü sol tuşla çizgisinden tutulup her yöne taşınır; sağ tuş ve boşlukta sol tuş sayfayı kaydırır', async ({ page }) => {
@@ -74,7 +74,7 @@ test('elle ölçü, ölçü aracı açıkken de sol tuşla tutulup sağa-sola (y
   await page.waitForTimeout(200);
   await page.click('[data-dcmd="dim"]');
   const d0 = await page.evaluate(() => ({ ...__tz.dwS().dims[0] }));
-  const h = await page.evaluate(() => { const h = __tz.getCtx().hits.find(x => x.t === 'dim'); return { tb: h.tb, box: h.box } });
+  const h = await page.evaluate(() => { const h = __tz.getCtx().hits.find(x => x.t === 'dim'); return { tb: h.box, gb: h.gb } });
   const vb0 = await vbox(page);
   const T = await scr(page, [(h.tb[0] + h.tb[2]) / 2, (h.tb[1] + h.tb[3]) / 2]);
   await drag(page, T, 60, 25);
@@ -85,7 +85,7 @@ test('elle ölçü, ölçü aracı açıkken de sol tuşla tutulup sağa-sola (y
   expect(d1.pos - d0.pos).toBeCloseTo(-25 / T[2] / s, 0);
   expect(d1.tx * s).toBeCloseTo(60 / T[2], 0);
   // yazı gerçekten sağa kaydı, ölçü çizgisi yazının altına kadar uzar
-  const h2 = await page.evaluate(() => __tz.getCtx().hits.find(x => x.t === 'dim').tb);
+  const h2 = await page.evaluate(() => __tz.getCtx().hits.find(x => x.t === 'dim').box);
   expect((h2[0] + h2[2]) / 2 - (h.tb[0] + h.tb[2]) / 2).toBeCloseTo(60 / T[2], 0);
   // ölçü aracında tıklamak (sürüklemeden) hâlâ ölçü seçer: elle ölçü listesi değişmez, araç açık kalır
   expect(await page.evaluate(() => __tz.dimSt.stage)).toBe(0);

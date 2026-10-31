@@ -203,10 +203,10 @@ let occ=null,lastBox=null;
 let lastGrab=[],lastSh=0,lastU=[1,0];
 const grabSegDist=(q,p)=>{const dx=q[2]-q[0],dy=q[3]-q[1],l2=dx*dx+dy*dy;let t=l2?((p[0]-q[0])*dx+(p[1]-q[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q[0]+dx*t-p[0],q[1]+dy*t-p[1])};
 const boxDist=(b,p)=>Math.hypot(Math.max(b[0]-p[0],0,p[0]-b[2]),Math.max(b[1]-p[1],0,p[1]-b[3]));
-/* seçim kutusu: yazı kutusu ile tutulabilen çizgileri kapsar; isabet yazıya veya çizgiye uzaklıkla ölçülür */
+/* tutma kutusu (gb): yazı kutusu (box) ile tutulabilen çizgileri kapsar; isabet yazıya veya çizgiye uzaklıkla ölçülür */
 function grabHit(h,g){g=g||lastGrab;lastGrab=[];const tb=h.box;if(!tb)return h;const b=tb.slice();
   for(const q of g){b[0]=Math.min(b[0],q[0],q[2]);b[1]=Math.min(b[1],q[1],q[3]);b[2]=Math.max(b[2],q[0],q[2]);b[3]=Math.max(b[3],q[1],q[3])}
-  h.box=b;h.tb=tb;h.dist=p=>{let d=boxDist(tb,p);for(const q of g)d=Math.min(d,grabSegDist(q,p));return d};return h}
+  h.gb=b;h.dist=p=>{let d=boxDist(tb,p);for(const q of g)d=Math.min(d,grabSegDist(q,p));return d};return h}
 /* ölçü ve kılavuz çizgileri (sayfa mm): balonlar bunların üstüne konmaz (önceden yalnızca ölçü yazılarından kaçıyordu) */
 let dimSegs=null;const pushSegs=(...L)=>{if(dimSegs)for(const q of L)if(q)dimSegs.push(q)};
 /* görünüşlerin çizgileri (sayfa mm): görünür (geo) ve gizli/eksen (soft). Ölçü yazıları ve etiketler bunların üstüne konmaz */

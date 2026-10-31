@@ -90,7 +90,7 @@ let dwSel=null;
 const DW_ORDER=['bal','lbl','dim','auto','gdt','datum','note','surf','detail','sk','view'];
 function dwHitAt(p,ptype){
   if(!dctx||!dctx.hits)return null;const pad=pxToSheet(ptype==='mouse'?3:8);let best=null;
-  for(const h of dctx.hits){const b=h.box;if(!b)continue;if(p[0]<b[0]-pad||p[0]>b[2]+pad||p[1]<b[1]-pad||p[1]>b[3]+pad)continue;
+  for(const h of dctx.hits){const b=h.gb||h.box;if(!b)continue;if(p[0]<b[0]-pad||p[0]>b[2]+pad||p[1]<b[1]-pad||p[1]>b[3]+pad)continue;
     if(h.dist&&h.dist(p)>pad+pxToSheet(3))continue;  // çizim öğeleri: kutusu değil kendisi
     // aynı türde en yakın olan (ölçü çizgisine veya yazısına uzaklık), sonra en küçük kutu
     const rk=DW_ORDER.indexOf(h.t),ar=(b[2]-b[0])*(b[3]-b[1]),dd=h.dist&&h.t!=='sk'?h.dist(p):0;

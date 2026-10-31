@@ -234,20 +234,26 @@ function skPtHit(q,tol){
 }
 function skSnap(q,tol,from,exclude,fromId){
   const f=sk.feat;let best=null,bd=tol;
-  for(const id of ['O',...Object.keys(f.pts)]){if(exclude&&exclude.has(id))continue;const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={x:p[0],y:p[1],pid:id}}}
+  // Ctrl basılıyken modelden gelen referanslara da yakalanmaz
+  const skip=e=>skNoExt&&e.ref;
+  for(const id of ['O',...Object.keys(f.pts)]){if((exclude&&exclude.has(id))||(skNoExt&&id!=='O'&&isRefPt(f,id)))continue;const p=P2(id);const d=Math.hypot(p[0]-q[0],p[1]-q[1]);if(d<bd){bd=d;best={x:p[0],y:p[1],pid:id}}}
   if(best)return best;
   // öğe kesişimleri: yeni nokta her iki öğenin üzerinde kalır
   for(const X of (sk.xpts||[])){const d=Math.hypot(X.x-q[0],X.y-q[1]);if(d<bd&&f.ents.includes(X.e1)&&f.ents.includes(X.e2)){bd=d;best={x:X.x,y:X.y,rels:[X.e1,X.e2].map(e=>({t:e.t==='line'?'pol':'poc',e:e.id})),ix:true}}}
   if(best)return best;bd=tol;
-  for(const e of f.ents)if(e.t==='line'&&!(exclude&&(exclude.has(e.a)||exclude.has(e.b)))){const a=P2(e.a),b=P2(e.b);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(Math.hypot(m[0]-q[0],m[1]-q[1])<tol)return {x:m[0],y:m[1],rel:{t:'mid',e:e.id}}}
+  for(const e of f.ents)if(e.t==='line'&&!skip(e)&&!(exclude&&(exclude.has(e.a)||exclude.has(e.b)))){const a=P2(e.a),b=P2(e.b);const m=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(Math.hypot(m[0]-q[0],m[1]-q[1])<tol)return {x:m[0],y:m[1],rel:{t:'mid',e:e.id}}}
+  // arkadaki modelin köşeleri ve daire/yay merkezleri, diğer çizimlerin noktaları
+  {const X=extSnapPt(q,tol*0.8);if(X)return X}
   // çizgi başlangıcından daireye/yaya teğet nokta: çizgi teğet ilişkisiyle çevreye bağlanır
   if(from&&fromId){const T=tanPtSnap(q,tol,from,fromId);if(T)return T}
   bd=tol*0.8;
   let ent=null;
-  for(const e of f.ents){if(exclude&&(exclude.has(e.a)||exclude.has(e.b)))continue;const [d,p]=entDist(e,q);if(d<bd){bd=d;ent=e;best={x:p[0],y:p[1],rel:{t:e.t==='line'?'pol':'poc',e:e.id}}}}
+  for(const e of f.ents){if(skip(e)||(exclude&&(exclude.has(e.a)||exclude.has(e.b))))continue;let [d,p]=entDist(e,q);if(d<bd){bd=d;ent=e;if(e.t==='line')p=gridAlong(P2(e.a),P2(e.b),p,tol);best={x:p[0],y:p[1],rel:{t:e.t==='line'?'pol':'poc',e:e.id}}}}
   // öğe üstünde yatay/dikey çıkarım da korunur (ör. döndürme profili eksene dik inerek kapanır)
   if(best&&from){const h=hvOnEnt(ent,q,from,tol);if(h)return {...h,rel:best.rel}}
   if(best)return best;
+  // arkadaki modelin ve diğer çizimlerin kenarları
+  {const X=extSnapOn(q,tol*0.6,from);if(X)return X}
   let x=q[0],y=q[1];
   // ızgara: çizgilere yakınken (≈5 px) yakala, aradaki değerleri adımın onda birine yuvarla
   if(sk.opts.grid&&!skNoGrid){const st=gridStep(tol/9),fine=st/10;const gx=Math.round(x/st)*st,gy=Math.round(y/st)*st;
@@ -268,6 +274,12 @@ function skSnap(q,tol,from,exclude,fromId){
   }
   return g||{x,y,hv:null};
 }
+/* yatay/dikey çizginin üstüne tıklanan nokta: ızgara açıksa çizgi boyunca ızgaraya oturur (kenar üstünde de değerler yuvarlak kalır) */
+function gridAlong(a,b,p,tol){
+  if(!sk.opts.grid||skNoGrid)return p;const k=Math.abs(a[1]-b[1])<1e-9?0:Math.abs(a[0]-b[0])<1e-9?1:-1;if(k<0)return p;
+  const st=gridStep(tol/9),fine=st/10,g=Math.round(p[k]/st)*st;let v=Math.abs(g-p[k])<tol*0.55?g:Math.round(p[k]/fine)*fine;v=Math.round(v*1000)/1000;
+  if(v<Math.min(a[k],b[k])-1e-9||v>Math.max(a[k],b[k])+1e-9)return p;const out=p.slice();out[k]=v;return out;
+}
 /* başlangıç noktasından geçen yatay/dikey doğrunun öğeyi imlece yakın kestiği nokta */
 function hvOnEnt(e,q,from,tol){
   const f=sk.feat;let best=null,bd=tol;
@@ -280,9 +292,12 @@ function hvOnEnt(e,q,from,tol){
   return best;
 }
 /* ızgara yakalaması noktayı merkezin üstüne çekiyorsa (çok küçük daire) yakalamayı bırak */
-function unsnapNear(s,q,c,px){if(s.pid||s.rels||s.rel)return s;if(Math.hypot(s.x-c[0],s.y-c[1])<px*3&&Math.hypot(q[0]-c[0],q[1]-c[1])>=px*3)return {x:Math.round(q[0]*1000)/1000,y:Math.round(q[1]*1000)/1000};return s}
+function unsnapNear(s,q,c,px){if(s.pid||s.rels||s.rel||s.ext)return s;if(Math.hypot(s.x-c[0],s.y-c[1])<px*3&&Math.hypot(q[0]-c[0],q[1]-c[1])>=px*3)return {x:Math.round(q[0]*1000)/1000,y:Math.round(q[1]*1000)/1000};return s}
 function resolvePt(s,added){
   const f=sk.feat;if(s.pid)return s.pid;
+  // dış geometriye yakalandı: köşe/merkez sabit referans noktasıdır; kenar referans öğe olarak eklenir, nokta üstünde kalır
+  if(s.ext&&s.ext.p){const id=refPt(s.ext.p);if(f.pts[id])f.pts[id].ref=true;return id}
+  if(s.ext&&s.ext.c){const e=refEnt(s.ext.c);s={x:s.x,y:s.y,rel:{t:e.t==='line'?'pol':'poc',e:e.id}}}
   const id=newId(f,'p');f.pts[id]={x:s.x,y:s.y};
   snapTie(s,id,added);
   return id;
@@ -313,7 +328,7 @@ function skPointerDown(e){
   if(sk.tool==='trim')sk.ptrim={last:q,path:[q],n:0};
 }
 function skPointerMove(e){
-  const {q,px,tol}=skEv(e);if(!q)return;sk.cursor=q;sk.px=px;
+  const {q,px,tol}=skEv(e);if(!q)return;sk.cursor=q;sk.px=px;skNoExt=!!(e.ctrlKey||e.metaKey);
   $('#sbXY').textContent=`${PLANEAX()[0]}: ${fmt(q[0])}   ${PLANEAX()[1]}: ${fmt(q[1])}`;
   // düğme görünüm dışında bırakıldıysa (bırakma olayı kaçtı) sürükleme biter; öğe tıklanmadan fareyle gelmez
   if(sk.drag&&e.pointerType==='mouse'&&!(e.buttons&1)){flushDrag();const d=sk.drag;sk.drag=null;if(d.moved)skChanged()}
@@ -353,7 +368,7 @@ function skPointerUp(e,d){
   const ev=skEv(e);if(!ev.q)return;
   // boş yere tıklama: arkadaki model kenarı veya başka bir çizimin öğesi varsa referans olarak eklenip seçilir
   if(!sk.tool){const h=skHit(ev.q,ev.tol)||refAt(ev.q,ev.tol*0.7);if(h)toggleSel(h);else{sk.sel=[];skChanged()}sizePopForSel(ev.q);return}
-  toolClick(ev.q,ev.px,ev.tol);
+  skNoExt=!!(e.ctrlKey||e.metaKey);try{toolClick(ev.q,ev.px,ev.tol)}finally{skNoExt=false}
 }
 /* sürüklenen nokta başka bir noktanın (orijin dahil) üstüne bırakılınca onunla birleşir; bir öğenin üstüne bırakılınca üzerinde kalır */
 function dropPoint(id,tol){
@@ -435,7 +450,7 @@ function toolClick(q,px,tol){
     const en=addEnt({t:'circle',c:st.c,r:Math.round(r*1000)/1000});const added=[];
     if(s.pid){const c={t:'poc',p:s.pid,e:en.id};if(s.pid!=='O'||sketchRank(f,[c])>sketchRank(f))addCon(c,added)}
     // çevre bir öğenin üstüne tıklandıysa o noktada bağlantı noktası oluşur (öğe üstünde ve çevre üstünde)
-    else if(s.rel||s.rels){const id=resolvePt(s,added);addCon({t:'poc',p:id,e:en.id},added)}
+    else if(s.rel||s.rels||s.ext){const id=resolvePt(s,added);addCon({t:'poc',p:id,e:en.id},added)}
     sk.st={};finishOp(added);return;
   }
   if(t==='arc'){
@@ -835,7 +850,8 @@ function renderSketch(){
     else if(sk.tool==='arc3'){s=skSnap(q,tol,null,null);if(st.a&&!st.b)pv(P(st.a),[s.x,s.y]);if(st.a&&st.b){const A=P(st.a),B=P(st.b);const C=circum(A,B,[s.x,s.y]);if(C){const t=arcPts(C,A,B,arcCcw(C,A,B,[s.x,s.y]));for(let i=0;i<t.length-1;i++)pv(t[i],t[i+1])}else pv(A,B)}}
     else if(sk.tool==='tarc'){s=skSnap(q,tol,null,st.start?new Set([st.start]):null);if(st.start){const g=tanArcGeo(st.start,st.ref,[s.x,s.y]);const A=P(st.start);if(g){const t=arcPts(g.c,A,[s.x,s.y],g.ccw);for(let i=0;i<t.length-1;i++)pv(t[i],t[i+1])}else pv(A,[s.x,s.y])}}
     else if(sk.tool==='slot'){s=skSnap(q,tol,st.c1&&!st.c2?P(st.c1):null,null);if(st.c1&&!st.c2)pv(P(st.c1),[s.x,s.y]);if(st.c1&&st.c2){const a=P(st.c1),b=P(st.c2);let d=[b[0]-a[0],b[1]-a[1]];const l=Math.hypot(...d);d=[d[0]/l,d[1]/l];const n=[-d[1],d[0]];const r=Math.abs((q[0]-a[0])*n[0]+(q[1]-a[1])*n[1]);pv([a[0]+n[0]*r,a[1]+n[1]*r],[b[0]+n[0]*r,b[1]+n[1]*r]);pv([a[0]-n[0]*r,a[1]-n[1]*r],[b[0]-n[0]*r,b[1]-n[1]*r]);const ba=Math.atan2(d[1],d[0]);for(const [c,o] of [[b,-Math.PI/2],[a,Math.PI/2]]){let prev=null;for(let i=0;i<=24;i++){const t=ba+o+Math.PI*i/24;const p=[c[0]+r*Math.cos(t),c[1]+r*Math.sin(t)];if(prev)pv(prev,p);prev=p}}}}
-    if(s){pts.push(s.x,s.y,0);const k=hex(s.pid||s.rel||s.inf?C.snap:C.prev);ptsC.push(k.r,k.g,k.b);if(s.rel&&s.rel.t==='mid')labels.push({x:s.x+px*12,y:s.y+px*12,cls:'rlab',cid:'',html:'M'})
+    if(s&&s.ext&&s.ext.c)for(const [a,b] of extHoverSegs(s.ext.c))pushSeg(sol,solC,a,b,C.hov);
+    if(s){pts.push(s.x,s.y,0);const k=hex(s.pid||s.rel||s.inf||s.ext?C.snap:C.prev);ptsC.push(k.r,k.g,k.b);if(s.rel&&s.rel.t==='mid')labels.push({x:s.x+px*12,y:s.y+px*12,cls:'rlab',cid:'',html:'M'})
       // hiza yardımcı çizgileri (kesikli)
       for(const [a,b] of s.guides||[]){dash.push(a[0],a[1],0,b[0],b[1],0);dashC.push(...hexArr(C.guide),...hexArr(C.guide))}}
     // üzerinde durulan çizginin ekseni (geçici)

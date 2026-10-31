@@ -165,8 +165,9 @@ test('otomatik tam tanımlama kullanıcı isteğine bağlı; tanımsız öğeler
   await page.click('[data-cmd="sketch"]');
   await page.waitForFunction(() => !!__tz.sk);
   await page.check('[data-opt="autodef"]');
+  // ikinci üçgen ilkinden uzağa çizilir: ilk çizimin köşelerine tıklansaydı onlara yakalanıp sabitlenirdi
   const b0 = await page.evaluate(([tri, dims]) => {
-    const T = __tz; eval(tri)(); const id = T.sk.feat.id; T.exitSketch(true);
+    const T = __tz; T.setTool('line'); for (const p of [[110, 10], [160, 10], [140, 45], [110, 10]]) T.toolClick(...p); T.setTool(null); const id = T.sk.feat.id; T.exitSketch(true);
     const f = T.state.features.find(x => x.id === id); return { dof: T.model.dof[id], dims: eval(dims)(f) };
   }, [tri.toString(), dims.toString()]);
   expect(b0.dof).toBe(0);

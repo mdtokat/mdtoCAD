@@ -95,6 +95,37 @@ function viewData(key,alt){
 
 const SHEET_CSS=`.d-vis{fill:none;stroke:#000;stroke-width:.5;stroke-linecap:round;stroke-linejoin:round}.d-hid{fill:none;stroke:#000;stroke-width:.25;stroke-dasharray:2.2 1.1}.d-cen{fill:none;stroke:#000;stroke-width:.18;stroke-dasharray:7 1.1 .8 1.1}.d-thin{fill:none;stroke:#000;stroke-width:.18}.d-frame{fill:none;stroke:#000;stroke-width:.7}.d-tb{fill:none;stroke:#000;stroke-width:.35}.d-ar{fill:#000;stroke:none}.d-t{font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;fill:#000}.d-l{font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;fill:#555}`;
 const Lp=(x1,y1,x2,y2)=>`M${f2(x1)} ${f2(y1)}L${f2(x2)} ${f2(y2)}`;
+/* kesikli çizgi yolu: kesik deseni her alt yolun başında yeniden başlar. Gizli eğriler (delik dairesi) kısa kirişlerden,
+   yandan görülen daire kenarları üst üste binen parçalardan oluştuğu için her parça bir çizgiyle başlıyor, çizgi düz
+   görünüyordu. Aynı doğru üzerindeki çakışan/bitişik parçalar birleştirilir, uç uca gelenler tek çoklu çizgi olur. */
+function chainPath(segs){
+  const E=0.01,lines=new Map(),rest=[];
+  for(const q of segs){let dx=q[2]-q[0],dy=q[3]-q[1];const l=Math.hypot(dx,dy);if(l<1e-6)continue;dx/=l;dy/=l;
+    if(dx<-1e-9||(Math.abs(dx)<=1e-9&&dy<0)){dx=-dx;dy=-dy}
+    const off=-dy*q[0]+dx*q[1],t0=dx*q[0]+dy*q[1],t1=dx*q[2]+dy*q[3];
+    const k=Math.round(dx*2000)+'_'+Math.round(dy*2000)+'_'+Math.round(off/E);
+    let g=lines.get(k);if(!g)lines.set(k,g={dx,dy,off,iv:[]});g.iv.push([Math.min(t0,t1),Math.max(t0,t1)])}
+  for(const g of lines.values()){g.iv.sort((a,b)=>a[0]-b[0]);let cur=null;
+    const P=t=>[-g.dy*g.off+g.dx*t,g.dx*g.off+g.dy*t];
+    for(const iv of g.iv.concat([null])){if(cur&&iv&&iv[0]<=cur[1]+E){cur[1]=Math.max(cur[1],iv[1]);continue}if(cur){const a=P(cur[0]),b=P(cur[1]);rest.push([a[0],a[1],b[0],b[1]])}cur=iv&&iv.slice()}}
+  // uç uca zincirleme
+  const K=(x,y)=>Math.round(x/E)+'_'+Math.round(y/E),at=new Map(),used=new Uint8Array(rest.length);
+  rest.forEach((q,i)=>{for(const k of [K(q[0],q[1]),K(q[2],q[3])]){if(!at.has(k))at.set(k,[]);at.get(k).push(i)}});
+  const next=(k)=>{for(const i of at.get(k)||[])if(!used[i])return i;return -1};
+  let p='';
+  // önce açık uçlardan (tek parçanın bittiği köşe) başlanır, kalanlar kapalı halkadır
+  const order=[...rest.keys()].sort((i,j)=>{const d=q=>Math.min((at.get(K(q[0],q[1]))||[]).length,(at.get(K(q[2],q[3]))||[]).length);return d(rest[i])-d(rest[j])});
+  for(const i0 of order){if(used[i0])continue;used[i0]=1;const q=rest[i0];
+    let pts=[[q[0],q[1]],[q[2],q[3]]];
+    for(let dir=0;dir<2;dir++){
+      for(;;){const e=pts[pts.length-1],k=K(e[0],e[1]);const j=next(k);if(j<0)break;used[j]=1;const r=rest[j];
+        pts.push(K(r[0],r[1])===k?[r[2],r[3]]:[r[0],r[1]])}
+      pts.reverse();
+    }
+    p+=`M${f2(pts[0][0])} ${f2(pts[0][1])}`+pts.slice(1).map(x=>`L${f2(x[0])} ${f2(x[1])}`).join('');
+  }
+  return p;
+}
 /* merkez işaretleri: kolların uçları 2,5 mm taşar */
 function markSegs(marks,map){const out=[];
   for(const mk of marks)for(const [p,q] of [[[mk.a0,mk.b],[mk.a1,mk.b]],[[mk.a,mk.b0],[mk.a,mk.b1]]]){
@@ -118,6 +149,10 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
   if(tw+1.5>l){const d0=l/2+2+tw/2+.6;const free=([t,h])=>{const B=boxAt((Q1[0]+Q2[0])/2+ux*t+upx*(1.1+h),(Q1[1]+Q2[1])/2+uy*t+upy*(1.1+h));return !occ||!occ.some(b=>boxOv(B,b)>0.05)};
     // yanlar doluysa (zincirde iki dar kademe yan yana) yazı bir satır yukarı alınır
     const c=[[-d0,0],[d0,0],[0,5],[-d0,5],[d0,5]];[sh,lift]=c.find(free)||c[1]}
+  /* yazı sığıyor ama ortası dolu (ör. kesit çizgisinin ucu, oku ve harfi genel ölçünün tam ortasından geçiyor): yazı ölçü
+     çizgisi boyunca oklar arasında boş bir yere kayar; önceden “120” kesit çizgisinin altında kalıyordu */
+  else if(occ){const cx=(Q1[0]+Q2[0])/2,cy=(Q1[1]+Q2[1])/2,at=t=>boxAt(cx+ux*t+upx*1.1,cy+uy*t+upy*1.1),busy=B=>occ.some(b=>boxOv(B,b)>0.05);
+    if(busy(at(0))){const st=tw/2+3.5;for(const t of [-st,st,-2*st,2*st,-3*st,3*st]){if(Math.abs(t)+tw/2+2>l/2)continue;if(!busy(at(t))){sh=t;break}}}}
   const mx=(Q1[0]+Q2[0])/2+ux*sh+upx*(1.1+lift),my=(Q1[1]+Q2[1])/2+uy*sh+upy*(1.1+lift);
   let s;
   if(tw+1.5<=l)s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0],Q1[1],Q2[0],Q2[1])}"/>`+arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy);
@@ -432,7 +467,7 @@ function buildSheet(forExport,opts){
     const v=ctx.views[k],d=v.d;
     // farklı ölçekli izometrik görünüşün altına kendi ölçeği yazılır
     if(k==='iso'&&v.s!==s){const [cx,cy]=pos.iso;o.push(`<text class="d-l" x="${f2(cx)}" y="${f2(cy+(d.bb.maxB-d.bb.minB)*v.s/2+6)}" font-size="3.2" text-anchor="middle">Ölçek ${esc(scaleLabel(v.s))}</text>`)}
-    if(S.hidden&&k!=='iso'&&k!==(secInfo&&secInfo.key)&&d.hid.length)o.push(`<path class="d-hid" d="${segPath(d.hid,v)}"/>`);
+    if(S.hidden&&k!=='iso'&&k!==(secInfo&&secInfo.key)&&d.hid.length)o.push(`<path class="d-hid" d="${chainPath(d.hid.map(q=>[...v.map(q[0],q[1]),...v.map(q[2],q[3])]))}"/>`);
     if(secInfo&&k===secInfo.key)o.push(hatchMarkup(d.secPolys,v,src.kind==='asm'));
     if(k!=='iso'&&d.threads.length)o.push(threadMarkup(d.threads,v,s));
     o.push(`<path class="d-vis" d="${segPath(d.vis,v)}"/>`);

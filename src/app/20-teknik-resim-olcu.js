@@ -108,7 +108,7 @@ const arcIsBig=ar=>!!ar&&Math.abs(ar.sw)>Math.PI+1e-3;
 function nearestArc(p,tol){
   let best=null,bd=tol;
   for(const v of dwViews())for(const ar of v.d.arcs||[]){if(ar.full||!curveShown(v,null,ar))continue;const C=v.map(ar.a,ar.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-ar.r*v.s);if(d>=bd)continue;
-    const th=Math.atan2(-(p[1]-C[1]),p[0]-C[0]);if(!onArcSpan(ar,th,0.02))continue;bd=d;best={view:v.key,a:ar.a,b:ar.b,r:ar.r,arc:{t0:ar.t0,sw:ar.sw},sig:ar.sig,sigs:ar.sigs}}
+    const th=Math.atan2(-(p[1]-C[1]),p[0]-C[0]);if(!onArcSpan(ar,th,0.02)||!inClip(v,curvePt(C,ar.r*v.s,p)))continue;bd=d;best={view:v.key,a:ar.a,b:ar.b,r:ar.r,arc:{t0:ar.t0,sw:ar.sw},sig:ar.sig,sigs:ar.sigs}}
   return best;
 }
 /* görünüşte annotasyonu olmayan tam daireler (ör. pah veya radyusun uç görünüşteki dairesi): çap ölçüsü verilebilir */
@@ -245,7 +245,9 @@ function reattachDim(dm,v,snaps){
 /* ISO E'de yan görünüş soldan (a = z), ISO A'da sağdan (a = −z): yan görünüşe bağlı ölçü ve açıklamalar a ekseninde aynalanır.
    Önceden yöntem değişince yan görünüşteki ölçüler, detaylar, yüzey işaretleri, toleranslar ve çizimler sessizce siliniyordu */
 function mirrorSideItems(S,from,to){
-  const mv=x=>{if(x&&x.view===from){x.view=to;return true}return false};
+  // yan görünüşten alınmış detaylardaki ölçüler de aynalanır (görünüş adı detay harfidir, değişmez)
+  const detSide=new Set((S.details||[]).filter(dt=>dt.view===from).map(detKey));
+  const mv=x=>{if(x&&x.view===from){x.view=to;return true}return !!(x&&detSide.has(x.view))};
   const fa=P=>P&&[-P[0],P[1]];
   for(const d of S.dims||[]){if(!mv(d))continue;
     if(d.kind==='dia'){d.c=fa(d.c);if(d.off)d.off=[-d.off[0],d.off[1]];if(d.arc)d.arc={t0:Math.PI-d.arc.t0,sw:-d.arc.sw}}
@@ -261,3 +263,32 @@ function mirrorSideItems(S,from,to){
   for(const e of S.sk2d||[]){if(!mv(e))continue;if(e.t==='line'&&Array.isArray(e.p))e.p=e.p.map(fa);if(Array.isArray(e.c))e.c=fa(e.c);
     if(e.t==='arc'){e.a0=Math.PI-e.a0;e.sw=-e.sw}}
 }
+
+/* ================= DETAY GÖRÜNÜŞÜNDE ÖLÇÜ ================= */
+/* SolidWorks'te küçük özellikler (pah, kanal, radyus) çoğunlukla detay görünüşünde ölçülür. Detay, ana görünüşün verisini (model
+   koordinatları) büyütülmüş ölçekle kendi yerinde gösteren ayrı bir görünüş olarak kaydedilir: akıllı ölçü, delik etiketi, model
+   değişince yeniden bağlanma ve sürükleme ana görünüşlerdeki gibi çalışır. Seçim detay dairesinin içiyle sınırlıdır; ölçülen kenarın
+   boyu modeldeki gerçek boyudur. Önceden detay görünüşüne ölçü verilemiyordu */
+const detKey=dt=>'det:'+dt.label;
+/* sayfadaki nokta görünüşün seçilebilir bölgesinde mi (detay görünüşünde dairenin içi) */
+const inClip=(v,P)=>!v.clip||Math.hypot(P[0]-v.clip.x,P[1]-v.clip.y)<=v.clip.R+1e-6;
+function registerDetailViews(S,ctx,s,hidden){
+  for(const dt of S.details||[]){
+    const v=ctx.views[dt.view];if(!v||v.clip||v.key==='iso')continue;
+    const ks=s*(num(dt.k)||2),[ca,cb]=dt.c,[px,py]=dt.pos,R=dt.r*ks,key=detKey(dt);
+    const w={key,d:v.d,s:ks,hidOn:v.hidOn,parent:dt.view,det:dt.label,clip:{x:px,y:py,R},
+      bb:{minA:ca-dt.r,maxA:ca+dt.r,minB:cb-dt.r,maxB:cb+dt.r},
+      map:(a,b)=>[px+(a-ca)*ks,py-(b-cb)*ks],inv:(x,y)=>[ca+(x-px)/ks,cb-(y-py)/ks]};
+    ctx.views[key]=w;
+    // detayın içindeki noktalar (köşeler, merkezler); detay dairesinin kestiği yerler nokta değildir
+    for(const sn of ctx.snaps.filter(q=>q.view===dt.view)){const [x,y]=w.map(sn.a,sn.b);if(Math.hypot(x-px,y-py)<R-1e-6)ctx.snaps.push(Object.assign({},sn,{view:key,x,y}))}
+    // ölçü yazıları detayın çizgilerinden de kaçar
+    if(occLn){const clip=(arr,to)=>{for(const q of arr){const c=clipSegCircle(q[0],q[1],q[2],q[3],ca,cb,dt.r);if(c)to.push([...w.map(c[0],c[1]),...w.map(c[2],c[3])])}};
+      clip(v.d.vis,occLn.geo);if(hidden&&v.hidOn)clip(v.d.hid,occLn.soft)}
+  }
+  if(occLn&&(S.details||[]).length){occLn.geoG=segGrid(occLn.geo);occLn.softG=segGrid(occLn.soft)}
+}
+/* detay silinince ona bağlı ölçüler de silinir */
+function dropDetailDims(S,dt){if(!dt)return;const k=detKey(dt);S.dims=(S.dims||[]).filter(d=>d.view!==k)}
+/* görünüşün panelde yazılan adı */
+function viewName(key){const VN={front:'Ön',top:'Üst',left:'Soldan',right:'Sağdan',iso:'İzometrik'};if(VN[key])return VN[key];const m=/^det:(.+)$/.exec(String(key));return m?'Detay '+m[1]:key}

@@ -176,6 +176,9 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
     if(busy(0)){const lim=l/2-tw/2-.8,st=Math.max(.5,lim/24);let ok=false;
       for(let t=st;t<=lim+1e-9;t+=st){if(!busy(-t)){sh=-t;ok=true;break}if(!busy(t)){sh=t;ok=true;break}}
       if(!ok&&lineHits(glyphAt(...A(0)))){const c=outs.slice(0,2).find(free);if(c){[sh,lift]=c;narrow=true}}}}
+  /* yazı sığsa da iki ok (3 mm) uzatma çizgileri arasına sığmıyorsa oklar dışarıdan gösterir (ISO 129-1, SolidWorks “akıllı”
+     ok yerleşimi); yazı ortada kalır. Önceden 6 mm'lik kanal ölçüsünde oklar birbirine değiyordu */
+  if(!narrow&&l<6.6)narrow=true;
   const mx=(Q1[0]+Q2[0])/2+ux*sh+upx*(1.1+lift),my=(Q1[1]+Q2[1])/2+uy*sh+upy*(1.1+lift);
   let s;pushSegs([P1[0],P1[1],Q1[0],Q1[1]],[P2[0],P2[1],Q2[0],Q2[1]]);
   if(!narrow){pushSegs([Q1[0],Q1[1],Q2[0],Q2[1]]);s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0],Q1[1],Q2[0],Q2[1])}"/>`+arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy)}
@@ -315,12 +318,15 @@ function dimGeom(d,v){
 /* elle ölçü görünüşteki bir kenara/noktaya/daireye oturuyor mu (model değişince ölçü eski yerinde kalır) */
 function dimStale(dm,d,sk){
   const e=1e-3,segs=sk?d.vis.concat(d.hid,sk.segs):d.vis.concat(d.hid),circ=sk?d.circ.concat(sk.circ):d.circ;
-  const onPt=(a,b)=>segs.some(q=>Math.hypot(q[0]-a,q[1]-b)<e||Math.hypot(q[2]-a,q[3]-b)<e)||circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
+  /* yay merkezleri de nokta sayılır (radyusun merkezine bağlanan ölçü önceden eklenir eklenmez kırmızı görünüyordu). Ucun kimliği
+     biliniyorsa (ref) yalnızca aynı türden öğe sayılır: model değişince başka bir yayın merkezi eski delik merkezine denk gelebilir */
+  const atSeg=(a,b)=>segs.some(q=>Math.hypot(q[0]-a,q[1]-b)<e||Math.hypot(q[2]-a,q[3]-b)<e),atC=(L,a,b)=>L.some(c=>Math.hypot(c.a-a,c.b-b)<e);
+  const onPt=(a,b,r)=>r&&r.k==='c'?atC(circ.filter(c=>c.gid==null||circKey(c.gid)===r.g).concat((d.marks||[]).filter(m=>m.g==null||circKey(m.g)===r.g)),a,b):r&&r.k==='ac'?atC(d.arcs||[],a,b):r&&r.k==='v'?atSeg(a,b):atSeg(a,b)||atC(circ,a,b)||atC(d.arcs||[],a,b);
   const onSeg=(a,b)=>segs.some(q=>{const dx=q[2]-q[0],dy=q[3]-q[1],l2=dx*dx+dy*dy;let t=l2?((a-q[0])*dx+(b-q[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q[0]+dx*t-a,q[1]+dy*t-b)<e})||circ.some(c=>Math.hypot(c.a-a,c.b-b)<e);
   if(dm.kind==='dia'){const same=c=>Math.hypot(c.a-dm.c[0],c.b-dm.c[1])<e&&Math.abs(c.r-dm.r)<e;return dm.arc?!(d.arcs||[]).some(same):!circ.some(same)&&!extraCircs(d).some(same)}
   if(dm.kind==='ang'){const onLine=u=>segs.some(q=>[[q[0],q[1]],[q[2],q[3]]].every(P=>Math.abs((P[0]-dm.v[0])*u[1]-(P[1]-dm.v[1])*u[0])<e)&&Math.hypot(q[2]-q[0],q[3]-q[1])>e);return !onLine(dm.u1)||!onLine(dm.u2)}
   // köşeye/merkeze bağlanan uç (at) köşede kalmalı; kenar üstündeki uç (ör. kenara dik ayak) kenarda
-  const ok=(P,i)=>dm.at&&dm.at[i]?onPt(P[0],P[1]):onSeg(P[0],P[1]);
+  const ok=(P,i)=>dm.at&&dm.at[i]?onPt(P[0],P[1],Array.isArray(dm.ref)?dm.ref[i]:null):onSeg(P[0],P[1]);
   return !ok(dm.p1,0)||!ok(dm.p2,1);
 }
 /* ölçü çizgisi görünüşün dışındaysa SolidWorks'teki gibi standart uzaklıklara yakalanır: görünüşten 9 mm, sonra 7 mm aralıkla
@@ -337,7 +343,7 @@ function dimFromCursor(p1,p2,c,v){
     if(ob&&!oa)kind='h';else if(oa&&!ob)kind='v';
     else if(oa&&ob)kind=Math.min(Math.abs(cb-mnB),Math.abs(cb-mxB))>Math.min(Math.abs(ca-mnA),Math.abs(ca-mxA))?'h':'v';
     else kind='a'}
-  const bb=v&&v.d&&v.d.bb;
+  const bb=v&&(v.bb||v.d&&v.d.bb);
   if(kind==='h')return {kind,pos:bb?snapRow(cb,bb.minB,bb.maxB,v.s):cb};if(kind==='v')return {kind,pos:bb?snapRow(ca,bb.minA,bb.maxA,v.s):ca};
   const l=Math.hypot(dx,dy),nx=-dy/l,ny=dx/l;return {kind:'a',pos:(ca-a1)*nx+(cb-b1)*ny};
 }
@@ -345,7 +351,7 @@ function dimFromCursor(p1,p2,c,v){
    yatay ölçü, eğik kenar → kenara dik hizalı ölçü (fk.n). Önceden imleç yana götürülünce eğik kolun kalınlığı 10 yerine 6,14,
    noktadan eğik kenara uzaklık yatay bileşeniyle yazılıyordu */
 function dimForced(p1,p2,fk,c,v){
-  const bb=v&&v.d&&v.d.bb;
+  const bb=v&&(v.bb||v.d&&v.d.bb);
   if(fk.kind==='h')return {kind:'h',pos:bb?snapRow(c[1],bb.minB,bb.maxB,v.s):c[1]};
   if(fk.kind==='v')return {kind:'v',pos:bb?snapRow(c[0],bb.minA,bb.maxA,v.s):c[0]};
   const n=fk.n,t=[-n[1],n[0]];return {kind:'a',n:n.slice(),pos:(c[0]-p1[0])*t[0]+(c[1]-p1[1])*t[1]};
@@ -584,7 +590,13 @@ function buildSheet(forExport,opts){
       const vd2=new Map();for(const q of d.vis){const dx=q[2]-q[0],dy=q[3]-q[1],l=Math.hypot(dx,dy);if(l<1e-9)continue;
         for(const [a,b,ux,uy] of [[q[0],q[1],dx/l,dy/l],[q[2],q[3],-dx/l,-dy/l]]){const key=kk(a,b);let L=vd2.get(key);if(!L)vd2.set(key,L=[]);L.push([ux,uy])}}
       const visCorner=key=>{const L=vd2.get(key);if(!L)return false;return !(L.length>=2&&L.every(u=>Math.abs(u[0]*L[0][1]-u[1]*L[0][0])<1e-4)&&L.some(u=>u[0]*L[0][0]+u[1]*L[0][1]<0))};
-      for(const q of d.vis.concat(d.hid))for(const [a,b] of [[q[0],q[1]],[q[2],q[3]]]){const key=kk(a,b);if(inner.has(key)||joint(a,b))continue;add(a,b,false,{k:'v',s:[...(sgs.get(key)||[])].sort()},!visCorner(key))}
+      /* aynı çemberin parçaları (görünür/gizli geçişleriyle veya kesişen özellikle bölünmüş delik dairesi, ardışık yaylar)
+         birleştiği yer de köşe değildir: önceden milin pim deliği dairesinin üstünde onlarca sahte nokta seçiliyordu */
+      const crv=d.circ.concat(d.arcs||[]),onC=(c,a,b)=>Math.abs(Math.hypot(a-c.a,b-c.b)-c.r)<Math.max(2e-3,c.r*2e-3);
+      const segC=new Map();if(crv.length)for(const q of d.vis.concat(d.hid))for(let i=0;i<crv.length;i++)if(onC(crv[i],q[0],q[1])&&onC(crv[i],q[2],q[3])){const k=Math.round(crv[i].a*1000)+'_'+Math.round(crv[i].b*1000)+'_'+Math.round(crv[i].r*1000);let S2=segC.get(q);if(!S2)segC.set(q,S2=new Set());S2.add(k)}
+      const vsegs=new Map();if(segC.size)for(const q of d.vis.concat(d.hid))for(const [a,b] of [[q[0],q[1]],[q[2],q[3]]]){const key=kk(a,b);let L=vsegs.get(key);if(!L)vsegs.set(key,L=[]);L.push(q)}
+      const onCurve=key=>{const L=vsegs.get(key);if(!L||L.length<2)return false;let com=null;for(const q of L){const S2=segC.get(q);if(!S2)return false;com=com?new Set([...com].filter(x=>S2.has(x))):new Set(S2);if(!com.size)return false}return true};
+      for(const q of d.vis.concat(d.hid))for(const [a,b] of [[q[0],q[1]],[q[2],q[3]]]){const key=kk(a,b);if(inner.has(key)||joint(a,b)||onCurve(key))continue;add(a,b,false,{k:'v',s:[...(sgs.get(key)||[])].sort()},!visCorner(key))}
     }
   }
   /* yazıların ve etiketlerin kaçacağı çizgiler: görünür kenarlar, gizli kenarlar ve eksen çizgileri (çizildikleri uzunlukla) */
@@ -843,6 +855,8 @@ function buildSheet(forExport,opts){
   // 2B çizim öğeleri (ölçülerden önce: noktaları ve kenarları akıllı ölçüye katılır)
   o.push(sk2dMarkup(S,ctx));
   /* elle eklenen ölçüler; model değiştiği için artık geometriye oturmayanlar ekranda kırmızı gösterilir (çıktıda normal) */
+  // detay görünüşleri de ölçülebilir görünüş olarak kaydedilir (2B çizimden sonra: çizim öğeleri ana görünüşe bağlıdır)
+  registerDetailViews(S,ctx,s,!!S.hidden);
   ctx.stale=new Set();
   S.dims.forEach((dm,i)=>{const v=ctx.views[dm.view];if(!v)return;let st=dimStale(dm,v.d,v.sk);
     // model değişti: ölçü aynı kenarı/noktayı/daireyi yeni yerinde bulur ve değeri güncellenir (SolidWorks gibi); bulunamazsa kırmızı kalır
@@ -943,8 +957,9 @@ function updateDimTip(){
 function dimFirst(p,tol){
   if(dimHc){const c=nearestCircle(p,pxToSheet(tol*.6));return c&&c.gid!=null?{c}:null}
   let s=dimSnap(p,tol);const c=nearestCircle(p,pxToSheet(tol*.6));
-  // dairenin çevresine tıklanınca (merkez dışında) çap ölçüsü; çevredeki parça uçları nokta sayılmaz
-  if(c&&!(s&&s.c))s=null;
+  // dairenin çevresine tıklanınca (merkez dışında) çap ölçüsü; çevredeki parça uçları nokta sayılmaz. Merkez noktası ancak
+  // daireden yakınsa seçilir: önceden delik dairesinin tam üstüne tıklamak 3 mm ötedeki radyusun merkezini seçiyordu
+  if(c&&!(s&&s.c&&!curveCloser(p,s,c)))s=null;
   const ar=c?null:nearestArc(p,pxToSheet(tol*.6));
   if(ar&&s&&!s.c&&Math.hypot(s.x-p[0],s.y-p[1])>pxToSheet(Math.min(4,tol*.45)))s=null;
   if(s)return {s};if(c)return {c};if(ar)return {c:ar};
@@ -952,9 +967,17 @@ function dimFirst(p,tol){
 }
 function dimClick(p,ptype){
   const tol=ptype==='mouse'?9:20;
-  if(dimSt.stage===0){const h=dimFirst(p,tol);if(!h)return;
+  if(dimSt.stage===0){const h=dimFirst(p,tol);
+    // izometrik görünüşteki boylar gerçek boy değildir; ölçü ön, üst, yan veya detay görünüşüne verilir
+    if(!h){const iv=dctx&&dctx.hits.find(x=>x.t==='view'&&x.k==='iso'),b=iv&&iv.box;
+      if(b&&p[0]>=Math.min(b[0],b[2])&&p[0]<=Math.max(b[0],b[2])&&p[1]>=Math.min(b[1],b[3])&&p[1]<=Math.max(b[1],b[3]))toast('İzometrik görünüşte boylar gerçek boy değildir; ölçüyü ön, üst, yan veya detay görünüşüne ver.');return}
     if(h.s){dimSt.p1=h.s;dimSt.stage=1}else if(h.c)dimSt={stage:'dia',c:h.c};else dimSt={stage:'edge',e:h.e}}
-  else if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);
+  else if(dimSt.stage==='dia'){
+    /* SolidWorks: daireden sonra başka bir öğeye tıklanırsa çap yerine uzaklık verilir (nokta → merkezden noktaya, daire/yay →
+       merkezler arası, kenar → merkezin kenara uzaklığı). Önceden ikinci tıklama çap yazısının yeri sayılıyor, kılavuz parçanın
+       üstünden öbür daireye uzanıyordu */
+    if(!dimHc){const r=diaSecond(p,tol);if(r){dimSt=r.st;updateDimTip();drawOverlay(p);return}}
+    const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);
     const d={view:c.view,kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]]};
     // yay: yarıçap ölçüsü (SolidWorks gibi), yazı yayın dışına konursa yay uzantısı çizilir. 180°'den büyük yay (kama kanallı
     // delik) ISO 129-1'e göre çapla ölçülür
@@ -963,7 +986,8 @@ function dimClick(p,ptype){
     addDim(d);return}
   else if(dimSt.stage==='edge'){const r=edgeSecond(p,tol);if(!r)return;if(r.dim){addDim(r.dim);return}dimSt=r.st}
   else if(dimSt.stage==='ang'){const d=angFromCursor(dimSt.e1,dimSt.e2,p);if(d){d.ref=[edgeRefOf(dimSt.e1),edgeRefOf(dimSt.e2)];addDim(d)}return}
-  else if(dimSt.stage===1){const s=nearestSnap(p,tol);
+  else if(dimSt.stage===1){let s=nearestSnap(p,tol);
+    {const c=nearestCircle(p,pxToSheet(tol*.6))||nearestArc(p,pxToSheet(tol*.6));if(s&&c&&curveCloser(p,s,c))s=null}
     /* SolidWorks'te seçim sırası önemsizdir: noktadan sonra kenar → noktanın kenara uzaklığı, daire → merkezler arası.
        Önceden yalnızca önce kenar seçilince çalışıyordu; noktadan sonra kenara tıklamak hiçbir şey yapmıyordu */
     if(!s){const c=nearestCircle(p,pxToSheet(tol*.6))||nearestArc(p,pxToSheet(tol*.6));
@@ -1009,7 +1033,7 @@ function drawOverlay(p){
     if(r0&&r0.s)h+=dotM(r0.s.x,r0.s.y,rr*1.2,'rgba(31,111,235,.18)');
     else if(r0&&r0.c)h+=curveHi(r0.c,acc,w);
     else if(r0&&r0.e)h+=edgeM(r0.e)}
-  else if(p&&dimSt.stage===1){const s=nearestSnap(p,9);if(s)h+=dotM(s.x,s.y,rr*1.2,'rgba(31,111,235,.18)');
+  else if(p&&dimSt.stage===1){let s=nearestSnap(p,9);{const c=nearestCircle(p,pxToSheet(5.4))||nearestArc(p,pxToSheet(5.4));if(s&&c&&curveCloser(p,s,c))s=null}if(s)h+=dotM(s.x,s.y,rr*1.2,'rgba(31,111,235,.18)');
     else{const c=nearestCircle(p,pxToSheet(5.4))||nearestArc(p,pxToSheet(5.4));if(c)h+=curveHi(c,acc,w);else{const e=pickLine(p,pxToSheet(9));if(e&&e.view===dimSt.p1.view)h+=edgeM(e)}}}
   if(p&&dimSt.stage===2){
     const v=dctx.views[dimSt.p1.view];const c=v.inv(p[0],p[1]);const r=dimPlace(dimSt,c,v);
@@ -1088,7 +1112,7 @@ function renderDwPanel(){
     <p class="note">Malzeme, kütle, ölçek ve tarih modelden otomatik alınır. Malzemeyi 3B Model sekmesindeki ağaçtan değiştir.</p></div>`;
   h+=`<div class="grp"><div class="grp-t">Eklenen ölçüler</div>`;
   if(!S.dims.length)h+=`<p class="note">Şeritteki “Akıllı ölçü” ile iki nokta, bir kenar (uzunluk), iki kenar (aralık veya açı) ya da bir daire (çap) seç, sonra ölçünün yerini göster. Ölçüler ve açıklamalar sürüklenerek taşınır, seçilip Delete ile silinir.</p>`;
-  else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const lab=v?dimLabel(d,v):'—';const st=dctx&&dctx.stale&&dctx.stale.has(i);return `<div class="dimrow" style="flex-wrap:wrap"><span${st?' style="color:var(--warn)" title="Model değişti; ölçü artık bir kenara veya noktaya oturmuyor. Silip yeniden ekle."':''}>${VN[d.view]||d.view}: ${esc(lab)}${d.kind==='ang'?'':' mm'}${st?' ⚠':''}</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin; çap ölçüsünde R yazınca yarıçap gösterilir.</p>`;
+  else h+=`<div class="dimlist">${S.dims.map((d,i)=>{const v=dctx&&dctx.views[d.view];const lab=v?dimLabel(d,v):'—';const st=dctx&&dctx.stale&&dctx.stale.has(i);return `<div class="dimrow${dwSel&&dwSel.t==='dim'&&dwSel.i===i?' on':''}" data-dimrow="${i}" style="flex-wrap:wrap"><span${st?' style="color:var(--warn)" title="Model değişti; ölçü artık bir kenara veya noktaya oturmuyor. Silip yeniden ekle."':''}>${viewName(d.view)}: ${esc(lab)}${d.kind==='ang'?'':' mm'}${st?' ⚠':''}</span><button data-deldim="${i}" title="Sil" aria-label="Ölçüyü sil">✕</button>${tolEditor(d,i)}</div>`}).join('')}</div><div style="margin-top:8px"><button class="sbtn" data-deldim="all">Tümünü sil</button></div><p class="note" style="margin-top:6px">Tolerans: ± simetrik, sapma (üst/alt) veya geçme (örneğin H7, g6). Ön ek alanına Ø veya R yazabilirsin; çap ölçüsünde R yazınca yarıçap gösterilir.</p>`;
   if(dctx&&dctx.stale&&dctx.stale.size)h+=`<p class="note" style="color:var(--warn)">${dctx.stale.size} ölçü modele uymuyor (kırmızı, ⚠): parça değiştiği için ölçülen kenar veya nokta artık o konumda değil. Silip yeniden ekle.</p>`;
   h+=`</div>`;
   h+=sk2dPanel(S);

@@ -11,11 +11,15 @@ const vSegs=v=>v.sk&&v.sk.segs.length?v.d.vis.concat(v.d.hid,v.sk.segs):v.d.vis.
    gizli kenara tıklanınca ölçü ona bağlanıyordu */
 const pickSegs=v=>v.hidOn===false?(v.sk&&v.sk.segs.length?v.d.vis.concat(v.sk.segs):v.d.vis):vSegs(v);
 /* daire veya yay bu görünüşte seçilebilir mi: gizli çizgiler kapalıyken tamamen gizli olanlar seçilmez */
+/* imleç daireye/yaya noktadan (s) daha mı yakın: imlecin altındaki öğe seçilir (SolidWorks gibi) */
+const curveCloser=(p,s,c)=>{const v=dctx.views[c.view];if(!v)return false;const C=v.map(c.a,c.b);return Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-c.r*v.s)<Math.hypot(s.x-p[0],s.y-p[1])};
+/* çemberin p'ye en yakın noktası (sayfa mm) */
+const curvePt=(C,R,p)=>{const dx=p[0]-C[0],dy=p[1]-C[1],l=Math.hypot(dx,dy)||1;return [C[0]+dx/l*R,C[1]+dy/l*R]};
 const curveShown=(v,q,arc)=>v.hidOn!==false||(arc?v.d.vis.some(s=>s.arc===arc):circVisFrac(v.d,q)>0.02);
 function nearestCircle(p,tol){
   let best=null,bd=tol;
   // annotasyonlu daireler, kenarlarından bulunan tam daireler (pah/radyus dairesi) ve görünüşe bağlı 2B çizim daireleri
-  for(const v of dwViews())for(const q of v.d.circ.concat(extraCircs(v.d),v.sk?v.sk.circ:[])){if(!curveShown(v,q))continue;const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d<bd){bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r,gid:q.gid,sig:q.sig}}}
+  for(const v of dwViews())for(const q of v.d.circ.concat(extraCircs(v.d),v.sk?v.sk.circ:[])){if(!curveShown(v,q))continue;const C=v.map(q.a,q.b);const d=Math.abs(Math.hypot(p[0]-C[0],p[1]-C[1])-q.r*v.s);if(d>=bd||!inClip(v,curvePt(C,q.r*v.s,p)))continue;bd=d;best={view:v.key,a:q.a,b:q.b,r:q.r,gid:q.gid,sig:q.sig}}
   return best;
 }
 /* tıklanan kenar ve onunla aynı doğru üzerinde uç uca devam eden parçalar (görünür ve gizli) tek kenar sayılır */
@@ -25,7 +29,7 @@ function pickLine(p,tol){
   for(const v of dwViews())for(const q of pickSegs(v)){if(q.arc)continue;
     const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;if(L2<1e-8)continue;
     let t=((p[0]-A[0])*dx+(p[1]-A[1])*dy)/L2;t=Math.max(0,Math.min(1,t));const d=Math.hypot(A[0]+dx*t-p[0],A[1]+dy*t-p[1]);
-    if(d<bd){bd=d;best={v,q,t}}}
+    if(d<bd&&inClip(v,[A[0]+dx*t,A[1]+dy*t])){bd=d;best={v,q,t}}}
   if(!best)return null;
   const {v,q,t}=best;let ux=q[2]-q[0],uy=q[3]-q[1];const l=Math.hypot(ux,uy);ux/=l;uy/=l;
   const tol2=1e-3*Math.max(1,l);const iv=[];
@@ -44,7 +48,8 @@ const snapObj=(view,P)=>{const v=dctx.views[view];const [x,y]=v.map(P[0],P[1]);r
 /* kenardan sonraki tıklama: nokta → noktanın kenara uzaklığı; paralel kenar → aralık; açılı kenar → açı; boşluk → kenar uzunluğu */
 /* uçlara kimlik (ref) eklenir: model değişince ölçü aynı kenarı/noktayı bulur */
 function edgeSecond(p,tol){
-  const e=dimSt.e;const s=dimSnap(p,tol),er=edgeRefOf(e);
+  const e=dimSt.e;let s=dimSnap(p,tol);const er=edgeRefOf(e);
+  {const c=nearestCircle(p,pxToSheet(tol*.6))||nearestArc(p,pxToSheet(tol*.6));if(s&&c&&curveCloser(p,s,c))s=null}
   // noktadan kenara: uç kenar parçasının üstünde, ölçü kenara dik (eğik kenarda dik uzaklık)
   const toPt=s=>{const P=[s.a,s.b],f=footOn(e,P);if(Math.hypot(f[0]-s.a,f[1]-s.b)<1e-6)return null;return {st:{stage:2,p1:Object.assign(snapObj(e.view,clampOn(e.A,e.B,P)),{ref:er}),p2:s,fk:perpKind(e.u)}}};
   if(s&&s.view===e.view)return toPt(s);
@@ -72,10 +77,30 @@ function angFromCursor(e1,e2,p){
   const ext=(e,u)=>Math.max(0,...[e.A,e.B].map(P=>(P[0]-V[0])*u[0]+(P[1]-V[1])*u[1]));
   return {view:e1.view,kind:'ang',v:V,u1,u2,rr,e1:ext(e1,u1),e2:ext(e2,u2)};
 }
+/* daireden (çap aşamasından) sonraki tıklama başka bir öğedeyse uzaklık ölçüsünün başlangıcı; hi: vurgulanacak öğe */
+function diaSecond(p,tol){
+  const c=dimSt.c;if(!c)return null;const same=q=>Math.hypot(q.a-c.a,q.b-c.b)<1e-6;
+  const cref=c.arc?{k:'ac',s:c.sig,ss:c.sigs,r:c.r}:c.gid!=null?{k:'c',g:circKey(c.gid)}:null;
+  const Cs=Object.assign(snapObj(c.view,[c.a,c.b]),{c:true,ref:cref});
+  let s=nearestSnap(p,tol);const o=nearestCircle(p,pxToSheet(tol*.6))||nearestArc(p,pxToSheet(tol*.6));
+  if(s&&o&&curveCloser(p,s,o))s=null;
+  if(s&&s.view===c.view&&!same(s))return {st:{stage:2,p1:Cs,p2:s},hi:{s}};
+  if(s)return null;
+  if(o&&o.view===c.view&&!same(o)){const ref=o.arc?{k:'ac',s:o.sig,ss:o.sigs,r:o.r}:o.gid!=null?{k:'c',g:circKey(o.gid)}:null;
+    return {st:{stage:2,p1:Cs,p2:Object.assign(snapObj(o.view,[o.a,o.b]),{c:true,ref})},hi:{c:o}}}
+  if(o)return null;
+  const e=pickLine(p,pxToSheet(tol*.6));
+  if(e&&e.view===c.view){const P=[c.a,c.b],f=footOn(e,P);if(Math.hypot(f[0]-P[0],f[1]-P[1])<1e-6)return null;
+    return {st:{stage:2,p1:Object.assign(snapObj(e.view,clampOn(e.A,e.B,P)),{ref:edgeRefOf(e)}),p2:Cs,fk:perpKind(e.u)},hi:{e}}}
+  return null;
+}
 function dimStageOverlay(p){
   const acc='#1F6FEB',w=f2(pxToSheet(2));let h='';
   const edge=e=>{const v=dctx.views[e.view];const A=v.map(e.A[0],e.A[1]),B=v.map(e.B[0],e.B[1]);return `<path d="${Lp(A[0],A[1],B[0],B[1])}" stroke="${acc}" stroke-width="${w}" fill="none"/>`};
   if(dimSt.stage==='dia'){const c=dimSt.c,v=dctx.views[c.view];const C=v.map(c.a,c.b);h+=curveHi(c,acc,w);
+    // imleç başka bir öğenin üstündeyse uzaklık ölçüsü verilecek: o öğe vurgulanır, çap önizlemesi gösterilmez
+    const r2=p&&!dimHc?diaSecond(p,9):null;
+    if(r2){const q=r2.hi;if(q.s)h+=`<circle cx="${f2(q.s.x)}" cy="${f2(q.s.y)}" r="${f2(pxToSheet(6))}" fill="rgba(31,111,235,.18)" stroke="${acc}" stroke-width="${f2(pxToSheet(1.5))}"/>`;else if(q.c)h+=curveHi(q.c,acc,w);else h+=edge(q.e);return h}
     if(p)h+=toBlue(dimRender({kind:'dia',c:[c.a,c.b],r:c.r,off:[p[0]-C[0],p[1]-C[1]],rad:!!c.arc&&!arcIsBig(c.arc),arc:c.arc,hc:dimHc},v))}
   if(dimSt.stage==='edge'){h+=edge(dimSt.e);
     if(p){const s=dimSnap(p,9),f=s?null:pickLine(p,pxToSheet(9));
@@ -99,7 +124,12 @@ const sameHit=(a,b)=>a&&b&&a.t===b.t&&a.i===b.i&&a.k===b.k;
 function dwSelect(h){dwSel=h?{t:h.t,i:h.i,k:h.k}:null;
   // seçilen çizim öğesinin çizgi türü şeritte görünür
   if(h&&h.t==='sk'){const el=$('#dLtype'),e=(dwS().sk2d||[])[h.i];if(el&&e&&e.st)el.value=e.st}
-  drawOverlay(null);dwStatus()}
+  drawOverlay(null);dwStatus();markDimRow()}
+/* resimde seçilen ölçünün paneldeki satırı vurgulanır ve görünür yere kaydırılır (SolidWorks'te seçilen ölçünün özellikleri açılır):
+   tolerans, ön ek ve parantez hemen düzenlenebilir. Önceden hangi satırın hangi ölçü olduğu anlaşılmıyordu */
+function markDimRow(){const rows=$$('#dwPanel [data-dimrow]');let el=null;
+  for(const r of rows){const on=!!dwSel&&dwSel.t==='dim'&&+r.dataset.dimrow===dwSel.i;r.classList.toggle('on',on);if(on)el=r}
+  if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'})}
 function dwStatus(){
   const t=$('#dwTip');if(dimMode||dwTool)return;if(!dwSel){t.classList.remove('on');return}
   const N={view:'Görünüş',dim:'Ölçü',auto:'Otomatik ölçü',lbl:'Etiket',note:'Not',surf:'Yüzey işareti',detail:'Detay görünüşü',sk:'Çizim öğesi',gdt:'Geometrik tolerans',datum:'Referans işareti',bal:'Balon'};
@@ -140,6 +170,7 @@ function dwDragEnd(pan){if(!pan.orig)return;cancelAnimationFrame(pan.raf);saveSt
 function dwDeleteSel(){
   if(!dwSel)return false;const S=dwS(),h=dwSel;if(h.t==='view'&&h.k==='front'){toast('Ön görünüş gizlenemez.');return true}pushDwHist();
   const lists={dim:'dims',note:'notes',surf:'surfs',detail:'details',gdt:'gdts',datum:'datums',sk:'sk2d'};
+  if(h.t==='detail')dropDetailDims(S,(S.details||[])[h.i]);
   if(lists[h.t])(S[lists[h.t]]||[]).splice(h.i,1);
   else if(h.t==='view'){S.hide=(S.hide||[]).concat('V:'+h.k)}
   else if(h.t==='lbl')S.hide=(S.hide||[]).concat('L:'+h.k);

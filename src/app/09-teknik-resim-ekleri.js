@@ -249,7 +249,7 @@ function extraPanelInput(e,isChange){
 }
 function extraPanelClick(e){
   if(e.target.closest('[data-unhide]')){pushDwHist();dwS().hide=[];saveState();renderDrawing();return true}
-  const b=e.target.closest('[data-xdel]');if(!b)return false;const [k,i]=b.dataset.xdel.split(':');const S=dwS();pushDwHist();(S[k]||[]).splice(+i,1);saveState();renderDrawing();return true;
+  const b=e.target.closest('[data-xdel]');if(!b)return false;const [k,i]=b.dataset.xdel.split(':');const S=dwS();pushDwHist();if(k==='details')dropDetailDims(S,(S.details||[])[+i]);(S[k]||[]).splice(+i,1);saveState();renderDrawing();return true;
 }
 
 /* ---------- araçlar: detay, yüzey, not ---------- */
@@ -270,13 +270,13 @@ function dwTip(){
 }
 function viewAt(p){
   if(!dctx)return null;
-  for(const v of Object.values(dctx.views)){if(v.key==='iso')continue;const bb=v.d.bb;const A=v.map(bb.minA,bb.minB),B=v.map(bb.maxA,bb.maxB);
+  for(const v of Object.values(dctx.views)){if(v.key==='iso'||v.clip)continue;const bb=v.d.bb;const A=v.map(bb.minA,bb.minB),B=v.map(bb.maxA,bb.maxB);
     if(p[0]>=Math.min(A[0],B[0])-4&&p[0]<=Math.max(A[0],B[0])+4&&p[1]>=Math.min(A[1],B[1])-4&&p[1]<=Math.max(A[1],B[1])+4)return v}
   return null;
 }
 function nearestEdgePoint(p,tol){
   let best=null,bd=tol;
-  for(const v of Object.values(dctx.views)){if(v.key==='iso')continue;for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;let t=L2?((p[0]-A[0])*dx+(p[1]-A[1])*dy)/L2:0;t=Math.max(0,Math.min(1,t));const X=[A[0]+dx*t,A[1]+dy*t];const d=Math.hypot(X[0]-p[0],X[1]-p[1]);if(d<bd){bd=d;best={v,X,A,B}}}}
+  for(const v of Object.values(dctx.views)){if(v.key==='iso'||v.clip)continue;for(const q of v.d.vis){const A=v.map(q[0],q[1]),B=v.map(q[2],q[3]);const dx=B[0]-A[0],dy=B[1]-A[1],L2=dx*dx+dy*dy;let t=L2?((p[0]-A[0])*dx+(p[1]-A[1])*dy)/L2:0;t=Math.max(0,Math.min(1,t));const X=[A[0]+dx*t,A[1]+dy*t];const d=Math.hypot(X[0]-p[0],X[1]-p[1]);if(d<bd){bd=d;best={v,X,A,B}}}}
   return best;
 }
 function dwToolClick(p,ptype){

@@ -51,6 +51,21 @@ Otomatik ölçüler (model öğeleri) kapatılıp parça akıllı ölçüyle ba�
 
 Yeni: **Delik etiketi** aracı (Hole Callout; açıklama delik özelliğinden, aynı delikler `4×`), ölçü panelinde **Parantez** (yardımcı ölçü, toleranssız).
 
+## Elle ölçülendirme denetimi — sekizinci tur
+
+Yatak gövdesi, kademeli mil ve bükülmüş braket teknik resme aktarıldı, otomatik ölçüler kapatıldı ve parça akıllı ölçüyle her görünüşte (ön, üst, yan, kesit, **detay**) baştan ölçülendirildi; seçim sırası, sürükleme, silme, geri alma, model ve izdüşüm değişimi SolidWorks'ün Smart Dimension davranışıyla karşılaştırıldı. Testler: `tests/sekizinci-tur.spec.js`.
+
+| Bulgu | Neden | Düzeltme |
+|---|---|---|
+| Daireye, sonra başka bir daireye/kenara tıklayınca uzaklık yerine **Ø9** yazısı ikinci tıklanan yere konuyor, kılavuz parçanın üstünden geçiyordu | Çap aşamasında ikinci tıklama her zaman yazının yeri sayılıyordu | SolidWorks gibi: daire → nokta (merkezden noktaya), daire/yay → daire/yay (merkezler arası), daire → kenar (merkezin kenara dik uzaklığı); boş yere tıklanınca çap. İmleç öğenin üstündeyse vurgulanır |
+| Yay merkezine bağlanan ölçü (iki köşe radyusunun merkezleri arası, kenardan radyus merkezine) eklenir eklenmez **kırmızı ⚠** | Ölçünün geometriye oturduğu denetlenirken yay merkezleri nokta sayılmıyordu | Yay merkezleri de nokta sayılır; ucun kimliği biliniyorsa yalnızca aynı türden öğe (daire merkezi, yay merkezi, köşe) aranır |
+| **Detay görünüşüne ölçü verilemiyordu** (SolidWorks'te küçük özellikler çoğunlukla detayda ölçülür) | Detay yalnızca çizim olarak üretiliyordu | Detay ölçülebilir bir görünüştür: akıllı ölçü, delik etiketi, sürükleme; ölçüler detayın ölçeğiyle çizilir, detay taşınınca/ölçeği değişince birlikte gider, model değişince güncellenir, izdüşüm değişince aynalanır, detay silinince silinir. Seçim detay dairesinin içiyle sınırlıdır |
+| 6 mm'lik kanal ölçüsünde oklar birbirine değiyordu | Oklar yalnızca yazı sığmazsa dışarı alınıyordu | İki ok sığmıyorsa (< 6,6 mm) oklar dışarıdan gösterir, yazı ortada kalır |
+| Delik dairesinin tam üstüne tıklamak 3 mm ötedeki radyusun merkezini seçiyordu | Merkez noktası her zaman daireden önce geliyordu | İmlecin altındaki (daha yakın) öğe seçilir |
+| Milin pim deliği dairesinin üstünde onlarca sahte köşe noktası | Kama kanalıyla bölünen dairenin parçalarının birleşim yerleri köşe sayılıyordu | Aynı çemberin parçalarının birleştiği yer nokta değildir |
+
+Ayrıca: resimde seçilen ölçünün paneldeki satırı vurgulanır (tolerans, ön ek, parantez hemen düzenlenir); izometrik görünüşe tıklanınca ölçünün neden verilmediği yazılır.
+
 ## Komut karşılaştırması
 
 | SolidWorks | toCAD | Not |
@@ -61,7 +76,7 @@ Yeni: **Delik etiketi** aracı (Hole Callout; açıklama delik özelliğinden, a
 | Kesit görünüşü | ✅ | Ön, üst (yeni) veya yan görünüş; tam veya **yarım kesit** (yeni); “KESİT A-A” |
 | Montaj kesitinde bileşen tarama ve kesitten hariç tutma | ✅ yeni | Bitişik parçalar farklı açı/aralıkla taranır; cıvata, somun, mil gibi parçalar panelden “kesilmeyecek” seçilir |
 | Hizalı / kademeli kesit, kısmi kesit (Broken-out) | ❌ | Yol haritasında |
-| Detay görünüşü | ✅ | Tarama ve eksen çizgileri de (yeni); “DETAY B ÖLÇEK 2:1” |
+| Detay görünüşü | ✅ | Tarama ve eksen çizgileri de; “DETAY B ÖLÇEK 2:1”; **detayda akıllı ölçü ve delik etiketi** (yeni) |
 | Yardımcı, kırık, kırpılmış görünüş | ❌ | Yol haritasında |
 | Model öğeleri (otomatik ölçüler) | ✅ | Genel ölçüler, delik konumları, delik etiketleri, radyuslar (R), **ekstrüzyon derinlikleri (yeni)**; kapalı zincir oluşturmaz, tek tek gizlenebilir |
 | Delik etiketi (Hole Callout) | ✅ yeni biçim | ↧ derinlik, ⌴ fatura, ⌵ havşa simgeleri, satır satır; otomatik veya şeritteki **Delik etiketi** aracıyla elle (yeni) |
@@ -95,6 +110,6 @@ Yeni: **Delik etiketi** aracı (Hole Callout; açıklama delik özelliğinden, a
 
 - **Taşıma:** araç seçili değilken görünüşü, ölçüyü, etiketi, notu, detayı, toleransı veya referansı tutup sürükle. Boş yerde sürüklemek sayfayı kaydırır.
 - **Seçme / silme:** öğeye tıkla (mavi çerçeve), **Delete**. Otomatik ölçüler, delik etiketleri ve görünüşler gizlenir; soldaki panelde “Gizlenenler → Tümünü geri getir”.
-- **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık, hep kenara dik; silindirin iki dış çizgisiyse Ø); kenar + açılı kenar + yay yeri (açı); kenar + nokta veya nokta + kenar (uzaklık); nokta + daire, kenar + daire (merkeze); daire + yazı yeri (çap); yay + yazı yeri (yarıçap). Ölçüler model değişince güncellenir.
+- **Akıllı ölçü:** nokta + nokta; kenar + boş yer (uzunluk); kenar + paralel kenar (aralık, hep kenara dik; silindirin iki dış çizgisiyse Ø); kenar + açılı kenar + yay yeri (açı); kenar + nokta veya nokta + kenar (uzaklık); nokta + daire, kenar + daire, daire + nokta/kenar/daire (merkeze, merkezler arası); daire + yazı yeri (çap); yay + yazı yeri (yarıçap). Ölçüler model değişince güncellenir.
 - **2B çizim (Çizim sekmesi):** araç seçilir; çizgi türü şeritten veya soldaki panelden. Çizgi: ardışık tıklamalar zincir çizer, aynı noktaya tıklamak veya Esc zinciri bitirir. Eksen çizgisi: iki nokta veya iki paralel kenar. Daire: merkez + yarıçap noktası (delik dairesi için merkeze ve bir deliğin merkezine tıkla); çap panelden yazılır. Yay: merkez, başlangıç, bitiş (fareyi götürdüğün yönde). Öğe seçilip sürüklenir, çizginin ucu veya dairenin çevresi tutulursa boyu/çapı değişir; Delete siler. Görünüşe bağlı öğelerin uçlarına ve merkezlerine akıllı ölçü verilir.
 - **Geometrik tolerans / Referans:** şeritten seç, kenara tıkla; tür, değer ve referans harfleri soldaki panelden.

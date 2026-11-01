@@ -115,9 +115,11 @@ let dwSel=null;
 const DW_ORDER=['bal','lbl','dim','auto','gdt','datum','note','surf','detail','sk','view'];
 function dwHitAt(p,ptype){
   if(!dctx||!dctx.hits)return null;const pad=pxToSheet(ptype==='mouse'?3:8);let best=null;
-  for(const h of dctx.hits){const b=h.box;if(!b)continue;if(p[0]<b[0]-pad||p[0]>b[2]+pad||p[1]<b[1]-pad||p[1]>b[3]+pad)continue;
+  for(const h of dctx.hits){const b=h.gb||h.box;if(!b)continue;if(p[0]<b[0]-pad||p[0]>b[2]+pad||p[1]<b[1]-pad||p[1]>b[3]+pad)continue;
     if(h.dist&&h.dist(p)>pad+pxToSheet(3))continue;  // çizim öğeleri: kutusu değil kendisi
-    const rk=DW_ORDER.indexOf(h.t),ar=(b[2]-b[0])*(b[3]-b[1]);if(!best||rk<best.rk||(rk===best.rk&&ar<best.ar))best={h,rk,ar}}
+    // aynı türde en yakın olan (ölçü çizgisine veya yazısına uzaklık), sonra en küçük kutu
+    const rk=DW_ORDER.indexOf(h.t),ar=(b[2]-b[0])*(b[3]-b[1]),dd=h.dist&&h.t!=='sk'?h.dist(p):0;
+    if(!best||rk<best.rk||(rk===best.rk&&(dd<best.dd-1e-6||(Math.abs(dd-best.dd)<=1e-6&&ar<best.ar))))best={h,rk,ar,dd}}
   return best?(best.h.t==='sk'?dskHitGrip(best.h,p,pad):best.h):null;
 }
 const sameHit=(a,b)=>a&&b&&a.t===b.t&&a.i===b.i&&a.k===b.k;
@@ -142,7 +144,9 @@ function selOverlay(){
 let hoverHit=null;
 function dwHover(p){const h=dwHitAt(p,'mouse');if(sameHit(h,hoverHit)&&(h||!hoverHit))return;hoverHit=h;sheetEl.style.cursor=h?'move':''}
 /* sürükleme: başlangıç değerinden dx, dy (sayfa mm) kadar */
-const DW_DRAG=new Set(['view','lbl','dim','note','detail','gdt','datum','bal','sk']);
+const DW_DRAG=new Set(['view','lbl','dim','auto','note','detail','gdt','datum','bal','sk']);
+/* ölçü veya araç kipindeyken de tutulup taşınabilenler (görünüş ve çizim öğesi değil: onlarda basılı tutup sürüklemek sayfayı kaydırır) */
+const DW_DRAG_TOOL=new Set(['lbl','dim','auto','note','gdt','datum','bal']);
 function dwDragMove(pan,dx,dy){
   const S=dwS(),h=pan.hit;
   if(!pan.orig){pan.orig=clone(S);pushDwHist();dwSel={t:h.t,i:h.i,k:h.k}}
@@ -155,9 +159,16 @@ function dwDragMove(pan,dx,dy){
     if(d.kind==='dia')d.off=[(o.off||[12,-12])[0]+dx,(o.off||[12,-12])[1]+dy];
     else if(d.kind==='ang'){const V=v.map(o.v[0],o.v[1]);const a1=Math.atan2(-o.u1[1],o.u1[0]),a2=Math.atan2(-o.u2[1],o.u2[0]);
       const mid=[Math.cos(a1)+Math.cos(a2),Math.sin(a1)+Math.sin(a2)];const ml=Math.hypot(mid[0],mid[1])||1;
-      d.rr=Math.max(1/v.s,o.rr+(dx*mid[0]+dy*mid[1])/ml/v.s)}
-    else if(d.kind==='h')d.pos=o.pos-dy/v.s;else if(d.kind==='v')d.pos=o.pos+dx/v.s;
-    else{const ex=o.p2[0]-o.p1[0],ey=o.p2[1]-o.p1[1],l=Math.hypot(ex,ey)||1,t=o.n?[-o.n[1],o.n[0]]:[-ey/l,ex/l];d.pos=o.pos+(t[0]*dx-t[1]*dy)/v.s}}
+      d.rr=Math.max(1/v.s,o.rr+(dx*mid[0]+dy*mid[1])/ml/v.s);
+      // yay boyunca (teğet) kaydırma: yazı yayın üstünde kayar
+      const cr=o.u1[0]*o.u2[1]-o.u1[1]*o.u2[0],am=a1-Math.sign(cr||1)*angDeg(o)*Math.PI/360+(o.ta||0),tg=[-Math.sin(am),Math.cos(am)];
+      d.ta=(o.ta||0)+(dx*tg[0]+dy*tg[1])/((o.rr*v.s)+3.2)}
+    else{
+      if(d.kind==='h')d.pos=o.pos-dy/v.s;else if(d.kind==='v')d.pos=o.pos+dx/v.s;
+      else{const ex=o.p2[0]-o.p1[0],ey=o.p2[1]-o.p1[1],l=Math.hypot(ex,ey)||1,t=o.n?[-o.n[1],o.n[0]]:[-ey/l,ex/l];d.pos=o.pos+(t[0]*dx-t[1]*dy)/v.s}
+      // ölçü çizgisi boyunca (sağa-sola / aşağı-yukarı) yazı kayar
+      const u=h.u||[1,0],t0=o.tx!=null?o.tx*v.s:(h.sh||0);d.tx=(t0+dx*u[0]+dy*u[1])/v.s}}
+  else if(h.t==='auto'){S.aofs=Object.assign({},O.aofs);const b=(O.aofs||{})[h.k]||(h.lead?[h.K[0]-h.C[0],h.K[1]-h.C[1]]:[(h.u||[1,0])[0]*(h.sh||0),(h.u||[1,0])[1]*(h.sh||0)]);S.aofs[h.k]=[b[0]+dx,b[1]+dy]}
   else if(h.t==='note'){S.notes[h.i].x=O.notes[h.i].x+dx;S.notes[h.i].y=O.notes[h.i].y+dy}
   else if(h.t==='detail'){const p0=O.details[h.i].pos;S.details[h.i].pos=[p0[0]+dx,p0[1]+dy]}
   else if(h.t==='gdt'||h.t==='datum'){const k=h.t+'s',o=O[k][h.i].off||[0,-12];S[k][h.i].off=[o[0]+dx,o[1]+dy]}

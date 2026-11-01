@@ -145,7 +145,9 @@ function markSegs(marks,map){const out=[];
     out.push([A[0]-ux*2.5,A[1]-uy*2.5,B[0]+ux*2.5,B[1]+uy*2.5])}
   return out}
 function arrow(Q,ux,uy){const bx=Q[0]-ux*3,by=Q[1]-uy*3,px=-uy*.55,py=ux*.55;return `<path class="d-ar" d="M${f2(Q[0])} ${f2(Q[1])}L${f2(bx+px)} ${f2(by+py)}L${f2(bx-px)} ${f2(by-py)}Z"/>`}
-function dimMarkup(P1,P2,Q1,Q2,txt,tol){
+/* tsh verilirse (elle sürüklenmiş ölçü, sayfa mm) yazı ölçü çizgisi boyunca ortadan o kadar kayar; oklar arasının dışına
+   çıkarsa ölçü çizgisi yazının altına kadar uzar (SolidWorks gibi). Verilmezse yazının yeri kendiliğinden seçilir */
+function dimMarkup(P1,P2,Q1,Q2,txt,tol,tsh){
   // yardımcı çizgi ölçülen noktadan başlar (geometriye değer), ölçü çizgisini 2 mm geçer
   const ext=(P,Q)=>{const dx=Q[0]-P[0],dy=Q[1]-P[1],l=Math.hypot(dx,dy);if(l<1e-3)return '';const ux=dx/l,uy=dy/l;return Lp(P[0],P[1],Q[0]+ux*2,Q[1]+uy*2)};
   const dx=Q2[0]-Q1[0],dy=Q2[1]-Q1[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;
@@ -162,16 +164,17 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
   const crossed=G=>lineHits(G);
   /* yazı oklar arasına sığmıyorsa (dar kademe, kısa zincir ölçü) SolidWorks gibi oklar dışarıdan gösterir, yazı ölçü çizgisinin
      uzantısında boş olan yana (önce başa: zincirde öncekiler yerleşmiştir) konur; önceden yan yana iki dar ölçünün yazıları üst üste biniyordu */
-  let sh=0,lift=0,narrow=tw+1.5>l;
+  let sh=0,lift=0,narrow=tw+1.5>l,reach=0;
   const d0=l/2+2+tw/2+.6,free=([t,h])=>{const mx=(Q1[0]+Q2[0])/2+ux*t+upx*(1.1+h),my=(Q1[1]+Q2[1])/2+uy*t+upy*(1.1+h),B=boxAt(mx,my);return (!occ||!occ.some(b=>boxOv(B,b)>0.05))&&!crossed(glyphAt(mx,my))};
   // yanlar doluysa (zincirde iki dar kademe yan yana) yazı bir satır yukarı alınır
   const outs=[[-d0,0],[d0,0],[0,5],[-d0,5],[d0,5]];
-  if(narrow)[sh,lift]=outs.find(free)||outs[1];
+  if(tsh!=null&&isFinite(tsh)){sh=tsh;const o=Math.abs(sh)+tw/2+.8-l/2;if(o>0)reach=Math.sign(sh)*o;if(!narrow||reach)narrow=false}
+  else if(narrow)[sh,lift]=outs.find(free)||outs[1];
   /* yazı sığıyor ama ortası dolu (ör. kesit çizgisinin ucu, oku ve harfi genel ölçünün tam ortasından geçiyor ya da eksen çizgisi
      yazıyı kesiyor): yazı ölçü çizgisi boyunca oklar arasında boş bir yere, en az kayacak şekilde kayar; önceden “120” kesit
      çizgisinin altında kalıyor, milin profil içi çaplarını (Ø25, Ø35…) eksen çizgisi ortasından kesiyordu. Oklar arasında boş yer
      yoksa (1:2 ölçekte Ø25 kademe yazıdan ancak iki kat uzun) oklar dışarıdan gösterir, yazı ölçü çizgisinin uzantısına konur */
-  else if(occ){const cx=(Q1[0]+Q2[0])/2,cy=(Q1[1]+Q2[1])/2,A=t=>[cx+ux*t+upx*1.1,cy+uy*t+upy*1.1];
+  else if(occ&&tsh==null){const cx=(Q1[0]+Q2[0])/2,cy=(Q1[1]+Q2[1])/2,A=t=>[cx+ux*t+upx*1.1,cy+uy*t+upy*1.1];
     const busy=t=>{const [x,y]=A(t),B=boxAt(x,y);return occ.some(b=>boxOv(B,b)>0.05)||crossed(glyphAt(x,y))};
     if(busy(0)){const lim=l/2-tw/2-.8,st=Math.max(.5,lim/24);let ok=false;
       for(let t=st;t<=lim+1e-9;t+=st){if(!busy(-t)){sh=-t;ok=true;break}if(!busy(t)){sh=t;ok=true;break}}
@@ -180,9 +183,12 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
      ok yerleşimi); yazı ortada kalır. Önceden 6 mm'lik kanal ölçüsünde oklar birbirine değiyordu */
   if(!narrow&&l<6.6)narrow=true;
   const mx=(Q1[0]+Q2[0])/2+ux*sh+upx*(1.1+lift),my=(Q1[1]+Q2[1])/2+uy*sh+upy*(1.1+lift);
-  let s;pushSegs([P1[0],P1[1],Q1[0],Q1[1]],[P2[0],P2[1],Q2[0],Q2[1]]);
-  if(!narrow){pushSegs([Q1[0],Q1[1],Q2[0],Q2[1]]);s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0],Q1[1],Q2[0],Q2[1])}"/>`+arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy)}
-  else{const e1=sh<0&&!lift?tw+3.2:3.5,e2=sh>0&&!lift?tw+3.2:3.5;pushSegs([Q1[0]-ux*e1,Q1[1]-uy*e1,Q2[0]+ux*e2,Q2[1]+uy*e2]);
+  let s;pushSegs([P1[0],P1[1],Q1[0],Q1[1]],[P2[0],P2[1],Q2[0],Q2[1]]);lastSh=sh;lastU=[ux,uy];
+  if(!narrow){const A=reach<0?[Q1[0]+ux*reach,Q1[1]+uy*reach]:Q1,B=reach>0?[Q2[0]+ux*reach,Q2[1]+uy*reach]:Q2;
+    // yazı oklar arasına sığmıyorsa (kısa ölçü) oklar dışarıdan gösterir
+    const out=tw+1.5>l;pushSegs([A[0],A[1],B[0],B[1]]);lastGrab=[[A[0],A[1],B[0],B[1]]];
+    s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(A[0],A[1],B[0],B[1])}${out&&reach>=0?Lp(Q1[0],Q1[1],Q1[0]-ux*3.5,Q1[1]-uy*3.5):''}${out&&reach<=0?Lp(Q2[0],Q2[1],Q2[0]+ux*3.5,Q2[1]+uy*3.5):''}"/>`+(out?arrow(Q1,ux,uy)+arrow(Q2,-ux,-uy):arrow(Q1,-ux,-uy)+arrow(Q2,ux,uy))}
+  else{const e1=sh<0&&!lift?tw+3.2:3.5,e2=sh>0&&!lift?tw+3.2:3.5;pushSegs([Q1[0]-ux*e1,Q1[1]-uy*e1,Q2[0]+ux*e2,Q2[1]+uy*e2]);lastGrab=[[Q1[0]-ux*e1,Q1[1]-uy*e1,Q2[0]+ux*e2,Q2[1]+uy*e2]];
     s=`<path class="d-thin" d="${ext(P1,Q1)}${ext(P2,Q2)}${Lp(Q1[0]-ux*e1,Q1[1]-uy*e1,Q2[0]+ux*e2,Q2[1]+uy*e2)}"/>`+arrow(Q1,ux,uy)+arrow(Q2,-ux,-uy)}
   lastBox=boxAt(mx,my);if(occ)occ.push(lastBox);
   if(tol&&tol.tt==='dev'){
@@ -196,6 +202,14 @@ function dimMarkup(P1,P2,Q1,Q2,txt,tol){
 }
 /* ölçü metni kutuları: etiketlerin çakışmasını önlemek (occ) ve seçim (lastBox) için */
 let occ=null,lastBox=null;
+/* son çizilen ölçünün tutulabilen çizgileri (ölçü çizgisi, kılavuz): ölçü yalnızca yazısından değil çizgisinden de tutulup sürüklenir */
+let lastGrab=[],lastSh=0,lastU=[1,0];
+const grabSegDist=(q,p)=>{const dx=q[2]-q[0],dy=q[3]-q[1],l2=dx*dx+dy*dy;let t=l2?((p[0]-q[0])*dx+(p[1]-q[1])*dy)/l2:0;t=Math.max(0,Math.min(1,t));return Math.hypot(q[0]+dx*t-p[0],q[1]+dy*t-p[1])};
+const boxDist=(b,p)=>Math.hypot(Math.max(b[0]-p[0],0,p[0]-b[2]),Math.max(b[1]-p[1],0,p[1]-b[3]));
+/* tutma kutusu (gb): yazı kutusu (box) ile tutulabilen çizgileri kapsar; isabet yazıya veya çizgiye uzaklıkla ölçülür */
+function grabHit(h,g){g=g||lastGrab;lastGrab=[];const tb=h.box;if(!tb)return h;const b=tb.slice();
+  for(const q of g){b[0]=Math.min(b[0],q[0],q[2]);b[1]=Math.min(b[1],q[1],q[3]);b[2]=Math.max(b[2],q[0],q[2]);b[3]=Math.max(b[3],q[1],q[3])}
+  h.gb=b;h.dist=p=>{let d=boxDist(tb,p);for(const q of g)d=Math.min(d,grabSegDist(q,p));return d};return h}
 /* ölçü ve kılavuz çizgileri (sayfa mm): balonlar bunların üstüne konmaz (önceden yalnızca ölçü yazılarından kaçıyordu) */
 let dimSegs=null;const pushSegs=(...L)=>{if(dimSegs)for(const q of L)if(q)dimSegs.push(q)};
 /* görünüşlerin çizgileri (sayfa mm): görünür (geo) ve gizli/eksen (soft). Ölçü yazıları ve etiketler bunların üstüne konmaz */
@@ -287,7 +301,7 @@ function dimLabel(d,v){
 }
 const dimTol=d=>d.par?null:d;
 function dimRender(d,v){
-  if(d.kind==='dia'){const C=v.map(d.c[0],d.c[1]);const off=d.off||[12,-12];const r=leaderM(C,d.r*v.s,d.hc?hcLines(d,v):[tolText(dimLabel(d,v),dimTol(d))],[C[0]+off[0],C[1]+off[1]]);lastBox=r.box;if(occ)occ.push(r.box);pushSegs(...r.segs);
+  if(d.kind==='dia'){const C=v.map(d.c[0],d.c[1]);const off=d.off||[12,-12];const r=leaderM(C,d.r*v.s,d.hc?hcLines(d,v):[tolText(dimLabel(d,v),dimTol(d))],[C[0]+off[0],C[1]+off[1]]);lastBox=r.box;lastGrab=r.segs;if(occ)occ.push(r.box);pushSegs(...r.segs);
     // yayın dışına yazılan yarıçap: yay uzantısı (ince) kılavuzun değdiği yere kadar
     const ex=d.arc?arcExtPath(d,v,Math.atan2(-off[1],off[0])):'';return ex?r.m+`<path class="d-thin" d="${ex}"/>`:r.m}
   if(d.kind==='ang'){
@@ -297,11 +311,14 @@ function dimRender(d,v){
     for(const [u,e] of [[d.u1,d.e1],[d.u2,d.e2]]){const ux=u[0],uy=-u[1];const L=(e||0)*v.s;if(rr>L)path+=Lp(V[0]+ux*L,V[1]+uy*L,V[0]+ux*(rr+1.5),V[1]+uy*(rr+1.5))}
     const a2=a1+sw,sg=Math.sign(sw);const P1=pt(a1),P2=pt(a2);
     let m=`<path class="d-thin" d="${path}"/>`+arrow(P1,sg*Math.sin(a1),-sg*Math.cos(a1))+arrow(P2,-sg*Math.sin(a2),sg*Math.cos(a2));
-    const am=a1+sw/2,T=[V[0]+(rr+3.2)*Math.cos(am),V[1]+(rr+3.2)*Math.sin(am)+1.2];const txt=tolText(dimLabel(d,v),dimTol(d));const w=textWidth(txt,3.5);
+    // ta: yazının yay boyunca elle kaydırılması (radyan)
+    const am=a1+sw/2+(d.ta||0),T=[V[0]+(rr+3.2)*Math.cos(am),V[1]+(rr+3.2)*Math.sin(am)+1.2];const txt=tolText(dimLabel(d,v),dimTol(d));const w=textWidth(txt,3.5);
     m+=`<text class="d-t" x="${f2(T[0])}" y="${f2(T[1])}" font-size="3.5" text-anchor="middle">${esc(txt)}</text>`;
-    lastBox=[T[0]-w/2-.5,T[1]-3,T[0]+w/2+.5,T[1]+.6];if(occ)occ.push(lastBox);return m;
+    lastBox=[T[0]-w/2-.5,T[1]-3,T[0]+w/2+.5,T[1]+.6];if(occ)occ.push(lastBox);
+    lastGrab=[];for(let i=0;i<N;i++){const A=pt(a1+sw*i/N),B=pt(a1+sw*(i+1)/N);lastGrab.push([A[0],A[1],B[0],B[1]])}
+    return m;
   }
-  const g=dimGeom(d,v);return dimMarkup(g.P1,g.P2,g.Q1,g.Q2,parTxt(d,(d.pre||'')+fmt(g.val)),dimTol(d));
+  const g=dimGeom(d,v);return dimMarkup(g.P1,g.P2,g.Q1,g.Q2,parTxt(d,(d.pre||'')+fmt(g.val)),dimTol(d),d.tx!=null?d.tx*v.s:null);
 }
 function dimGeom(d,v){
   if(d.kind==='dia')return {val:dimRad(d)?d.r:2*d.r};
@@ -608,7 +625,15 @@ function buildSheet(forExport,opts){
       for(const q of d.axes){const g=pg(q),dx=g[2]-g[0],dy=g[3]-g[1],l=Math.hypot(dx,dy)||1,ux=dx/l,uy=dy/l;occLn.soft.push([g[0]-ux*3,g[1]-uy*3,g[2]+ux*3,g[3]+uy*3])}}}
   occLn.geoG=segGrid(occLn.geo);occLn.softG=segGrid(occLn.soft);
   /* otomatik ölçüler (Model öğeleri): önce sabit konumlu ölçüler, sonra etiketler boş yere yerleştirilir */
-  const autoDim=(key,P1,P2,Q1,Q2,txt)=>{if(hide.has(key))return false;const n0=dimSegs.length;o.push(dimMarkup(P1,P2,Q1,Q2,txt));ctx.hits.push({t:'auto',k:key,box:lastBox,segs:dimSegs.slice(n0)});return true};
+  /* elle sürüklenmiş otomatik ölçü (S.aofs[key], sayfa mm): ölçü çizgisine dik bileşen ölçü çizgisini kaydırır, paralel bileşen yazıyı */
+  const AO=S.aofs||{};
+  const autoDim=(key,P1,P2,Q1,Q2,txt)=>{if(hide.has(key))return false;const n0=dimSegs.length;let tsh=null;const ao=AO[key];
+    if(ao){const dx=Q2[0]-Q1[0],dy=Q2[1]-Q1[1],l=Math.hypot(dx,dy);const ux=l>1e-9?dx/l:1,uy=l>1e-9?dy/l:0,np=-uy*ao[0]+ux*ao[1];
+      Q1=[Q1[0]-uy*np,Q1[1]+ux*np];Q2=[Q2[0]-uy*np,Q2[1]+ux*np];tsh=ux*ao[0]+uy*ao[1]}
+    o.push(dimMarkup(P1,P2,Q1,Q2,txt,null,tsh));ctx.hits.push(grabHit({t:'auto',k:key,box:lastBox,segs:dimSegs.slice(n0),sh:lastSh,u:lastU}));return true};
+  /* kılavuzlu otomatik ölçü (çap, radyus, delik dairesi): elle taşınmışsa yazı merkeze göre o konumda */
+  const autoLead=(key,r,C,R,lines)=>{const ao=AO[key];if(ao)r=leaderM(C,R,lines,[C[0]+ao[0],C[1]+ao[1]]);
+    o.push(r.m);occ.push(r.box);pushSegs(...r.segs);ctx.hits.push(grabHit({t:'auto',k:key,box:r.box,segs:r.segs,K:r.K,C,lead:1},r.segs))};
   // kesit çizgisi etiketlerden önce hesaplanır (ok ve harf yerleri ayrılır), çizim sırası değişmez
   const secM=secInfo?sectionLineMarkup(secInfo,ctx,s):'';
   if(S.autodims&&!isoOnly){
@@ -793,7 +818,7 @@ function buildSheet(forExport,opts){
       let r=null;
       search:for(const L of [7,12,18])for(const th of mids){const K=[C[0]+Math.cos(th)*(R+L),C[1]-Math.sin(th)*(R+L)];
         const c=leaderM(C,R,['Ø'+fmt(P.R*2)],K);c.sc=score(c.box,c)+dA(th)/3+(L-7)/22;if(!r||c.sc<r.sc)r=c;if(r.sc<0.6)break search}
-      o.push(r.m);occ.push(r.box);pushSegs(...r.segs);ctx.hits.push({t:'auto',k:key,box:r.box,segs:r.segs});
+      autoLead(key,r,C,R,['Ø'+fmt(P.R*2)]);
     }
     /* gizli ya da profile sığmayan döndürme çapları: uç görünüşteki dairesine kılavuzla (delik etiketleri gibi) */
     {const put=[];
@@ -807,7 +832,7 @@ function buildSheet(forExport,opts){
         const C=v.map(q.a,q.b),R=q.r*v.s;if(R<1)continue;let r=null;
         search:for(const L of [6,10,15,21])for(const dA of [0,-20,20,-40,40,-60,60,90,-90,120,-120,180]){const th=(45+dA)*Math.PI/180;const K=[C[0]+Math.cos(th)*(R+L),C[1]-Math.sin(th)*(R+L)];
           const m=leaderM(C,R,['Ø'+fmt(q.r*2)],K);m.sc=score(m.box,m)+Math.abs(dA)/120+(L-6)/22;if(!r||m.sc<r.sc)r=m;if(r.sc<0.05)break search}
-        o.push(r.m);occ.push(r.box);pushSegs(...r.segs);ctx.hits.push({t:'auto',k:key,box:r.box,segs:r.segs});shownCk.add(c.ck);put.push(hit)}}
+        autoLead(key,r,C,R,['Ø'+fmt(q.r*2)]);shownCk.add(c.ck);put.push(hit)}}
     /* radyuslar (SolidWorks'teki model öğeleri gibi radyus özelliği, kanal ucu, yuvarlatılmış köşe): iki ucunda kenarlara teğet
        görünür yaylar, her yarıçap bir kez, gördüğü ilk görünüşte; kılavuz yayın üstüne değer. Önceden radyuslar hiç ölçülmüyordu */
     /* yarıçapı 0,1 mm'nin katı olmayan yaylar (ince özelliğin ofset kenarları gibi çokgen yaklaşımları: R5,99, R26,13) yazılmaz; montaj resminde yazılmaz */
@@ -830,7 +855,7 @@ function buildSheet(forExport,opts){
           const Ls=[[6,0],[10,0],[15,0],[21,0]];if(!big){if(R>8)Ls.push([-6,.25]);Ls.push([-(R+5),.3],[-(R+10),.4])}
           search:for(const [L,pen] of Ls)for(const f of [.5,.35,.65,.2,.8]){const th=ar.t0+ar.sw*f,u=[Math.cos(th),-Math.sin(th)];const K=[C[0]+u[0]*(R+L),C[1]+u[1]*(R+L)];
             const m=leaderM(C,R,[tx],K,u);m.sc=score(m.box,m)+Math.abs(f-.5)/2+Math.abs(L-6)/22+pen;if(!r||m.sc<r.sc)r=m;if(r.sc<0.05)break search}
-          o.push(r.m);occ.push(r.box);pushSegs(...r.segs);ctx.hits.push({t:'auto',k:key,box:r.box,segs:r.segs})}}}
+          autoLead(key,r,C,R,[tx])}}}
     for(const [gid,g] of plan){
       const key='L:'+gid;if(hide.has(key))continue;
       if(g.list.length===1&&g.list[0].op!=='cut'&&shownGk.has(g.list[0].gk))continue;
@@ -849,7 +874,7 @@ function buildSheet(forExport,opts){
           const th=(pref+dA)*Math.PI/180;const K=[C[0]+Math.cos(th)*(R+L),C[1]-Math.sin(th)*(R+L)];
           const c=leaderM(C,R,lines,K);c.sc=score(c.box,c)+Math.abs(dA)/120+(L-7)/22;
           if(!r||c.sc<r.sc)r=c;if(r.sc<0.05)break search}}
-      o.push(r.m);occ.push(r.box);pushSegs(...r.segs);ctx.hits.push({t:'lbl',k:gid,box:r.box,K:r.K,C,segs:r.segs})
+      o.push(r.m);occ.push(r.box);pushSegs(...r.segs);ctx.hits.push(grabHit({t:'lbl',k:gid,box:r.box,K:r.K,C,segs:r.segs},r.segs))
     }
   }
   // 2B çizim öğeleri (ölçülerden önce: noktaları ve kenarları akıllı ölçüye katılır)
@@ -862,7 +887,7 @@ function buildSheet(forExport,opts){
     // model değişti: ölçü aynı kenarı/noktayı/daireyi yeni yerinde bulur ve değeri güncellenir (SolidWorks gibi); bulunamazsa kırmızı kalır
     if(st&&dm.ref){const bak=JSON.stringify(dm);if(reattachDim(dm,v,ctx.snaps)&&!dimStale(dm,v.d,v.sk)){st=false;ctx.moved=(ctx.moved||0)+1}else Object.assign(dm,JSON.parse(bak))}
     if(st)ctx.stale.add(i);let m=dimRender(dm,v);if(st&&!forExport)m=tint(m,'#D0342C');
-    o.push(`<g data-dim="${i}">${m}</g>`);ctx.hits.push({t:'dim',i,box:lastBox})});
+    o.push(`<g data-dim="${i}">${m}</g>`);ctx.hits.push(grabHit({t:'dim',i,box:lastBox,sh:lastSh,u:lastU}))});
   if(secInfo)o.push(secM);
   o.push(detailsMarkup(S,ctx,s));
   o.push(surfMarkup(S,ctx));
@@ -902,11 +927,17 @@ function toSheet(cx,cy){const pt=sheetEl.createSVGPoint();pt.x=cx;pt.y=cy;const 
 function pxToSheet(px){const m=sheetEl.getScreenCTM();return px/(m?m.a:1)}
 function zoomAt(p,f){f=Math.max(.02/ (vb.w/420),Math.min(f,8));vb.x=p[0]-(p[0]-vb.x)*f;vb.y=p[1]-(p[1]-vb.y)*f;vb.w*=f;vb.h*=f;applyVB()}
 const ptrs=new Map();let pan=null,pinch=null;
+/* fare: sağ (veya orta) tuşla basılı tutup sürüklemek her zaman sayfayı kaydırır; sol tuşla bir ölçü veya açıklama tutulursa
+   o taşınır (ölçü aracı açıkken de), boşlukta tutulursa yine sayfa kayar. Önceden ölçüyü tutmaya çalışınca sayfa oynuyordu */
+sheetEl.addEventListener('contextmenu',e=>e.preventDefault());
 sheetEl.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button>2)return;
+  if(e.button===1||e.button===2)e.preventDefault();
   sheetEl.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(ptrs.size===1){pan={x:e.clientX,y:e.clientY,vb:{...vb},k:pxToSheet(1),moved:false};
-    // araç yokken bir görünüş veya açıklama tutulursa sürüklenir (SolidWorks gibi), boşlukta sayfa kaydırılır
-    if(!dimMode&&!dwTool){const h=dwHitAt(toSheet(e.clientX,e.clientY),e.pointerType);if(h)pan.hit=h}}
+  if(ptrs.size===1){pan={x:e.clientX,y:e.clientY,vb:{...vb},k:pxToSheet(1),moved:false,rb:e.pointerType==='mouse'&&e.button!==0};
+    // sol tuşla bir görünüş veya açıklama tutulursa sürüklenir (SolidWorks gibi), boşlukta sayfa kaydırılır
+    if(!pan.rb){const h=dwHitAt(toSheet(e.clientX,e.clientY),e.pointerType);if(h&&(!(dimMode||dwTool)||DW_DRAG_TOOL.has(h.t)))pan.hit=h}
+    if(pan.rb)sheetEl.style.cursor='grabbing'}
   else if(ptrs.size===2){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y),vb:{...vb},mid:toSheet((a.x+b.x)/2,(a.y+b.y)/2)};if(pan){if(pan.hit&&pan.moved)dwDragEnd(pan);pan.hit=null;pan.moved=true}}
 });
 sheetEl.addEventListener('pointermove',e=>{
@@ -914,12 +945,15 @@ sheetEl.addEventListener('pointermove',e=>{
   if(ptrs.size===2&&pinch){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y)||1;const f=pinch.d/d;vb={...pinch.vb};zoomAt(pinch.mid,f);return}
   if(ptrs.size===1&&pan){const dx=e.clientX-pan.x,dy=e.clientY-pan.y;if(Math.hypot(dx,dy)>4)pan.moved=true;
     if(pan.moved){if(pan.hit&&DW_DRAG.has(pan.hit.t))dwDragMove(pan,dx*pan.k,dy*pan.k);else{vb.x=pan.vb.x-dx*pan.k;vb.y=pan.vb.y-dy*pan.k;applyVB()}}return}
-  if((dimMode||dwTool)&&e.pointerType==='mouse')drawOverlay(toSheet(e.clientX,e.clientY));
+  if((dimMode||dwTool)&&e.pointerType==='mouse'){const p=toSheet(e.clientX,e.clientY);drawOverlay(p);
+    // araç açıkken taşınabilir bir ölçünün üstündeyse imleç taşıma imleci olur
+    const h=dwHitAt(p,'mouse'),mv=!!h&&DW_DRAG_TOOL.has(h.t);if(mv!==!!sheetEl._mv){sheetEl._mv=mv;sheetEl.style.cursor=mv?'move':''}}
   else if(e.pointerType==='mouse')dwHover(toSheet(e.clientX,e.clientY));
 });
 const endPtr=e=>{
   const wasPan=pan;ptrs.delete(e.pointerId);
-  if(ptrs.size===0){if(wasPan&&!wasPan.moved&&e.type==='pointerup'){if(dimMode)dimClick(toSheet(e.clientX,e.clientY),e.pointerType);else if(dwTool)dwToolClick(toSheet(e.clientX,e.clientY),e.pointerType);else dwSelect(wasPan.hit||null)}
+  if(ptrs.size===0){if(wasPan&&wasPan.rb){sheetEl.style.cursor='';sheetEl._mv=false;hoverHit=null}
+    else if(wasPan&&!wasPan.moved&&e.type==='pointerup'){if(dimMode)dimClick(toSheet(e.clientX,e.clientY),e.pointerType);else if(dwTool)dwToolClick(toSheet(e.clientX,e.clientY),e.pointerType);else dwSelect(wasPan.hit||null)}
     else if(wasPan&&wasPan.hit&&wasPan.moved)dwDragEnd(wasPan);
     pan=null;pinch=null}
   else if(ptrs.size===1){if(wasPan&&wasPan.hit&&wasPan.moved)dwDragEnd(wasPan);const [a]=[...ptrs.values()];pan={x:a.x,y:a.y,vb:{...vb},k:pxToSheet(1),moved:true};pinch=null}
